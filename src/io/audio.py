@@ -39,10 +39,6 @@ def ensure_ffmpeg_available() -> None:
         raise AudioEnvironmentError("ffmpeg is not installed or not found in PATH")
 
 
-def ensure_ffprobe_available() -> None:
-    """Ensure ffprobe is available in the local environment."""
-    if shutil.which("ffprobe") is None:
-        raise AudioEnvironmentError("ffprobe is not installed or not found in PATH")
 
 
 def validate_audio_file(audio_path: Path) -> None:

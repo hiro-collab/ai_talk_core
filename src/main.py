@@ -13,7 +13,6 @@ from src.io.audio import (
     AudioInputError,
     AudioTranscriptionError,
     ensure_ffmpeg_available,
-    ensure_ffprobe_available,
     validate_audio_file,
     validate_model_name,
 )
@@ -209,8 +208,6 @@ def main() -> int:
     try:
         validate_model_name(args.model)
         ensure_ffmpeg_available()
-        if args.mic or args.mic_loop:
-            ensure_ffprobe_available()
         if args.command_only:
             args.emit_command = True
         if args.mic and args.mic_loop:

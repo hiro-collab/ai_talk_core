@@ -19,7 +19,6 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 - 仮想環境は `.venv` を使用
 - パッケージ管理は `uv` を使用
 - `ffmpeg` がシステムに導入済みであること
-- `ffprobe` がシステムに導入済みであること
 - GPU は任意です
 - 現在の開発環境では CUDA 利用を確認済みです
 
@@ -232,7 +231,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - `ffmpeg` が無い環境では文字起こしに失敗します
 - マイク入力は固定時間録音の反復であり、真のストリーミング処理ではありません
 - 録音音声は `ffmpeg` の `silenceremove` で軽く前後トリムできます
-- `--mic-loop` では `ffmpeg` の `silencedetect` でほぼ無音のチャンクを軽くスキップします
+- `--mic-loop` では `webrtcvad` でほぼ無音のチャンクを軽くスキップします
 - 無音チャンクは CLI では `[silence N] silence detected` と表示します
 - `AudioBuffer` は入っていますが、`buffer -> partial/final` の扱いはまだ未実装です
 - `--mic-loop` では通常チャンクを `partial` として表示し、有限ループの最後または同一結果の連続時に `final` へ寄せます
@@ -262,8 +261,6 @@ Whisper のモデルは `models/whisper` に保存されます。
   `small`, `base` など有効なモデル名を指定してください
 - `Environment error: ffmpeg is not installed or not found in PATH`
   `ffmpeg` が利用可能か確認してください
-- `Environment error: ffprobe is not installed or not found in PATH`
-  `ffprobe` が利用可能か確認してください
 - `Environment error: arecord is not installed or not found in PATH`
   `arecord` が利用可能か確認してください
 - `Environment error: failed to list microphone devices: ...`

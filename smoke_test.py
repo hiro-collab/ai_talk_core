@@ -94,6 +94,13 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("upload_command_only", response.get_data(as_text=True))
         self.assertIn("record_command_only", response.get_data(as_text=True))
 
+    def test_webrtcvad_dependency_is_available(self) -> None:
+        """webrtcvad should be importable after dependency sync."""
+        import importlib
+
+        module = importlib.import_module("_webrtcvad")
+        self.assertTrue(hasattr(module, "create"))
+
     def test_web_upload_transcribes_sample_audio(self) -> None:
         """Web UI upload route should transcribe sample audio."""
         sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"

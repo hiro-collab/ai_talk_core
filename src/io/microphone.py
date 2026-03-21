@@ -2,13 +2,33 @@
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
+import wave
 import re
 import shutil
 import subprocess
 
 from src.core.pipeline import AudioChunk
 from src.io.audio import AudioEnvironmentError, AudioInputError
+
+
+class WebRtcVadAdapter:
+    """Minimal wrapper around the native _webrtcvad module."""
+
+    def __init__(self, aggressiveness: int = 2) -> None:
+        try:
+            module = importlib.import_module("_webrtcvad")
+        except ModuleNotFoundError as exc:
+            raise AudioEnvironmentError("webrtcvad native module is not available") from exc
+        self._module = module
+        self._vad = module.create()
+        module.init(self._vad)
+        module.set_mode(self._vad, aggressiveness)
+
+    def is_speech(self, frame: bytes, sample_rate: int) -> bool:
+        """Return whether a single PCM frame contains speech."""
+        return self._module.process(self._vad, sample_rate, frame, int(len(frame) / 2))
 
 
 def get_temp_recording_path() -> Path:
@@ -100,67 +120,51 @@ def trim_silence(
     return output_path
 
 
-def get_audio_duration_seconds(audio_path: Path) -> float:
-    """Return audio duration in seconds via ffprobe."""
-    command = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
-        str(audio_path),
+def iter_vad_frames(audio_bytes: bytes, sample_rate: int, frame_ms: int = 30) -> list[bytes]:
+    """Split PCM bytes into fixed-size frames for VAD."""
+    bytes_per_sample = 2
+    frame_size = int(sample_rate * frame_ms / 1000) * bytes_per_sample
+    if frame_size <= 0:
+        return []
+    return [
+        audio_bytes[index:index + frame_size]
+        for index in range(0, len(audio_bytes), frame_size)
+        if len(audio_bytes[index:index + frame_size]) == frame_size
     ]
-    try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as exc:
-        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
-        raise AudioEnvironmentError(f"audio duration probe failed: {message}") from exc
-
-    try:
-        return float(result.stdout.strip())
-    except ValueError as exc:
-        raise AudioEnvironmentError(
-            f"audio duration probe returned invalid output: {result.stdout.strip()}"
-        ) from exc
 
 
 def has_detectable_speech(
     audio_path: Path,
-    silence_threshold_db: float = -35.0,
-    silence_duration: float = 0.2,
+    aggressiveness: int = 2,
 ) -> bool:
-    """Return whether ffmpeg detects non-silent audio in the clip."""
-    duration = get_audio_duration_seconds(audio_path)
-    if duration <= 0.0:
-        return False
-
-    command = [
-        "ffmpeg",
-        "-i",
-        str(audio_path),
-        "-af",
-        f"silencedetect=noise={silence_threshold_db}dB:d={silence_duration}",
-        "-f",
-        "null",
-        "-",
-    ]
+    """Return whether WebRTC VAD detects speech in a wav clip."""
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as exc:
-        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
-        raise AudioEnvironmentError(f"speech detection failed: {message}") from exc
+        with wave.open(str(audio_path), "rb") as wav_file:
+            sample_rate = wav_file.getframerate()
+            sample_width = wav_file.getsampwidth()
+            channels = wav_file.getnchannels()
+            audio_bytes = wav_file.readframes(wav_file.getnframes())
+    except (wave.Error, OSError) as exc:
+        raise AudioEnvironmentError(f"speech detection failed: {exc}") from exc
 
-    stderr = result.stderr
-    match_start = re.search(r"silence_start:\s*0(?:\.0+)?", stderr)
-    match_end = re.search(r"silence_end:\s*([0-9.]+)", stderr)
-    if match_start and match_end:
-        silence_end = float(match_end.group(1))
-        if silence_end >= max(duration - 0.1, 0.0):
-            return False
+    if sample_width != 2:
+        raise AudioEnvironmentError(
+            f"speech detection expects 16-bit PCM wav, got sample width {sample_width}"
+        )
+    if channels != 1:
+        raise AudioEnvironmentError(
+            f"speech detection expects mono wav, got {channels} channels"
+        )
+    if sample_rate not in {8000, 16000, 32000, 48000}:
+        raise AudioEnvironmentError(
+            f"speech detection does not support sample rate {sample_rate}"
+        )
 
-    return True
+    vad = WebRtcVadAdapter(aggressiveness=aggressiveness)
+    for frame in iter_vad_frames(audio_bytes, sample_rate=sample_rate):
+        if vad.is_speech(frame, sample_rate):
+            return True
+    return False
 
 
 def record_microphone_audio(

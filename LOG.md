@@ -132,5 +132,7 @@
 - `src/main.py` に `--command-only` を追加し、転写本文を省いて指示草案だけを出せるよう変更
 - `src/web/app.py` の API に `command_only` オプションを追加し、`transcript` を空にして `command` を主に返せるよう変更
 - `src/web/app.py` に `command_only` チェックボックスを追加し、Web UI からも Codex 指示草案優先の応答を選べるよう変更
+- `uv add webrtcvad` を実行し、VAD ライブラリを追加
+- `src/io/microphone.py` の無音検出を `webrtcvad` ベースに置き換え
 - `uv run python -m py_compile src/core/llm.py src/main.py src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、21 件の smoke test が成功することを確認

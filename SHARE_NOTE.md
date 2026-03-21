@@ -7,9 +7,9 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `ae2c72c Normalize browser audio before transcription`
 - latest applied review status:
-  - reflected in code: ffprobe check and silence display improvements
+  - reflected in code: webrtcvad-based speech detection
   - reflected in records: yes
-  - remaining open items: `final` 条件の高度化, `VAD`, C920 依存の一般化
+  - remaining open items: `final` 条件の高度化, C920 依存の一般化, faster-whisper 比較
 
 ## Changed files in latest implementation turn
 
@@ -58,7 +58,7 @@
 - `partial` を `final` に切り替える条件を高度化する
 - `--mic-loop` は有限ループ最終回に加えて、同一結果の連続でも `final` に寄せるようになった
 - `--mic-loop` は `ffmpeg` の `silencedetect` でほぼ無音のチャンクを軽くスキップするようになった
-- `ffprobe` の事前チェックを追加した
+- `webrtcvad` ベースの speech detection を追加した
 - 無音チャンクは CLI で `[silence N] silence detected` と表示するようになった
 - CLI に `--emit-command` を追加した
 - CLI に `--command-only` を追加した
@@ -68,7 +68,7 @@
 - 有限ループ最終回以外の `final` 条件として、同一結果の連続を反映済み
 - 無音チャンクを Whisper に渡しにくくする軽い VAD 相当を反映済み
 - VAD は未着手
-- `ffprobe` 依存の事前チェックを反映済み
+- `webrtcvad` ベースの speech detection を反映済み
 - 無音チャンク時の表示改善を反映済み
 - `/api/transcribe-browser-recording` のサーバーテストは反映済み
 - ブラウザ録音の 2 回連続実行は実機確認済み
