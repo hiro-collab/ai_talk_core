@@ -228,6 +228,7 @@
 - `src.core.dependency_status` を追加し、`pyproject.toml` の direct dependency と installed version をまとめて確認できるようにした
 - `src.main` に `--show-dependency-status` と `--dependency-status-format text|json` を追加し、Torch が transitive dependency であることを確認しやすくした
 - `src.main` に `--doctor` と `--doctor-format text|json` を追加し、runtime と dependency をまとめて診断できるようにした
+- `src.core.torch_pin_plan` を追加し、`src.main` に `--show-torch-pin-plan` と `--torch-pin-plan-format text|json` を追加して、`.venv` 内で完結する Torch pin 方針を確認できるようにした
 - `src.main` の `[mic-tuning] ...` と `Stopped microphone loop.` は stderr に出すよう変更し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 - `uv run python -m py_compile src/main.py src/io/audio.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、90 件の smoke test が成功することを確認

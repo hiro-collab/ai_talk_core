@@ -358,6 +358,20 @@ JSON で取り出す:
 uv run python -m src.main --doctor --doctor-format json
 ```
 
+project-local な Torch pin 方針を確認する:
+
+```bash
+uv run python -m src.main --show-torch-pin-plan
+```
+
+JSON で取り出す:
+
+```bash
+uv run python -m src.main --show-torch-pin-plan --torch-pin-plan-format json
+```
+
+`torch.cuda.is_available() == False` かつ `nvidia-smi` が見えている場合は、まず system driver を触る前に `.venv` 内の Torch pin 方針を確認してください。
+
 `final` に寄せる安定時間を変える:
 
 ```bash

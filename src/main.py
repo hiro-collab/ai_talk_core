@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from src.core.dependency_status import format_dependency_status, get_dependency_status
+from src.core.torch_pin_plan import format_torch_pin_plan, get_torch_pin_plan
 from src.core.agent_instruction import build_agent_instruction
 from src.core.finalization import (
     has_stable_duration_for_final,
@@ -330,6 +331,11 @@ def format_doctor_status(status: dict[str, object]) -> str:
     )
 
 
+def build_torch_pin_status() -> dict[str, object]:
+    """Return a project-local Torch pin plan."""
+    return get_torch_pin_plan()
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -419,6 +425,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print a combined runtime and dependency diagnosis and exit.",
     )
     parser.add_argument(
+        "--show-torch-pin-plan",
+        action="store_true",
+        help="Print a project-local Torch pin plan and exit.",
+    )
+    parser.add_argument(
         "--runtime-status-format",
         choices=("text", "json"),
         default="text",
@@ -435,6 +446,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("text", "json"),
         default="text",
         help="Output format for --doctor. Default: text",
+    )
+    parser.add_argument(
+        "--torch-pin-plan-format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for --show-torch-pin-plan. Default: text",
     )
     parser.add_argument(
         "--vad-aggressiveness",
@@ -535,6 +552,13 @@ def main() -> int:
                 print(json.dumps(status, ensure_ascii=False, indent=2))
             else:
                 print(format_doctor_status(status))
+            return 0
+        if args.show_torch_pin_plan:
+            status = build_torch_pin_status()
+            if args.torch_pin_plan_format == "json":
+                print(json.dumps(status, ensure_ascii=False, indent=2))
+            else:
+                print(format_torch_pin_plan(status))
             return 0
         validate_model_name(args.model)
         ensure_ffmpeg_available()

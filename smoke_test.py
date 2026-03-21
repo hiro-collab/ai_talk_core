@@ -33,10 +33,12 @@ from src.core.finalization import (
     required_repeat_count_for_final,
     should_mark_result_final,
 )
+from src.core.torch_pin_plan import format_torch_pin_plan, get_torch_pin_plan
 from src.main import (
     build_doctor_status,
     build_mic_profile_list_data,
     build_mic_tuning_data,
+    build_torch_pin_status,
     format_doctor_status,
     format_mic_profile_list,
     format_mic_loop_tuning,
@@ -334,6 +336,14 @@ class SmokeTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertIn("runtime", payload)
         self.assertIn("dependencies", payload)
+
+    def test_torch_pin_plan_can_return_json(self) -> None:
+        """Torch pin plan output should support JSON output."""
+        result = run_cli("--show-torch-pin-plan", "--torch-pin-plan-format", "json")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("steps", payload)
+        self.assertIn("command_examples", payload)
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -1020,6 +1030,40 @@ class SmokeTests(unittest.TestCase):
         status = build_doctor_status()
         self.assertIn("runtime", status)
         self.assertIn("dependencies", status)
+
+    def test_format_torch_pin_plan_includes_steps_and_commands(self) -> None:
+        """Torch pin formatter should render plan details."""
+        text = format_torch_pin_plan(
+            {
+                "torch_direct_dependency": False,
+                "current_torch_version": "2.10.0+cu128",
+                "current_torch_cuda_version": "12.8",
+                "current_driver_version": "535.288.01",
+                "recommended_torch_spec": "torch==2.10.0",
+                "recommended_cuda_family": "cu121",
+                "steps": ["step one", "step two"],
+                "command_examples": ["uv lock", "uv sync"],
+                "plan_note": "project-local only",
+            }
+        )
+        self.assertIn("Torch pin plan:", text)
+        self.assertIn("recommended_cuda_family: cu121", text)
+        self.assertIn("uv lock", text)
+
+    def test_build_torch_pin_status_returns_expected_keys(self) -> None:
+        """Torch pin status helper should include planning details."""
+        status = build_torch_pin_status()
+        self.assertIn("torch_direct_dependency", status)
+        self.assertIn("current_torch_version", status)
+        self.assertIn("steps", status)
+        self.assertIn("command_examples", status)
+
+    def test_get_torch_pin_plan_recommends_project_local_steps(self) -> None:
+        """Torch pin plan should emphasize a project-local adjustment path."""
+        plan = get_torch_pin_plan()
+        self.assertIn("steps", plan)
+        self.assertIn("command_examples", plan)
+        self.assertIn(".venv", str(plan["plan_note"]))
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""
