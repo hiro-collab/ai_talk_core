@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import io
 import contextlib
+import json
 from pathlib import Path
 import subprocess
 import sys
 import unittest
 
+from src.core.codex_bridge import build_codex_payload, save_codex_payload
 from src.core.llm import build_codex_instruction
 from src.main import (
     format_transcription_result,
@@ -67,6 +69,25 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("こんにちは", result.stdout)
         self.assertNotIn("[command]", result.stdout)
+
+    def test_command_output_writes_payload_json(self) -> None:
+        """command-output should save a Codex payload JSON file."""
+        output_path = PROJECT_ROOT / ".cache" / "tests" / "command_payload.json"
+        if output_path.exists():
+            output_path.unlink()
+        result = run_cli(
+            "data/sample_audio.mp3",
+            "--language",
+            "ja",
+            "--command-output",
+            str(output_path),
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(output_path.exists())
+        payload_json = json.loads(output_path.read_text(encoding="utf-8"))
+        self.assertIn("こんにちは", payload_json["transcript"])
+        self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
+        output_path.unlink()
 
     def test_iterations_requires_mic_loop(self) -> None:
         """Iterations should only be accepted with mic-loop."""
@@ -231,14 +252,14 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
 
     def test_repeat_transcript_marks_result_final(self) -> None:
-        """Repeated mic-loop transcripts should be treated as final."""
+        """Three consecutive matching transcripts should be treated as final."""
         result = TranscriptionResult(
             source="microphone",
             text="こんにちは",
             is_final=False,
             chunk_count=2,
         )
-        self.assertTrue(should_mark_result_final(result, "こんにちは", False))
+        self.assertTrue(should_mark_result_final(result, 3, False))
 
     def test_blank_transcript_does_not_mark_result_final(self) -> None:
         """Blank transcripts should not become final unless loop ends."""
@@ -248,7 +269,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, "こんにちは", False))
+        self.assertFalse(should_mark_result_final(result, 2, False))
 
     def test_short_transcript_does_not_mark_result_final(self) -> None:
         """Very short repeated transcripts should remain partial."""
@@ -258,7 +279,17 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, "はい", False))
+        self.assertFalse(should_mark_result_final(result, 3, False))
+
+    def test_single_repeat_does_not_mark_result_final(self) -> None:
+        """Two consecutive matching transcripts should still remain partial."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="こんにちは",
+            is_final=False,
+            chunk_count=2,
+        )
+        self.assertFalse(should_mark_result_final(result, 2, False))
 
     def test_normalize_transcript_text_collapses_whitespace(self) -> None:
         """Transcript normalization should collapse redundant whitespace."""
@@ -272,7 +303,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=3,
         )
-        self.assertTrue(should_mark_result_final(result, None, True))
+        self.assertTrue(should_mark_result_final(result, 0, True))
 
     def test_format_transcription_result_marks_silence(self) -> None:
         """Silence results should be labeled explicitly."""
@@ -295,6 +326,27 @@ class SmokeTests(unittest.TestCase):
         self.assertIsNotNone(draft)
         assert draft is not None
         self.assertEqual(draft.instruction, "依存関係を 確認して")
+
+    def test_build_codex_payload_returns_none_for_blank(self) -> None:
+        """Blank transcripts should not produce Codex payloads."""
+        self.assertIsNone(build_codex_payload("   "))
+
+    def test_save_codex_payload_writes_json(self) -> None:
+        """Codex payload helper should save normalized JSON output."""
+        output_path = PROJECT_ROOT / ".cache" / "tests" / "payload_helper.json"
+        if output_path.exists():
+            output_path.unlink()
+        saved_path = save_codex_payload("  依存関係を   確認して ", output_path)
+        self.assertEqual(saved_path, output_path)
+        payload_json = json.loads(output_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            payload_json,
+            {
+                "transcript": "依存関係を 確認して",
+                "command": "依存関係を 確認して",
+            },
+        )
+        output_path.unlink()
 
     def test_print_codex_instruction_only_handles_blank(self) -> None:
         """command-only printer should handle blank transcripts."""

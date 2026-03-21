@@ -139,3 +139,9 @@
 - `uv run python smoke_test.py` を実行し、25 件の smoke test が成功することを確認
 - `src/io/microphone.py` のデフォルトマイク選択を C920 固定から、`arecord -l` の最初の入力デバイス優先へ変更
 - `README.md` に Mermaid の Architecture 図と Mic-loop Flow 図を追加
+- `src/main.py` の `partial/final` 判定を調整し、同じ結果が複数回連続した場合に `final` へ寄せるよう変更
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、26 件の smoke test が成功することを確認
+- `src/core/codex_bridge.py` を追加し、Codex 連携用の payload 生成と JSON 保存処理を共通化
+- `src/main.py` に `--command-output` を追加し、CLI から `{"transcript": "...", "command": "..."}` を保存できるよう変更
+- `src/web/app.py` の command 生成を `src/core/codex_bridge.py` 経由へ統一

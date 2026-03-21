@@ -1,0 +1,41 @@
+"""Helpers for packaging and saving Codex-ready instruction payloads."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+from src.core.llm import build_codex_instruction
+
+
+@dataclass(frozen=True)
+class CodexPayload:
+    """A small reusable payload for downstream Codex integration."""
+
+    transcript: str
+    command: str
+
+
+def build_codex_payload(transcript: str) -> CodexPayload | None:
+    """Build a Codex payload from transcribed text."""
+    draft = build_codex_instruction(transcript)
+    if draft is None:
+        return None
+    return CodexPayload(
+        transcript=draft.transcript,
+        command=draft.instruction,
+    )
+
+
+def save_codex_payload(transcript: str, output_path: Path) -> Path | None:
+    """Save a Codex payload as JSON and return the written path."""
+    payload = build_codex_payload(transcript)
+    if payload is None:
+        return None
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(asdict(payload), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return output_path

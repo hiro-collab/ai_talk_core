@@ -6,6 +6,7 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
+from src.core.codex_bridge import save_codex_payload
 from src.core.llm import build_codex_instruction
 from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.io.audio import (
@@ -57,9 +58,20 @@ def print_codex_instruction_only(text: str) -> None:
     print(draft.instruction)
 
 
+def save_codex_instruction_if_requested(text: str, output_path: str | None) -> None:
+    """Save a Codex payload to disk when requested."""
+    if not output_path:
+        return
+    saved_path = save_codex_payload(text, Path(output_path).expanduser().resolve())
+    if saved_path is None:
+        print(f"[command-file] no instruction draft available for {output_path}")
+        return
+    print(f"[command-file] {saved_path}")
+
+
 def should_mark_result_final(
     result: TranscriptionResult,
-    previous_text: str | None,
+    repeat_count: int,
     is_last_iteration: bool,
 ) -> bool:
     """Decide whether a mic-loop result can be treated as final."""
@@ -70,7 +82,7 @@ def should_mark_result_final(
         return False
     if len(current_text) < 3:
         return False
-    return current_text == previous_text
+    return repeat_count >= 3
 
 
 def run_mic_loop(
@@ -82,12 +94,14 @@ def run_mic_loop(
     trim_silence_enabled: bool,
     emit_command: bool,
     command_only: bool,
+    command_output: str | None,
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
     pipeline = TranscriptionPipeline(model_name=model_name)
     buffer = AudioBuffer(source="microphone")
     completed_iterations = 0
     previous_text: str | None = None
+    repeat_count = 0
 
     try:
         while iterations is None or completed_iterations < iterations:
@@ -114,16 +128,23 @@ def run_mic_loop(
                     chunk_count=len(buffer.chunks),
                     is_silence=True,
                 )
-            if should_mark_result_final(result, previous_text, is_last_iteration):
+            normalized_text = normalize_transcript_text(result.text)
+            if normalized_text:
+                if normalized_text == previous_text:
+                    repeat_count += 1
+                else:
+                    repeat_count = 1
+                previous_text = normalized_text
+            else:
+                repeat_count = 0
+            if should_mark_result_final(result, repeat_count, is_last_iteration):
                 result = replace(result, is_final=True)
             if command_only:
                 print_codex_instruction_only(result.text)
             else:
                 print(format_transcription_result(result))
                 print_codex_instruction_if_requested(result.text, emit_command=emit_command)
-            normalized_text = normalize_transcript_text(result.text)
-            if normalized_text:
-                previous_text = normalized_text
+            save_codex_instruction_if_requested(result.text, command_output)
             completed_iterations += 1
     except KeyboardInterrupt:
         print("Stopped microphone loop.")
@@ -200,6 +221,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print only the Codex-ready instruction draft.",
     )
+    parser.add_argument(
+        "--command-output",
+        default=None,
+        help="Optional path to save a Codex payload JSON file.",
+    )
     return parser
 
 
@@ -229,6 +255,7 @@ def main() -> int:
                 trim_silence_enabled=not args.no_trim_silence,
                 emit_command=args.emit_command,
                 command_only=args.command_only,
+                command_output=args.command_output,
             )
         if args.mic:
             if args.audio_file is not None:
@@ -269,6 +296,7 @@ def main() -> int:
     else:
         print(text)
         print_codex_instruction_if_requested(text, emit_command=args.emit_command)
+    save_codex_instruction_if_requested(text, args.command_output)
     return 0
 
 

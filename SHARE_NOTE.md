@@ -16,9 +16,9 @@
 - `src/io/audio.py`
 - `src/core/pipeline.py`
 - `src/main.py`
+- `src/core/codex_bridge.py`
 - `src/web/app.py`
 - `smoke_test.py`
-- `src/io/audio.py`
 - `README.md`
 - `SHARE_NOTE.md`
 - `LOG.md`
@@ -51,6 +51,8 @@
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み
 - README に Architecture 図と Mic-loop Flow 図を追加した
+- `src/core/codex_bridge.py` を追加し、Codex 連携用 payload を共通化した
+- CLI に `--command-output` を追加し、Codex 連携用 JSON を保存できるようにした
 
 ## Next tasks
 
@@ -64,11 +66,14 @@
 - CLI に `--emit-command` を追加した
 - CLI に `--command-only` を追加した
 - 短すぎる断片は `partial` のままにして、誤認識を `final` に寄せにくくした
+- `final` へ寄せるには、同じ結果が複数回連続する必要がある
+- `command-only` をそのまま Codex 実行へつなぐ境界整理を続ける
 
 ## Review-derived actions
 
 - 有限ループ最終回以外の `final` 条件として、同一結果の連続を反映済み
 - 短すぎる断片は `final` に寄せにくくする調整を反映済み
+- `final` は連続回数ベースで安定化を進めている
 - 無音チャンクを Whisper に渡しにくくする軽い VAD 相当を反映済み
 - VAD は未着手
 - `webrtcvad` ベースの speech detection を反映済み

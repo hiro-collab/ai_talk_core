@@ -9,7 +9,7 @@ from uuid import uuid4
 from flask import Flask, jsonify, render_template_string, request
 from werkzeug.utils import secure_filename
 
-from src.core.llm import build_codex_instruction
+from src.core.codex_bridge import build_codex_payload
 from src.core.pipeline import AudioChunk, TranscriptionPipeline
 from src.io.audio import (
     AudioEnvironmentError,
@@ -551,8 +551,8 @@ def process_transcription_request(
             AudioChunk(path=audio_path, source="web"),
             language=language,
         )
-        draft = build_codex_instruction(transcript)
-        command = "" if draft is None else draft.instruction
+        payload = build_codex_payload(transcript)
+        command = "" if payload is None else payload.command
     except AudioInputError as exc:
         error = f"Input error: {escape(str(exc))}"
         status_code = 400

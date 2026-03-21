@@ -140,6 +140,12 @@ Codex 用の指示草案だけ表示:
 uv run python -m src.main --mic --duration 5 --language ja --command-only
 ```
 
+Codex 連携用 payload を JSON 保存:
+
+```bash
+uv run python -m src.main --mic --duration 5 --language ja --command-output .cache/codex/latest.json
+```
+
 Web UI でも、アップロード欄とブラウザ録音欄の `Codex 指示草案を優先して返す` を有効にすると `command_only` と同じ挙動になります。
 
 ブラウザ GUI を起動:
@@ -241,6 +247,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - 出力: 文字起こし結果を標準出力へ表示
 - `--emit-command` 使用時は Codex 用の指示草案も標準出力へ表示
 - `--command-only` 使用時は転写本文を省いて指示草案だけを表示
+- `--command-output` 使用時は `{"transcript": "...", "command": "..."}` の JSON を保存
 - 既定モデル: `small`
 
 ## Model storage
@@ -275,6 +282,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - `AudioBuffer` は入っていますが、`buffer -> partial/final` の扱いはまだ未実装です
 - `--mic-loop` では通常チャンクを `partial` として表示し、有限ループの最後または同一結果の連続時に `final` へ寄せます
 - 短すぎる断片は `partial` のままにして、誤認識を `final` に寄せにくくしています
+- `final` へ寄せるには、同じ結果が複数回連続する必要があります
 - 発話区間検出としての VAD は未実装です
 - ブラウザ録音の連続実行は smoke test では拾えないため、実ブラウザでの確認が必要です
 
