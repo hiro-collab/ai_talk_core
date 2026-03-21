@@ -217,7 +217,7 @@ PAGE_TEMPLATE = """<!doctype html>
 
           <label class="checkbox" for="upload_save_command">
             <input id="upload_save_command" name="save_command" type="checkbox" value="true">
-            Codex payload を保存する
+            handoff payload を保存する
           </label>
 
           <button type="submit">文字起こしする</button>
@@ -248,7 +248,7 @@ PAGE_TEMPLATE = """<!doctype html>
 
         <label class="checkbox" for="record_save_command">
           <input id="record_save_command" type="checkbox" value="true">
-          Codex payload を保存する
+          handoff payload を保存する
         </label>
 
         <p class="hint">ブラウザ側でマイク許可が必要です。録音停止後に自動でアップロードします。</p>
@@ -262,7 +262,7 @@ PAGE_TEMPLATE = """<!doctype html>
 
     <div id="page-status" class="status" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
     <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
-    <div id="page-command" class="command" {% if not command %}hidden{% endif %}>Codex instruction draft:
+    <div id="page-command" class="command" {% if not command %}hidden{% endif %}>Instruction draft:
 {{ command or "" }}</div>
     <div id="page-meta" class="meta" {% if not command_path and not command_text_path %}hidden{% endif %}>Saved payload:
 {{ command_path or "" }}{% if command_text_path %}

@@ -9,7 +9,7 @@
 - latest applied review status:
   - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始, `final` ヒューリスティクスの `src/core/finalization.py` 切り出し, `agent_*` handoff / runner 互換入口の追加, `src/core/handoff_bridge.py` で汎用 handoff 境界の導入開始, `src/core/agent_instruction.py` で指示草案生成の実体化, `src/runners/agent.py` で runner 実体の汎用化
   - reflected in records: yes
-  - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
+  - remaining open items: `final` 条件の高度化, VAD の実用化, 実行テンプレートの整理
 
 ## Changed files in latest implementation turn
 
@@ -46,7 +46,7 @@
 - ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化するようになった
 - ブラウザ録音はユーザー実機で 2 回連続実行でき、録音状態の復帰と blob 生成は確認済み
 - ブラウザ録音の主課題は連続録音の可否より認識精度側になった
-- 転写結果から `Codex instruction draft` を返す最小ブリッジを追加した
+- 転写結果から指示草案を返す最小ブリッジを追加した
 - API に `command_only` オプションを追加し、`command` を主に返せるようにした
 - Web UI からも `command_only` を切り替えられるようにした
 - Whisper モデルは `models/whisper/small.pt`
@@ -57,7 +57,7 @@
 - `src/core/agent_instruction.py` を実体の指示草案生成として使い始め、`src/core/llm.py` は互換ラッパーとして残した
 - `src/runners/agent.py` を runner 実体として使い始め、`src/runners/codex.py` は互換ラッパーとして残した
 - CLI に `--command-output` を追加し、Codex 連携用 JSON を保存できるようにした
-- Web/API からも `save_command` で Codex payload を保存できるようにした
+- Web/API からも `save_command` で handoff payload を保存できるようにした
 - Codex handoff として JSON に加えて `.txt` prompt も保存できるようにした
 - `.txt` 側は bare command ではなく、`Voice transcript` / `Requested task` を含む prompt 形式にした
 - 保存済み handoff を取得する `/api/codex-handoff-latest` を追加した
@@ -92,12 +92,12 @@
 - CLI に `--command-only` を追加した
 - 短すぎる断片は `partial` のままにして、誤認識を `final` に寄せにくくした
 - `final` へ寄せるには、同じ結果が複数回連続する必要がある
-- `command-only` をそのまま Codex 実行へつなぐ境界整理を続ける
-- Web/API 側の `command_path` を使った次段の Codex 実行 bridge を検討する
+- `command-only` をそのまま外部エージェント実行へつなぐ境界整理を続ける
+- Web/API 側の `command_path` を使った次段の agent 実行 bridge を検討する
 - Web/API 側の `command_text_path` を使って、そのまま貼り付ける運用も可能にした
 - 他プロセスが最新 handoff を取りに来る API 境界を追加した
 - Web を経由せずローカル handoff を読む CLI 境界も追加した
-- ローカルの Codex 実行プロセスへ handoff を渡す bridge を追加した
+- ローカルの agent 実行プロセスへ handoff を渡す bridge を追加した
 - `agent_runner` は template 指定でも handoff を流せるようにした
 - `agent_runner` は `codex-exec` テンプレートで Codex CLI にそのまま handoff を流せる
 - 無音チャンク直後に直前発話を `final` とみなす補助ルールを追加した

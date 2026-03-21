@@ -276,7 +276,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--command-output",
         default=None,
-        help="Optional path to save a Codex payload JSON file.",
+        help="Optional path to save a handoff payload JSON file.",
     )
     return parser
 
