@@ -12,6 +12,8 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 - `--mic-loop` で擬似リアルタイムの反復処理を試せます
 - ローカル Web UI からファイルアップロードやブラウザ録音でも文字起こしできます
 - Web UI は結果領域だけを更新するので、録音中・処理中の状態が見やすくなっています
+- 外部連携用に JSON API ルートも持てる形になっています
+- 位置づけとしては GUI 主体より、音声入力フロントエンド兼サービス境界を優先しています
 - `HD Pro Webcam C920` で録音自体は確認済みです
 - マイク録音では軽い無音トリムを有効化できます
 - 常時動作のマイク入力 CLI と本格的なノイズ対策は未実装です
@@ -47,10 +49,24 @@ smoke test 実行:
 uv run python smoke_test.py
 ```
 
+補足:
+
+- `smoke_test.py` は CLI / Web UI / JSON API のサーバー側動作を確認します
+- ブラウザ録音の 2 回連続実行は実ブラウザ依存なので、別途手動確認が必要です
+
 Web UI 起動:
 
 ```bash
 uv run python -m src.web.app
+```
+
+JSON API 例:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
+  -F "audio_file=@data/sample_audio.mp3" \
+  -F "model=small" \
+  -F "language=ja"
 ```
 
 ## Quick start
@@ -200,8 +216,15 @@ Whisper のモデルは `models/whisper` に保存されます。
 - マイク入力は固定時間録音の反復であり、真のストリーミング処理ではありません
 - 録音音声は `ffmpeg` の `silenceremove` で軽く前後トリムできます
 - `AudioBuffer` は入っていますが、`buffer -> partial/final` の扱いはまだ未実装です
-- `--mic-loop` では各チャンクを暫定的に `partial` 扱いで表示します
+- `--mic-loop` では通常チャンクを `partial`、有限ループの最後だけ `final` として表示します
 - 発話区間検出としての VAD は未実装です
+- ブラウザ録音の連続実行は smoke test では拾えないため、実ブラウザでの確認が必要です
+
+## Manual checks
+
+- Web UI でブラウザ録音を 2 回連続で実行する
+- 1 回目の録音後に `録音開始` が再び押せることを確認する
+- 2 回目の録音後も結果更新とエラー表示が正常に動くことを確認する
 
 ## Troubleshooting
 

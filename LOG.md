@@ -91,3 +91,14 @@
 - `src/main.py` の `--mic-loop` を更新し、各チャンクを `[partial N] ...` 形式で表示するよう変更
 - `src/web/app.py` を更新し、`MediaRecorder` と stream のリセット処理、アップロード中の再録音防止、録音エラー時の復帰処理を追加
 - `SHARE_NOTE.md` にブラウザ録音 2 回連続実行の確認タスクを追加
+- `src/core/pipeline.py` の `TranscriptionResult` に `is_final` を渡せるよう変更
+- `src/main.py` の `--mic-loop` を更新し、有限ループの最終回だけ `[final N] ...` を出すよう変更
+- `src/web/app.py` に `/api/transcribe-upload` と `/api/transcribe-browser-recording` を追加
+- `smoke_test.py` に JSON API ルートの成功系と入力エラー系を追加
+- `README.md` に音声入力フロントエンド兼サービス境界としての位置づけと、ブラウザ録音の手動確認項目を追加
+- `SHARE_NOTE.md` を更新し、レビュー基準コミットと smoke test 件数を現状へ合わせた
+- `src/web/app.py` のアップロード一時ファイルを UUID 付きの固有名へ変更し、Web UI / JSON API の一時ファイル衝突を避けるよう修正
+- `uv run python smoke_test.py` を再実行し、11 件の smoke test が成功することを再確認
+- `src/web/app.py` の転写本体処理を `process_transcription_request()` へ共通化
+- Web UI の fetch 先を `/api/transcribe-upload` と `/api/transcribe-browser-recording` に統一
+- `smoke_test.py` に `/api/transcribe-browser-recording` の最小サーバーテストを追加

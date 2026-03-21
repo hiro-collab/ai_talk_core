@@ -17,6 +17,14 @@ from src.io.audio import (
 from src.io.microphone import capture_microphone_chunk, get_temp_recording_path, record_microphone_audio
 
 
+def format_transcription_result(result: object) -> str:
+    """Format a realtime transcription result for terminal output."""
+    result_type = "final" if getattr(result, "is_final", False) else "partial"
+    chunk_count = getattr(result, "chunk_count", "?")
+    text = getattr(result, "text", "")
+    return f"[{result_type} {chunk_count}] {text}"
+
+
 def run_mic_loop(
     duration: int,
     mic_device: str,
@@ -39,8 +47,14 @@ def run_mic_loop(
                 trim_silence_enabled=trim_silence_enabled,
             )
             buffer.append(chunk)
-            result = pipeline.transcribe_buffer_result(buffer, language=language)
-            print(f"[partial {result.chunk_count}] {result.text}")
+            next_iteration = completed_iterations + 1
+            is_final = iterations is not None and next_iteration == iterations
+            result = pipeline.transcribe_buffer_result(
+                buffer,
+                language=language,
+                is_final=is_final,
+            )
+            print(format_transcription_result(result))
             completed_iterations += 1
     except KeyboardInterrupt:
         print("Stopped microphone loop.")

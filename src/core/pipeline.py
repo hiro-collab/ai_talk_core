@@ -68,12 +68,13 @@ class TranscriptionPipeline:
         self,
         buffer: AudioBuffer,
         language: str | None = None,
+        is_final: bool = False,
     ) -> TranscriptionResult:
         """Transcribe the latest chunk and return a realtime-style result."""
         text = self.transcribe_buffer(buffer, language=language)
         return TranscriptionResult(
             source=buffer.source,
             text=text,
-            is_final=False,
+            is_final=is_final,
             chunk_count=len(buffer.chunks),
         )

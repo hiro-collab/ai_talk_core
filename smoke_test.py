@@ -112,6 +112,53 @@ class SmokeTests(unittest.TestCase):
         self.assertIsNotNone(payload_json)
         self.assertIn("こんにちは", payload_json["transcript"])
 
+    def test_api_upload_returns_json(self) -> None:
+        """Dedicated API upload route should return JSON."""
+        sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
+        payload = {
+            "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
+            "model": "small",
+            "language": "ja",
+        }
+        response = self.client.post(
+            "/api/transcribe-upload",
+            data=payload,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertIn("こんにちは", payload_json["transcript"])
+
+    def test_api_upload_missing_file_returns_400(self) -> None:
+        """Dedicated API upload route should validate missing files."""
+        response = self.client.post("/api/transcribe-upload", data={}, content_type="multipart/form-data")
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(response.is_json)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertIn("音声ファイルを選択してください", payload_json["error"])
+
+    def test_api_browser_recording_returns_json(self) -> None:
+        """Dedicated browser-recording API route should return JSON."""
+        sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
+        payload = {
+            "audio_blob": (io.BytesIO(sample_path.read_bytes()), "browser_recording.mp3"),
+            "model": "small",
+            "language": "ja",
+        }
+        response = self.client.post(
+            "/api/transcribe-browser-recording",
+            data=payload,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertIn("こんにちは", payload_json["transcript"])
+
 
 if __name__ == "__main__":
     unittest.main()

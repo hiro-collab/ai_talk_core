@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+from uuid import uuid4
 
 from flask import Flask, jsonify, render_template_string, request
 from werkzeug.utils import secure_filename
@@ -203,12 +204,17 @@ PAGE_TEMPLATE = """<!doctype html>
     const pageError = document.getElementById("page-error");
     let mediaRecorder = null;
     let activeStream = null;
-    let isUploading = false;
+    let recorderState = "idle";
     let chunks = [];
 
     const setStatus = (text) => {
       statusBox.hidden = false;
       statusBox.textContent = text;
+    };
+
+    const setRecorderButtons = () => {
+      startButton.disabled = recorderState !== "idle";
+      stopButton.disabled = recorderState !== "recording";
     };
 
     const stopActiveStream = () => {
@@ -221,10 +227,15 @@ PAGE_TEMPLATE = """<!doctype html>
 
     const resetRecorderState = () => {
       stopActiveStream();
+      if (mediaRecorder) {
+        mediaRecorder.ondataavailable = null;
+        mediaRecorder.onstop = null;
+        mediaRecorder.onerror = null;
+      }
       mediaRecorder = null;
       chunks = [];
-      startButton.disabled = isUploading;
-      stopButton.disabled = true;
+      recorderState = "idle";
+      setRecorderButtons();
     };
 
     const updateOutput = ({ message = "", transcript = "", error = "" }) => {
@@ -237,9 +248,8 @@ PAGE_TEMPLATE = """<!doctype html>
     };
 
     const submitForTranscription = async (url, formData, processingText) => {
-      isUploading = true;
-      startButton.disabled = true;
-      stopButton.disabled = true;
+      recorderState = "uploading";
+      setRecorderButtons();
       setStatus(processingText);
       updateOutput({ message: processingText, transcript: "", error: "" });
       try {
@@ -256,8 +266,8 @@ PAGE_TEMPLATE = """<!doctype html>
         updateOutput({ error: message });
         setStatus(message);
       } finally {
-        isUploading = false;
-        startButton.disabled = false;
+        recorderState = "idle";
+        setRecorderButtons();
       }
     };
 
@@ -265,27 +275,30 @@ PAGE_TEMPLATE = """<!doctype html>
       event.preventDefault();
       const formData = new FormData(uploadForm);
       await submitForTranscription(
-        "{{ url_for('transcribe_upload') }}",
+        "{{ url_for('api_transcribe_upload') }}",
         formData,
         "アップロードした音声を処理中..."
       );
     });
 
     startButton?.addEventListener("click", async () => {
-      if (mediaRecorder || isUploading) {
+      if (recorderState !== "idle") {
         return;
       }
       chunks = [];
       try {
         activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(activeStream);
-        mediaRecorder.ondataavailable = (event) => {
+        const recorder = new MediaRecorder(activeStream);
+        mediaRecorder = recorder;
+        recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
             chunks.push(event.data);
           }
         };
-        mediaRecorder.onstop = async () => {
-          const recorder = mediaRecorder;
+        recorder.onstop = async () => {
+          if (mediaRecorder !== recorder) {
+            return;
+          }
           const recordedChunks = [...chunks];
           resetRecorderState();
           if (!recorder || recordedChunks.length === 0) {
@@ -298,18 +311,18 @@ PAGE_TEMPLATE = """<!doctype html>
           formData.append("model", document.getElementById("record_model").value);
           formData.append("language", document.getElementById("record_language").value);
           await submitForTranscription(
-            "{{ url_for('transcribe_browser_recording') }}",
+            "{{ url_for('api_transcribe_browser_recording') }}",
             formData,
             "録音データをアップロードして処理中..."
           );
         };
-        mediaRecorder.onerror = () => {
+        recorder.onerror = () => {
           resetRecorderState();
           setStatus("録音中にエラーが発生しました。");
         };
-        mediaRecorder.start();
-        startButton.disabled = true;
-        stopButton.disabled = false;
+        recorder.start();
+        recorderState = "recording";
+        setRecorderButtons();
         setStatus("録音中...");
       } catch (error) {
         resetRecorderState();
@@ -318,13 +331,20 @@ PAGE_TEMPLATE = """<!doctype html>
     });
 
     stopButton?.addEventListener("click", () => {
-      if (!mediaRecorder || mediaRecorder.state === "inactive") {
+      if (!mediaRecorder || mediaRecorder.state === "inactive" || recorderState !== "recording") {
         return;
+      }
+      recorderState = "stopping";
+      setRecorderButtons();
+      if (typeof mediaRecorder.requestData === "function") {
+        mediaRecorder.requestData();
       }
       mediaRecorder.stop();
       stopButton.disabled = true;
       setStatus("録音停止。処理中...");
     });
+
+    setRecorderButtons();
   </script>
 </body>
 </html>
@@ -337,6 +357,15 @@ def get_upload_dir() -> Path:
     upload_dir = project_root / ".cache" / "web_uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     return upload_dir
+
+
+def build_temp_upload_path(filename: str) -> Path:
+    """Return a unique temporary path for an uploaded audio file."""
+    upload_dir = get_upload_dir()
+    safe_name = secure_filename(filename) or "upload.wav"
+    stem = Path(safe_name).stem or "upload"
+    suffix = Path(safe_name).suffix or ".wav"
+    return upload_dir / f"{stem}_{uuid4().hex}{suffix}"
 
 
 def create_app() -> Flask:
@@ -354,12 +383,30 @@ def create_app() -> Flask:
             return render_page(error="音声ファイルを選択してください。")
         return handle_transcription(file_storage.read(), file_storage.filename)
 
+    @app.post("/api/transcribe-upload")
+    def api_transcribe_upload() -> tuple[object, int]:
+        file_storage = request.files.get("audio_file")
+        if file_storage is None or file_storage.filename == "":
+            return jsonify({"message": "", "transcript": "", "error": "音声ファイルを選択してください。"}), 400
+        return handle_transcription_api(file_storage.read(), file_storage.filename)
+
     @app.post("/transcribe-browser-recording")
     def transcribe_browser_recording() -> str:
         file_storage = request.files.get("audio_blob")
         if file_storage is None or file_storage.filename == "":
             return render_page(error="録音データを受け取れませんでした。")
         return handle_transcription(file_storage.read(), file_storage.filename, message="ブラウザ録音を処理しました。")
+
+    @app.post("/api/transcribe-browser-recording")
+    def api_transcribe_browser_recording() -> tuple[object, int]:
+        file_storage = request.files.get("audio_blob")
+        if file_storage is None or file_storage.filename == "":
+            return jsonify({"message": "", "transcript": "", "error": "録音データを受け取れませんでした。"}), 400
+        return handle_transcription_api(
+            file_storage.read(),
+            file_storage.filename,
+            message="ブラウザ録音を処理しました。",
+        )
 
     return app
 
@@ -378,21 +425,20 @@ def render_page(
     )
 
 
-def handle_transcription(
+def process_transcription_request(
     raw_bytes: bytes,
     filename: str,
     message: str | None = None,
-) -> str:
-    """Persist uploaded audio temporarily and transcribe it."""
+) -> tuple[dict[str, str], int]:
+    """Run one transcription request and normalize the response payload."""
     model_name = request.form.get("model", "small").strip() or "small"
     language = request.form.get("language", "").strip() or None
 
-    upload_dir = get_upload_dir()
-    safe_name = secure_filename(filename) or "upload.wav"
-    temp_path = upload_dir / safe_name
+    temp_path = build_temp_upload_path(filename)
 
-    transcript: str | None = None
-    error: str | None = None
+    transcript = ""
+    error = ""
+    status_code = 200
 
     try:
         validate_model_name(model_name)
@@ -405,26 +451,57 @@ def handle_transcription(
         )
     except AudioInputError as exc:
         error = f"Input error: {escape(str(exc))}"
+        status_code = 400
     except AudioEnvironmentError as exc:
         error = f"Environment error: {escape(str(exc))}"
+        status_code = 500
     except AudioTranscriptionError as exc:
         error = f"Transcription error: {escape(str(exc))}"
+        status_code = 500
     finally:
         if temp_path.exists():
             temp_path.unlink()
 
-    resolved_message = message or "文字起こしが完了しました。"
+    payload = {
+        "message": "" if error else (message or "文字起こしが完了しました。"),
+        "transcript": transcript,
+        "error": error,
+    }
+    return payload, status_code
+
+
+def handle_transcription(
+    raw_bytes: bytes,
+    filename: str,
+    message: str | None = None,
+) -> str:
+    """Persist uploaded audio temporarily and transcribe it."""
+    payload, status_code = process_transcription_request(
+        raw_bytes,
+        filename,
+        message=message,
+    )
     if request.headers.get("X-Requested-With") == "fetch":
-        return jsonify(
-            {
-                "message": "" if error else resolved_message,
-                "transcript": transcript or "",
-                "error": error or "",
-            }
-        )
-    if error:
-        return render_page(error=error)
-    return render_page(transcript=transcript, message=resolved_message)
+        response = jsonify(payload)
+        response.status_code = status_code
+        return response
+    if payload["error"]:
+        return render_page(error=payload["error"])
+    return render_page(transcript=payload["transcript"], message=payload["message"])
+
+
+def handle_transcription_api(
+    raw_bytes: bytes,
+    filename: str,
+    message: str | None = None,
+) -> tuple[object, int]:
+    """Handle uploaded audio and return a dedicated JSON API response."""
+    payload, status_code = process_transcription_request(
+        raw_bytes,
+        filename,
+        message=message,
+    )
+    return jsonify(payload), status_code
 
 
 def main() -> int:
