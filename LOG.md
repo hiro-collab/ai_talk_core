@@ -219,3 +219,9 @@
 - `src.main` に `--mic-tuning-format text|json` を追加し、profile 一覧と解決済み tuning 値を JSON でも出力できるようにした
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、87 件の smoke test が成功することを確認
+- `src.io.audio` に `get_runtime_status()` を追加し、Torch / Whisper / ffmpeg / ffprobe の runtime 状態をまとめて取得できるようにした
+- `src.main` に `--show-runtime-status` と `--runtime-status-format text|json` を追加し、runtime 状態を CLI から確認できるようにした
+- runtime status に `transcription_device` と `runtime_note` を追加し、GPU 不可時の CPU fallback を読み取りやすくした
+- `src.main` の `[mic-tuning] ...` と `Stopped microphone loop.` は stderr に出すよう変更し、`--instruction-only` や handoff 用の stdout を汚さないようにした
+- `uv run python -m py_compile src/main.py src/io/audio.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、90 件の smoke test が成功することを確認

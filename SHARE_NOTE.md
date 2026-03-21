@@ -5,7 +5,7 @@
 - turn mode: `code changes allowed`
 - reviewer may update: `REVIEW.md` only
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
-- latest reviewed commit: `8cdbfae Group runner implementations under src/runners`
+- latest reviewed commit: `fd7e728 Accept generic instruction and handoff API aliases`
 - latest applied review status:
   - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始, `final` ヒューリスティクスの `src/core/finalization.py` 切り出し, `agent_*` handoff / runner 互換入口の追加, `src/core/handoff_bridge.py` で汎用 handoff 境界の導入開始, `src/core/agent_instruction.py` で指示草案生成の実体化, `src/runners/agent.py` で runner 実体の汎用化
   - reflected in records: yes
@@ -32,7 +32,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 87 件の smoke test 成功
+- `uv run python smoke_test.py` で 90 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -86,6 +86,9 @@
 - `--list-mic-profiles` を追加し、利用可能な mic-loop プリセット一覧を CLI から確認できるようにした
 - `--show-mic-tuning` を追加し、profile と override から解決される tuning 値だけを録音前に確認できるようにした
 - `--list-mic-profiles` と `--show-mic-tuning` は `--mic-tuning-format json` でも出力できるようにした
+- `--show-runtime-status` を追加し、Whisper / Torch / ffmpeg / ffprobe の runtime 状態を text/json で確認できるようにした
+- runtime status には `transcription_device` と `runtime_note` も含め、GPU 不可時の CPU fallback を読み取りやすくした
+- `--mic-loop` の `[mic-tuning] ...` と停止メッセージは stderr に出し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 
 ## Next tasks
 

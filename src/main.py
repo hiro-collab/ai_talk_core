@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -89,6 +90,11 @@ def save_handoff_if_requested(text: str, output_path: str | None) -> None:
     print(f"[command-text] {saved_paths.text_path}")
 
 
+def print_runtime_note(message: str) -> None:
+    """Print operational notes to stderr without polluting stdout payloads."""
+    print(message, file=sys.stderr)
+
+
 def format_mic_loop_tuning(
     profile: str,
     vad_aggressiveness: int,
@@ -126,7 +132,7 @@ def run_mic_loop(
     last_spoken_result: TranscriptionResult | None = None
     finalized_text: str | None = None
 
-    print(
+    print_runtime_note(
         format_mic_loop_tuning(
             profile=mic_profile,
             vad_aggressiveness=vad_aggressiveness,
@@ -208,7 +214,7 @@ def run_mic_loop(
                     emit_command=emit_command,
                 )
             save_handoff_if_requested(final_result.text, command_output)
-        print("Stopped microphone loop.")
+        print_runtime_note("Stopped microphone loop.")
         return 0
 
     return 0

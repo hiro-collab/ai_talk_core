@@ -33,10 +33,11 @@ from src.main import (
     build_mic_profile_list_data,
     build_mic_tuning_data,
     format_mic_profile_list,
-    format_transcription_result,
-    format_runtime_status,
     format_mic_loop_tuning,
+    format_runtime_status,
+    format_transcription_result,
     print_agent_instruction_only,
+    print_runtime_note,
     resolve_mic_loop_tuning,
     validate_final_stable_seconds,
     validate_mic_profile,
@@ -307,6 +308,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("ffmpeg_available", payload)
         self.assertIn("ffprobe_available", payload)
         self.assertIn("torch_cuda_available", payload)
+        self.assertIn("transcription_device", payload)
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -876,11 +878,14 @@ class SmokeTests(unittest.TestCase):
                 "torch_version": "2.10.0+cu128",
                 "torch_cuda_version": "12.8",
                 "torch_cuda_available": False,
+                "transcription_device": "cpu",
                 "whisper_version": "20250625",
+                "runtime_note": "Torch CUDA build is present but unavailable; transcription will use CPU fallback.",
             }
         )
         self.assertIn("Runtime status:", text)
         self.assertIn("torch_cuda_available: False", text)
+        self.assertIn("transcription_device: cpu", text)
         self.assertIn("ffmpeg_available: True", text)
 
     def test_get_runtime_status_returns_expected_keys(self) -> None:
@@ -890,6 +895,8 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("ffprobe_available", status)
         self.assertIn("torch_version", status)
         self.assertIn("torch_cuda_available", status)
+        self.assertIn("transcription_device", status)
+        self.assertIn("runtime_note", status)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""
@@ -1154,6 +1161,13 @@ class SmokeTests(unittest.TestCase):
         with contextlib.redirect_stdout(buffer):
             print_agent_instruction_only("   ")
         self.assertEqual(buffer.getvalue().strip(), "no instruction draft available")
+
+    def test_print_runtime_note_writes_to_stderr(self) -> None:
+        """Operational notes should go to stderr."""
+        buffer = io.StringIO()
+        with contextlib.redirect_stderr(buffer):
+            print_runtime_note("[mic-tuning] profile=balanced")
+        self.assertEqual(buffer.getvalue().strip(), "[mic-tuning] profile=balanced")
 
 
 if __name__ == "__main__":

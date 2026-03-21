@@ -48,13 +48,23 @@ def ensure_ffmpeg_available() -> None:
 
 def get_runtime_status() -> dict[str, str | bool | None]:
     """Return a compact view of the local transcription runtime status."""
+    cuda_available = torch.cuda.is_available()
+    device = "cuda" if cuda_available else "cpu"
+    note: str | None = None
+    if not cuda_available and torch.version.cuda is not None:
+        note = (
+            "Torch CUDA build is present but unavailable; transcription will use CPU "
+            "fallback."
+        )
     return {
         "ffmpeg_available": shutil.which("ffmpeg") is not None,
         "ffprobe_available": shutil.which("ffprobe") is not None,
         "torch_version": torch.__version__,
         "torch_cuda_version": torch.version.cuda,
-        "torch_cuda_available": torch.cuda.is_available(),
+        "torch_cuda_available": cuda_available,
+        "transcription_device": device,
         "whisper_version": getattr(whisper, "__version__", None),
+        "runtime_note": note,
     }
 
 
