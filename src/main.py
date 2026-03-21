@@ -39,8 +39,8 @@ def run_mic_loop(
                 trim_silence_enabled=trim_silence_enabled,
             )
             buffer.append(chunk)
-            text = pipeline.transcribe_buffer(buffer, language=language)
-            print(text)
+            result = pipeline.transcribe_buffer_result(buffer, language=language)
+            print(f"[partial {result.chunk_count}] {result.text}")
             completed_iterations += 1
     except KeyboardInterrupt:
         print("Stopped microphone loop.")

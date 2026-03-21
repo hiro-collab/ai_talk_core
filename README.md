@@ -200,6 +200,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - マイク入力は固定時間録音の反復であり、真のストリーミング処理ではありません
 - 録音音声は `ffmpeg` の `silenceremove` で軽く前後トリムできます
 - `AudioBuffer` は入っていますが、`buffer -> partial/final` の扱いはまだ未実装です
+- `--mic-loop` では各チャンクを暫定的に `partial` 扱いで表示します
 - 発話区間検出としての VAD は未実装です
 
 ## Troubleshooting

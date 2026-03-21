@@ -66,7 +66,7 @@ Status: adopted with open follow-ups
 
 #### Open
 
-- `buffer -> partial/final` のリアルタイム用 API 境界は未実装
+- `partial -> final` の確定条件は未実装
 - VAD は未実装
 
 #### Resolved findings
@@ -78,6 +78,7 @@ Status: adopted with open follow-ups
 - `smoke_test.py` を拡張し、`--iterations` と `--no-trim-silence` の確認を追加した
 - `capture -> buffer -> transcribe` の最初の分離として `AudioBuffer` を追加した
 - Web UI を `document.write()` ベースの全画面差し替えから、結果領域だけを更新する fetch ベースに改善した
+- `TranscriptionResult` を追加し、`mic-loop` が `partial` 扱いの結果モデルを返す形に寄った
 
 #### Side review
 

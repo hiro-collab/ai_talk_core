@@ -17,6 +17,16 @@ class AudioChunk:
     source: str
 
 
+@dataclass(frozen=True)
+class TranscriptionResult:
+    """A normalized transcription result for realtime-style flows."""
+
+    source: str
+    text: str
+    is_final: bool
+    chunk_count: int
+
+
 @dataclass
 class AudioBuffer:
     """A simple ordered buffer of captured audio chunks."""
@@ -53,3 +63,17 @@ class TranscriptionPipeline:
     def transcribe_buffer(self, buffer: AudioBuffer, language: str | None = None) -> str:
         """Transcribe the latest chunk from a buffer."""
         return self.transcribe_chunk(buffer.latest_chunk(), language=language)
+
+    def transcribe_buffer_result(
+        self,
+        buffer: AudioBuffer,
+        language: str | None = None,
+    ) -> TranscriptionResult:
+        """Transcribe the latest chunk and return a realtime-style result."""
+        text = self.transcribe_buffer(buffer, language=language)
+        return TranscriptionResult(
+            source=buffer.source,
+            text=text,
+            is_final=False,
+            chunk_count=len(buffer.chunks),
+        )

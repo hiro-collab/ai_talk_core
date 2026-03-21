@@ -87,3 +87,5 @@
 - `REVIEWER_INSTRUCTIONS.md` にレビュー依頼時の必須情報と推奨テンプレートを追加
 - レビュアー所見として、`SHARE_NOTE.md` の `Turn contract` は有効であり、`reviewer may update` / `implementer may update` を最上段維持する方針が妥当であることを確認
 - `MEMORY.md` に `SHARE_NOTE.md` の `Turn contract` を最上段維持する運用ルールを追加
+- `src/core/pipeline.py` に `TranscriptionResult` を追加
+- `src/main.py` の `--mic-loop` を更新し、各チャンクを `[partial N] ...` 形式で表示するよう変更
