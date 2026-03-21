@@ -49,11 +49,12 @@
 - `--mic-loop` の出力確定方針を決める
 - VAD の導入方針を決める
 - `partial` を `final` に切り替える条件を高度化する
+- `--mic-loop` は有限ループ最終回に加えて、同一結果の連続でも `final` に寄せるようになった
 - README の `Overview` / `Quick start` の重複を圧縮する
 
 ## Review-derived actions
 
-- 有限ループ最終回以外の `final` 条件は未着手
+- 有限ループ最終回以外の `final` 条件として、同一結果の連続を反映済み
 - VAD は未着手
 - `/api/transcribe-browser-recording` のサーバーテストは反映済み
 - ブラウザ録音の 2 回連続実行は実機確認済み

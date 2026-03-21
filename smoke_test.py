@@ -8,6 +8,8 @@ import subprocess
 import sys
 import unittest
 
+from src.main import normalize_transcript_text, should_mark_result_final
+from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
 
@@ -158,6 +160,30 @@ class SmokeTests(unittest.TestCase):
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
         self.assertIn("こんにちは", payload_json["transcript"])
+
+    def test_repeat_transcript_marks_result_final(self) -> None:
+        """Repeated mic-loop transcripts should be treated as final."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="こんにちは",
+            is_final=False,
+            chunk_count=2,
+        )
+        self.assertTrue(should_mark_result_final(result, "こんにちは", False))
+
+    def test_blank_transcript_does_not_mark_result_final(self) -> None:
+        """Blank transcripts should not become final unless loop ends."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="   ",
+            is_final=False,
+            chunk_count=2,
+        )
+        self.assertFalse(should_mark_result_final(result, "こんにちは", False))
+
+    def test_normalize_transcript_text_collapses_whitespace(self) -> None:
+        """Transcript normalization should collapse redundant whitespace."""
+        self.assertEqual(normalize_transcript_text("  こんにちは   世界 "), "こんにちは 世界")
 
 
 if __name__ == "__main__":

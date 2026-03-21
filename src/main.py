@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 from pathlib import Path
 
-from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline
+from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
@@ -25,6 +26,25 @@ def format_transcription_result(result: object) -> str:
     return f"[{result_type} {chunk_count}] {text}"
 
 
+def normalize_transcript_text(text: str) -> str:
+    """Normalize transcript text for lightweight repeat detection."""
+    return " ".join(text.strip().split())
+
+
+def should_mark_result_final(
+    result: TranscriptionResult,
+    previous_text: str | None,
+    is_last_iteration: bool,
+) -> bool:
+    """Decide whether a mic-loop result can be treated as final."""
+    if is_last_iteration:
+        return True
+    current_text = normalize_transcript_text(result.text)
+    if not current_text:
+        return False
+    return current_text == previous_text
+
+
 def run_mic_loop(
     duration: int,
     mic_device: str,
@@ -37,6 +57,7 @@ def run_mic_loop(
     pipeline = TranscriptionPipeline(model_name=model_name)
     buffer = AudioBuffer(source="microphone")
     completed_iterations = 0
+    previous_text: str | None = None
 
     try:
         while iterations is None or completed_iterations < iterations:
@@ -48,13 +69,18 @@ def run_mic_loop(
             )
             buffer.append(chunk)
             next_iteration = completed_iterations + 1
-            is_final = iterations is not None and next_iteration == iterations
+            is_last_iteration = iterations is not None and next_iteration == iterations
             result = pipeline.transcribe_buffer_result(
                 buffer,
                 language=language,
-                is_final=is_final,
+                is_final=False,
             )
+            if should_mark_result_final(result, previous_text, is_last_iteration):
+                result = replace(result, is_final=True)
             print(format_transcription_result(result))
+            normalized_text = normalize_transcript_text(result.text)
+            if normalized_text:
+                previous_text = normalized_text
             completed_iterations += 1
     except KeyboardInterrupt:
         print("Stopped microphone loop.")

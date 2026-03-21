@@ -111,3 +111,7 @@
 - ユーザー実機でブラウザ録音を 2 回連続実行し、`state=idle`, `mediaRecorder=none`, `lastBlobSize>0` で 2 回とも処理完了することを確認
 - ブラウザ録音の主課題が連続実行可否ではなく、認識精度側に寄っていることを確認
 - `SHARE_NOTE.md` を更新し、latest reviewed commit を `ae2c72c` に合わせ、smoke test 件数を 12 件へ修正
+- `src/main.py` に軽い `partial/final` 判定を追加し、有限ループ最終回に加えて同一結果の連続時も `final` に寄せるよう変更
+- `smoke_test.py` に transcript 正規化と repeat-detection の確認を追加
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、15 件の smoke test が成功することを確認
