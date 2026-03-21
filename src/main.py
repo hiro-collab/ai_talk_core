@@ -46,8 +46,8 @@ def format_transcription_result(result: object) -> str:
     return f"[{result_type} {chunk_count}] {text}"
 
 
-def print_codex_instruction_if_requested(text: str, emit_command: bool) -> None:
-    """Print a Codex-ready instruction draft when requested."""
+def print_agent_instruction_if_requested(text: str, emit_command: bool) -> None:
+    """Print an agent-ready instruction draft when requested."""
     if not emit_command:
         return
     draft = build_agent_instruction(text)
@@ -57,8 +57,8 @@ def print_codex_instruction_if_requested(text: str, emit_command: bool) -> None:
     print(f"[command] {draft.instruction}")
 
 
-def print_codex_instruction_only(text: str) -> None:
-    """Print only the Codex-ready instruction draft."""
+def print_agent_instruction_only(text: str) -> None:
+    """Print only the agent-ready instruction draft."""
     draft = build_agent_instruction(text)
     if draft is None:
         print("no instruction draft available")
@@ -66,8 +66,8 @@ def print_codex_instruction_only(text: str) -> None:
     print(draft.instruction)
 
 
-def save_codex_instruction_if_requested(text: str, output_path: str | None) -> None:
-    """Save a Codex payload to disk when requested."""
+def save_handoff_if_requested(text: str, output_path: str | None) -> None:
+    """Save a handoff bundle to disk when requested."""
     if not output_path:
         return
     json_path = Path(output_path).expanduser().resolve()
@@ -154,11 +154,11 @@ def run_mic_loop(
             if result.is_final and not result.is_silence and normalized_text:
                 finalized_text = normalized_text
             if command_only:
-                print_codex_instruction_only(result.text)
+                print_agent_instruction_only(result.text)
             else:
                 print(format_transcription_result(result))
-                print_codex_instruction_if_requested(result.text, emit_command=emit_command)
-            save_codex_instruction_if_requested(result.text, command_output)
+                print_agent_instruction_if_requested(result.text, emit_command=emit_command)
+            save_handoff_if_requested(result.text, command_output)
             completed_iterations += 1
     except KeyboardInterrupt:
         final_result = maybe_finalize_on_interrupt(
@@ -168,14 +168,14 @@ def run_mic_loop(
         )
         if final_result is not None:
             if command_only:
-                print_codex_instruction_only(final_result.text)
+                print_agent_instruction_only(final_result.text)
             else:
                 print(format_transcription_result(final_result))
-                print_codex_instruction_if_requested(
+                print_agent_instruction_if_requested(
                     final_result.text,
                     emit_command=emit_command,
                 )
-            save_codex_instruction_if_requested(final_result.text, command_output)
+            save_handoff_if_requested(final_result.text, command_output)
         print("Stopped microphone loop.")
         return 0
 
@@ -348,11 +348,11 @@ def main() -> int:
         return 1
 
     if args.command_only:
-        print_codex_instruction_only(text)
+        print_agent_instruction_only(text)
     else:
         print(text)
-        print_codex_instruction_if_requested(text, emit_command=args.emit_command)
-    save_codex_instruction_if_requested(text, args.command_output)
+        print_agent_instruction_if_requested(text, emit_command=args.emit_command)
+    save_handoff_if_requested(text, args.command_output)
     return 0
 
 

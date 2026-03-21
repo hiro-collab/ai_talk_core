@@ -536,7 +536,7 @@ def create_app() -> Flask:
         source = request.args.get("source", "web").strip() or "web"
         handoff = load_handoff_bundle(source=source)
         if handoff is None:
-            return jsonify({"error": f"Codex handoff not found for source: {source}"}), 404
+            return jsonify({"error": f"handoff not found for source: {source}"}), 404
         return jsonify(
             {
                 "transcript": handoff.transcript,

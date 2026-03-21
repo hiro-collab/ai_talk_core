@@ -63,8 +63,8 @@
 - 保存済み handoff を取得する `/api/codex-handoff-latest` を追加した
 - ローカル CLI から最新 handoff を読む `src.codex_handoff` を追加した
 - 最新 handoff を任意コマンドへ流す `src.codex_runner` を追加した
-- `src.codex_runner` に組み込みテンプレートを追加し、毎回コマンド列を書かずに試せるようにした
-- `src.codex_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
+- `src.agent_runner` を正面の runner CLI とし、毎回コマンド列を書かずに試せるようにした
+- `src.agent_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
 - `codex-exec` は `codex` コマンドの PATH 存在を実行前に検証するようにした
 - runner 実装を `src/runners/` へ寄せ始め、トップレベル CLI は互換ラッパーとして残す方針にした
 - Whisper モデル読み込み時に CUDA が busy / unavailable の場合、CPU fallback を試すようにした
@@ -75,7 +75,7 @@
 - 中くらい以上の発話は、安定時間が十分長ければ `final` に寄せるようになった
 - `--final-stable-seconds` で `final` に寄せる安定時間を調整できる
 - `partial/final` のヒューリスティクスは `src/main.py` から `src/core/finalization.py` に切り出した
-- `src.agent_handoff` / `src.agent_runner` と `/api/agent-handoff-latest` を追加し、`codex_*` 名に依存しない handoff 取得口も持てるようにした
+- `src.agent_handoff` / `src.agent_runner` と `/api/agent-handoff-latest` を追加し、`agent_*` 名を正面の handoff 取得口として使えるようにした
 - `src/core/handoff_bridge.py` を追加し、Web/API と handoff reader は汎用 handoff 境界を参照し始めた
 - README の Architecture 図を handoff / runner まで含む最新構成に更新した
 
@@ -98,8 +98,8 @@
 - 他プロセスが最新 handoff を取りに来る API 境界を追加した
 - Web を経由せずローカル handoff を読む CLI 境界も追加した
 - ローカルの Codex 実行プロセスへ handoff を渡す bridge を追加した
-- `codex_runner` は template 指定でも handoff を流せるようにした
-- `codex_runner` は `codex-exec` テンプレートで Codex CLI にそのまま handoff を流せる
+- `agent_runner` は template 指定でも handoff を流せるようにした
+- `agent_runner` は `codex-exec` テンプレートで Codex CLI にそのまま handoff を流せる
 - 無音チャンク直後に直前発話を `final` とみなす補助ルールを追加した
 - `Ctrl+C` で止めた時も、最後の安定発話を `final` として 1 回だけ出せるようにした
 - 長い発話は 2 回連続、短い発話は 3 回連続を基準に `final` へ寄せる

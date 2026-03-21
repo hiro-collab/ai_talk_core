@@ -196,3 +196,5 @@
 - `src/core/llm.py` は互換ラッパーへ変更した
 - `src/runners/agent.py` を追加し、`src/agent_runner.py` は `src.runners.agent` を参照するよう変更した
 - `src/runners/codex.py` は runner 実体ではなく互換ラッパーへ変更した
+- `src.main` の内部 helper 名を `print_agent_instruction_*` / `save_handoff_if_requested()` に寄せた
+- `smoke_test.py` に `src.agent_handoff` の prompt / command 読取テストを追加した

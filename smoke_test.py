@@ -31,7 +31,7 @@ from src.core.finalization import (
 )
 from src.main import (
     format_transcription_result,
-    print_codex_instruction_only,
+    print_agent_instruction_only,
     validate_final_stable_seconds,
 )
 from src.io.audio import should_retry_model_load_on_cpu
@@ -76,6 +76,18 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 def run_handoff_cli(*args: str) -> subprocess.CompletedProcess[str]:
     """Run the Codex handoff CLI and capture its output."""
     command = [sys.executable, "-m", "src.codex_handoff", *args]
+    return subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def run_agent_handoff_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run the generic agent handoff CLI and capture its output."""
+    command = [sys.executable, "-m", "src.agent_handoff", *args]
     return subprocess.run(
         command,
         cwd=PROJECT_ROOT,
@@ -421,6 +433,21 @@ class SmokeTests(unittest.TestCase):
         json_path.unlink()
         text_path.unlink()
 
+    def test_agent_handoff_cli_reads_latest_prompt(self) -> None:
+        """Generic agent handoff CLI should print the saved prompt text."""
+        json_path = get_default_codex_output_path(source="agent_cli_test")
+        text_path = get_default_codex_text_path(source="agent_cli_test")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_agent_handoff_cli("--source", "agent_cli_test", "--format", "prompt")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Voice transcript:", result.stdout)
+        json_path.unlink()
+        text_path.unlink()
+
     def test_handoff_cli_reads_latest_command(self) -> None:
         """Handoff CLI should print the saved command text."""
         json_path = get_default_codex_output_path(source="cli_command")
@@ -431,6 +458,21 @@ class SmokeTests(unittest.TestCase):
             text_path=text_path,
         )
         result = run_handoff_cli("--source", "cli_command", "--format", "command")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(result.stdout.strip(), "依存関係を確認して")
+        json_path.unlink()
+        text_path.unlink()
+
+    def test_agent_handoff_cli_reads_latest_command(self) -> None:
+        """Generic agent handoff CLI should print the saved command text."""
+        json_path = get_default_codex_output_path(source="agent_cli_command")
+        text_path = get_default_codex_text_path(source="agent_cli_command")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_agent_handoff_cli("--source", "agent_cli_command", "--format", "command")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(result.stdout.strip(), "依存関係を確認して")
         json_path.unlink()
@@ -870,11 +912,11 @@ class SmokeTests(unittest.TestCase):
         exc = RuntimeError("unknown Whisper load failure")
         self.assertFalse(should_retry_model_load_on_cpu(exc))
 
-    def test_print_codex_instruction_only_handles_blank(self) -> None:
+    def test_print_agent_instruction_only_handles_blank(self) -> None:
         """command-only printer should handle blank transcripts."""
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            print_codex_instruction_only("   ")
+            print_agent_instruction_only("   ")
         self.assertEqual(buffer.getvalue().strip(), "no instruction draft available")
 
 

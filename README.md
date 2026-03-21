@@ -156,39 +156,39 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 保存済み handoff を取得:
 
 ```bash
-curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
+curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web
 ```
 
 ローカル CLI から最新 handoff を読む:
 
 ```bash
-uv run python -m src.codex_handoff --source web --format prompt
+uv run python -m src.agent_handoff --source web --format prompt
 ```
 
 互換性を保ったまま、より汎用的な入口も使えます。内部では `src/core/handoff_bridge.py`, `src/core/agent_instruction.py`, `src/runners/agent.py` を参照し始めていますが、既存の `src/core/codex_bridge.py`, `src/core/llm.py`, `src/runners/codex.py` は互換のため残しています。
 
 ```bash
-curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web
-uv run python -m src.agent_handoff --source web --format prompt
 uv run python -m src.agent_runner --source web --template cat
+curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
+uv run python -m src.codex_handoff --source web --format prompt
 ```
 
 任意コマンドの stdin に最新 handoff を渡す:
 
 ```bash
-uv run python -m src.codex_runner --source web -- python -c "import sys; print(sys.stdin.read())"
+uv run python -m src.agent_runner --source web -- python -c "import sys; print(sys.stdin.read())"
 ```
 
 組み込みテンプレートを使う:
 
 ```bash
-uv run python -m src.codex_runner --source web --template cat
+uv run python -m src.agent_runner --source web --template cat
 ```
 
 Codex CLI にそのまま渡す:
 
 ```bash
-uv run python -m src.codex_runner --source web --template codex-exec
+uv run python -m src.agent_runner --source web --template codex-exec
 ```
 
 このテンプレートは `codex` コマンドが `PATH` にある前提です。見つからない場合は実行前に入力エラーを返します。
