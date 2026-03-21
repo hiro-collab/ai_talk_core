@@ -21,6 +21,10 @@ from src.core.handoff_bridge import (
     save_handoff_payload,
 )
 from src.core.agent_instruction import build_agent_instruction
+from src.core.dependency_status import (
+    format_dependency_status,
+    get_dependency_status,
+)
 from src.core.finalization import (
     has_stable_duration_for_final,
     maybe_finalize_on_interrupt,
@@ -311,6 +315,15 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("torch_cuda_available", payload)
         self.assertIn("transcription_device", payload)
         self.assertIn("suggested_action", payload)
+
+    def test_show_dependency_status_can_return_json(self) -> None:
+        """Dependency status should support JSON output."""
+        result = run_cli("--show-dependency-status", "--dependency-status-format", "json")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("direct_dependencies", payload)
+        self.assertIn("installed_versions", payload)
+        self.assertIn("torch_direct_dependency", payload)
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -917,6 +930,41 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("transcription_device", status)
         self.assertIn("runtime_note", status)
         self.assertIn("suggested_action", status)
+
+    def test_format_dependency_status_mentions_torch_source(self) -> None:
+        """Dependency formatter should explain how torch is resolved."""
+        text = format_dependency_status(
+            {
+                "pyproject_path": "/tmp/pyproject.toml",
+                "direct_dependencies": ["flask>=3.1.3", "openai-whisper>=20250625"],
+                "direct_dependency_names": ["flask", "openai-whisper"],
+                "torch_direct_dependency": False,
+                "installed_versions": {
+                    "flask": "3.1.3",
+                    "openai-whisper": "20250625",
+                    "setuptools": "82.0.1",
+                    "torch": "2.10.0+cu128",
+                    "webrtcvad": "2.0.10",
+                },
+                "dependency_note": (
+                    "torch is currently resolved transitively via openai-whisper unless it "
+                    "is added explicitly to pyproject.toml."
+                ),
+            }
+        )
+        self.assertIn("Dependency status:", text)
+        self.assertIn("torch_direct_dependency: False", text)
+        self.assertIn("openai-whisper>=20250625", text)
+        self.assertIn("transitively via openai-whisper", text)
+
+    def test_get_dependency_status_returns_expected_keys(self) -> None:
+        """Dependency status helper should expose direct and installed package state."""
+        status = get_dependency_status()
+        self.assertIn("direct_dependencies", status)
+        self.assertIn("direct_dependency_names", status)
+        self.assertIn("torch_direct_dependency", status)
+        self.assertIn("installed_versions", status)
+        self.assertIn("dependency_note", status)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""

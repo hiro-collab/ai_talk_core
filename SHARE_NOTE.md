@@ -92,6 +92,8 @@
 - runtime status には `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name` も含め、driver 側と Torch 側の食い違いを見やすくした
 - `nvidia-smi` は見えるのに `torch_cuda_available` が `False` の場合、runtime status は Torch/driver CUDA mismatch または local CUDA 初期化問題の疑いも示すようにした
 - runtime status には `suggested_action` も含め、project-local に次に取るべき対応を読みやすくした
+- `--show-dependency-status` を追加し、`pyproject.toml` の direct dependency と現在の installed version をまとめて確認できるようにした
+- dependency status では `torch` が direct dependency ではなく `openai-whisper` 経由の transitive dependency であることを確認できるようにした
 - `--mic-loop` の `[mic-tuning] ...` と停止メッセージは stderr に出し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 
 ## Next tasks

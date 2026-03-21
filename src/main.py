@@ -8,6 +8,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
+from src.core.dependency_status import format_dependency_status, get_dependency_status
 from src.core.agent_instruction import build_agent_instruction
 from src.core.finalization import (
     has_stable_duration_for_final,
@@ -385,10 +386,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the local Whisper / Torch / ffmpeg runtime status and exit.",
     )
     parser.add_argument(
+        "--show-dependency-status",
+        action="store_true",
+        help="Print direct dependency and installed package status and exit.",
+    )
+    parser.add_argument(
         "--runtime-status-format",
         choices=("text", "json"),
         default="text",
         help="Output format for --show-runtime-status. Default: text",
+    )
+    parser.add_argument(
+        "--dependency-status-format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for --show-dependency-status. Default: text",
     )
     parser.add_argument(
         "--vad-aggressiveness",
@@ -475,6 +487,13 @@ def main() -> int:
                 print(json.dumps(status, ensure_ascii=False, indent=2))
             else:
                 print(format_runtime_status(status))
+            return 0
+        if args.show_dependency_status:
+            status = get_dependency_status()
+            if args.dependency_status_format == "json":
+                print(json.dumps(status, ensure_ascii=False, indent=2))
+            else:
+                print(format_dependency_status(status))
             return 0
         validate_model_name(args.model)
         ensure_ffmpeg_available()

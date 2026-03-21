@@ -332,6 +332,20 @@ uv run python -m src.main --show-runtime-status --runtime-status-format json
 
 この出力には `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name`, `transcription_device`, `runtime_note`, `suggested_action` も含まれ、driver 側と Torch 側の食い違い、および GPU が使えないときの CPU fallback を読み取りやすくします。`nvidia-smi` は見えるのに `torch_cuda_available` が `False` の場合は、`runtime_note` に Torch/driver CUDA mismatch の疑い、`suggested_action` に project-local な次の一手を出します。
 
+依存の解決状態を確認する:
+
+```bash
+uv run python -m src.main --show-dependency-status
+```
+
+JSON で取り出す:
+
+```bash
+uv run python -m src.main --show-dependency-status --dependency-status-format json
+```
+
+この出力では、`pyproject.toml` に `torch` が直接書かれているか、現在の `torch` が `openai-whisper` 経由の transitive dependency かを確認できます。
+
 `final` に寄せる安定時間を変える:
 
 ```bash

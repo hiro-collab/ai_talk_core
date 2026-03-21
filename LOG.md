@@ -225,6 +225,8 @@
 - runtime status に `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name` を追加し、driver 側と Torch 側の食い違いを見やすくした
 - `nvidia-smi` は見えるのに `torch_cuda_available` が `False` の場合、runtime status に Torch/driver CUDA mismatch または local CUDA 初期化問題の疑いを出すようにした
 - runtime status に `suggested_action` を追加し、project-local に次に取るべき対応を読みやすくした
+- `src.core.dependency_status` を追加し、`pyproject.toml` の direct dependency と installed version をまとめて確認できるようにした
+- `src.main` に `--show-dependency-status` と `--dependency-status-format text|json` を追加し、Torch が transitive dependency であることを確認しやすくした
 - `src.main` の `[mic-tuning] ...` と `Stopped microphone loop.` は stderr に出すよう変更し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 - `uv run python -m py_compile src/main.py src/io/audio.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、90 件の smoke test が成功することを確認
