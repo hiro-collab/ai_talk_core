@@ -345,6 +345,24 @@ class SmokeTests(unittest.TestCase):
         output_path.unlink()
         text_path.unlink()
 
+    def test_api_agent_handoff_latest_returns_saved_bundle(self) -> None:
+        """Agent handoff API alias should return saved prompt bundle contents."""
+        output_path = get_default_codex_output_path(source="web")
+        text_path = get_default_codex_text_path(source="web")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=output_path,
+            text_path=text_path,
+        )
+        response = self.client.get("/api/agent-handoff-latest?source=web")
+        self.assertEqual(response.status_code, 200)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertEqual(payload_json["command"], "依存関係を確認して")
+        self.assertIn("Voice transcript:", payload_json["prompt_text"])
+        output_path.unlink()
+        text_path.unlink()
+
     def test_api_codex_handoff_latest_returns_404_without_bundle(self) -> None:
         """Latest handoff API should return 404 when no bundle exists."""
         output_path = get_default_codex_output_path(source="missing")
@@ -354,6 +372,17 @@ class SmokeTests(unittest.TestCase):
         if text_path.exists():
             text_path.unlink()
         response = self.client.get("/api/codex-handoff-latest?source=missing")
+        self.assertEqual(response.status_code, 404)
+
+    def test_api_agent_handoff_latest_returns_404_without_bundle(self) -> None:
+        """Agent handoff API alias should return 404 when no bundle exists."""
+        output_path = get_default_codex_output_path(source="missing")
+        text_path = get_default_codex_text_path(source="missing")
+        if output_path.exists():
+            output_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
+        response = self.client.get("/api/agent-handoff-latest?source=missing")
         self.assertEqual(response.status_code, 404)
 
     def test_handoff_cli_reads_latest_prompt(self) -> None:

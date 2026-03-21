@@ -531,8 +531,8 @@ def create_app() -> Flask:
             message="ブラウザ録音を処理しました。",
         )
 
-    @app.get("/api/codex-handoff-latest")
-    def api_codex_handoff_latest() -> tuple[object, int]:
+    def build_handoff_response() -> tuple[object, int]:
+        """Return the latest saved handoff bundle as JSON."""
         source = request.args.get("source", "web").strip() or "web"
         handoff = load_codex_handoff_bundle(source=source)
         if handoff is None:
@@ -547,6 +547,14 @@ def create_app() -> Flask:
                 "source": source,
             }
         ), 200
+
+    @app.get("/api/codex-handoff-latest")
+    def api_codex_handoff_latest() -> tuple[object, int]:
+        return build_handoff_response()
+
+    @app.get("/api/agent-handoff-latest")
+    def api_agent_handoff_latest() -> tuple[object, int]:
+        return build_handoff_response()
 
     return app
 

@@ -165,6 +165,14 @@ curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
 uv run python -m src.codex_handoff --source web --format prompt
 ```
 
+互換性を保ったまま、より汎用的な入口も使えます:
+
+```bash
+curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web
+uv run python -m src.agent_handoff --source web --format prompt
+uv run python -m src.agent_runner --source web --template cat
+```
+
 任意コマンドの stdin に最新 handoff を渡す:
 
 ```bash
