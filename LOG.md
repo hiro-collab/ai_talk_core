@@ -207,3 +207,9 @@
 - `src.main` に `--mic-profile responsive|balanced|strict` を追加し、VAD と final の調整値をプリセットから選べるようにした
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、78 件の smoke test が成功することを確認
+- `src.main` に `format_mic_loop_tuning()` を追加し、`--mic-loop` 開始時に解決済みの profile / VAD / final しきい値を表示するよう変更
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、79 件の smoke test が成功することを確認
+- `src.main` に `MIC_LOOP_PROFILES` と `--list-mic-profiles` を追加し、利用可能な mic-loop プリセット一覧を CLI から確認できるようにした
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、81 件の smoke test が成功することを確認

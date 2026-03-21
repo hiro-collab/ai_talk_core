@@ -215,6 +215,7 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 この安定時間は `--final-stable-seconds` で上書きできます。
 ただし、時間条件だけで単発チャンクを即 `final` にすることは避け、最低限の反復を前提にしています。
 これらの `final` ヒューリスティクスは `src/core/finalization.py` に切り出し、CLI 本体から分離しています。
+`--mic-loop` の開始時には、実際に使われる profile / VAD / final しきい値を `[mic-tuning] ...` として表示します。
 
 転写結果と指示草案を同時に表示:
 
@@ -291,6 +292,12 @@ mic-loop の調整プリセットを切り替える:
 
 ```bash
 uv run python -m src.main --mic-loop --duration 3 --language ja --mic-profile strict
+```
+
+一覧だけ確認する:
+
+```bash
+uv run python -m src.main --list-mic-profiles
 ```
 
 `final` に寄せる安定時間を変える:

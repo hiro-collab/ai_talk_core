@@ -30,7 +30,9 @@ from src.core.finalization import (
     should_mark_result_final,
 )
 from src.main import (
+    format_mic_profile_list,
     format_transcription_result,
+    format_mic_loop_tuning,
     print_agent_instruction_only,
     resolve_mic_loop_tuning,
     validate_final_stable_seconds,
@@ -234,6 +236,15 @@ class SmokeTests(unittest.TestCase):
             "Input error: --mic-profile must be one of: responsive, balanced, strict",
             result.stdout,
         )
+
+    def test_list_mic_profiles_prints_available_profiles(self) -> None:
+        """Profile listing should print all available tuning presets."""
+        result = run_cli("--list-mic-profiles")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Available mic-loop profiles:", result.stdout)
+        self.assertIn("responsive", result.stdout)
+        self.assertIn("balanced", result.stdout)
+        self.assertIn("strict", result.stdout)
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -761,6 +772,20 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(resolve_mic_loop_tuning("strict", 0, None), (0, 10))
         self.assertEqual(resolve_mic_loop_tuning("responsive", None, 12), (1, 12))
         self.assertEqual(resolve_mic_loop_tuning("balanced", 3, 6), (3, 6))
+
+    def test_format_mic_loop_tuning_reports_resolved_values(self) -> None:
+        """Mic-loop tuning formatter should expose the active settings."""
+        self.assertEqual(
+            format_mic_loop_tuning("balanced", 2, 8),
+            "[mic-tuning] profile=balanced vad_aggressiveness=2 final_stable_seconds=8",
+        )
+
+    def test_format_mic_profile_list_mentions_profile_details(self) -> None:
+        """Profile list formatter should describe the preset values."""
+        listing = format_mic_profile_list()
+        self.assertIn("responsive", listing)
+        self.assertIn("vad_aggressiveness=1", listing)
+        self.assertIn("final_stable_seconds=10", listing)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""

@@ -34,6 +34,13 @@ from src.io.microphone import (
 )
 
 
+MIC_LOOP_PROFILES: dict[str, tuple[int, int, str]] = {
+    "responsive": (1, 5, "反応を優先し、早めに partial/final を出す"),
+    "balanced": (2, 8, "既定のバランス設定"),
+    "strict": (3, 10, "無音と誤認識を減らす代わりに確定を遅くする"),
+}
+
+
 def format_transcription_result(result: object) -> str:
     """Format a realtime transcription result for terminal output."""
     if getattr(result, "is_silence", False):
@@ -80,6 +87,20 @@ def save_handoff_if_requested(text: str, output_path: str | None) -> None:
     print(f"[command-text] {saved_paths.text_path}")
 
 
+def format_mic_loop_tuning(
+    profile: str,
+    vad_aggressiveness: int,
+    final_stable_seconds: int,
+) -> str:
+    """Format the resolved mic-loop tuning values for terminal output."""
+    return (
+        "[mic-tuning] "
+        f"profile={profile} "
+        f"vad_aggressiveness={vad_aggressiveness} "
+        f"final_stable_seconds={final_stable_seconds}"
+    )
+
+
 def run_mic_loop(
     duration: int,
     mic_device: str,
@@ -90,6 +111,7 @@ def run_mic_loop(
     emit_command: bool,
     command_only: bool,
     command_output: str | None,
+    mic_profile: str,
     vad_aggressiveness: int,
     final_stable_seconds: int,
 ) -> int:
@@ -101,6 +123,14 @@ def run_mic_loop(
     repeat_count = 0
     last_spoken_result: TranscriptionResult | None = None
     finalized_text: str | None = None
+
+    print(
+        format_mic_loop_tuning(
+            profile=mic_profile,
+            vad_aggressiveness=vad_aggressiveness,
+            final_stable_seconds=final_stable_seconds,
+        )
+    )
 
     try:
         while iterations is None or completed_iterations < iterations:
@@ -195,7 +225,7 @@ def validate_mic_loop_options(vad_aggressiveness: int) -> None:
 
 def validate_mic_profile(profile: str) -> None:
     """Validate the selected mic-loop tuning profile."""
-    if profile not in {"responsive", "balanced", "strict"}:
+    if profile not in MIC_LOOP_PROFILES:
         raise AudioInputError(
             "--mic-profile must be one of: responsive, balanced, strict"
         )
@@ -213,12 +243,7 @@ def resolve_mic_loop_tuning(
     final_stable_seconds: int | None,
 ) -> tuple[int, int]:
     """Resolve mic-loop tuning from a named profile and optional overrides."""
-    presets = {
-        "responsive": (1, 5),
-        "balanced": (2, 8),
-        "strict": (3, 10),
-    }
-    preset_vad, preset_final_seconds = presets[profile]
+    preset_vad, preset_final_seconds, _description = MIC_LOOP_PROFILES[profile]
     resolved_vad = preset_vad if vad_aggressiveness is None else vad_aggressiveness
     resolved_final_seconds = (
         preset_final_seconds
@@ -226,6 +251,17 @@ def resolve_mic_loop_tuning(
         else final_stable_seconds
     )
     return resolved_vad, resolved_final_seconds
+
+
+def format_mic_profile_list() -> str:
+    """Render the available mic-loop tuning profiles."""
+    lines = ["Available mic-loop profiles:"]
+    for profile, (vad, stable_seconds, description) in MIC_LOOP_PROFILES.items():
+        lines.append(
+            f"- {profile}: vad_aggressiveness={vad}, "
+            f"final_stable_seconds={stable_seconds} ({description})"
+        )
+    return "\n".join(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -286,6 +322,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Mic-loop tuning profile: responsive, balanced, or strict. Default: balanced",
     )
     parser.add_argument(
+        "--list-mic-profiles",
+        action="store_true",
+        help="Print available mic-loop tuning profiles and exit.",
+    )
+    parser.add_argument(
         "--vad-aggressiveness",
         type=int,
         default=None,
@@ -326,6 +367,9 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
+        if args.list_mic_profiles:
+            print(format_mic_profile_list())
+            return 0
         validate_model_name(args.model)
         ensure_ffmpeg_available()
         if args.command_only:
@@ -358,6 +402,7 @@ def main() -> int:
                 emit_command=args.emit_command,
                 command_only=args.command_only,
                 command_output=args.command_output,
+                mic_profile=args.mic_profile,
                 vad_aggressiveness=resolved_vad_aggressiveness,
                 final_stable_seconds=resolved_final_stable_seconds,
             )
