@@ -6,7 +6,7 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
-from src.core.codex_bridge import save_codex_payload
+from src.core.codex_bridge import save_codex_handoff_bundle
 from src.core.llm import build_codex_instruction
 from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.io.audio import (
@@ -62,11 +62,14 @@ def save_codex_instruction_if_requested(text: str, output_path: str | None) -> N
     """Save a Codex payload to disk when requested."""
     if not output_path:
         return
-    saved_path = save_codex_payload(text, Path(output_path).expanduser().resolve())
-    if saved_path is None:
+    json_path = Path(output_path).expanduser().resolve()
+    text_path = json_path.with_suffix(".txt")
+    saved_paths = save_codex_handoff_bundle(text, json_path=json_path, text_path=text_path)
+    if saved_paths is None:
         print(f"[command-file] no instruction draft available for {output_path}")
         return
-    print(f"[command-file] {saved_path}")
+    print(f"[command-file] {saved_paths.json_path}")
+    print(f"[command-text] {saved_paths.text_path}")
 
 
 def should_mark_result_final(

@@ -54,6 +54,7 @@
 - `src/core/codex_bridge.py` を追加し、Codex 連携用 payload を共通化した
 - CLI に `--command-output` を追加し、Codex 連携用 JSON を保存できるようにした
 - Web/API からも `save_command` で Codex payload を保存できるようにした
+- Codex handoff として JSON に加えて `.txt` prompt も保存できるようにした
 
 ## Next tasks
 
@@ -70,6 +71,7 @@
 - `final` へ寄せるには、同じ結果が複数回連続する必要がある
 - `command-only` をそのまま Codex 実行へつなぐ境界整理を続ける
 - Web/API 側の `command_path` を使った次段の Codex 実行 bridge を検討する
+- Web/API 側の `command_text_path` を使って、そのまま貼り付ける運用も可能にした
 
 ## Review-derived actions
 

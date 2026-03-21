@@ -10,7 +10,13 @@ import subprocess
 import sys
 import unittest
 
-from src.core.codex_bridge import build_codex_payload, get_default_codex_output_path, save_codex_payload
+from src.core.codex_bridge import (
+    build_codex_payload,
+    get_default_codex_output_path,
+    get_default_codex_text_path,
+    save_codex_handoff_bundle,
+    save_codex_payload,
+)
 from src.core.llm import build_codex_instruction
 from src.main import (
     format_transcription_result,
@@ -73,8 +79,11 @@ class SmokeTests(unittest.TestCase):
     def test_command_output_writes_payload_json(self) -> None:
         """command-output should save a Codex payload JSON file."""
         output_path = PROJECT_ROOT / ".cache" / "tests" / "command_payload.json"
+        text_path = output_path.with_suffix(".txt")
         if output_path.exists():
             output_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
         result = run_cli(
             "data/sample_audio.mp3",
             "--language",
@@ -84,10 +93,12 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(output_path.exists())
+        self.assertTrue(text_path.exists())
         payload_json = json.loads(output_path.read_text(encoding="utf-8"))
         self.assertIn("こんにちは", payload_json["transcript"])
         self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
         output_path.unlink()
+        text_path.unlink()
 
     def test_iterations_requires_mic_loop(self) -> None:
         """Iterations should only be accepted with mic-loop."""
@@ -227,8 +238,11 @@ class SmokeTests(unittest.TestCase):
     def test_api_upload_can_save_command_payload(self) -> None:
         """API upload route should optionally save the Codex payload."""
         output_path = get_default_codex_output_path(source="web")
+        text_path = get_default_codex_text_path(source="web")
         if output_path.exists():
             output_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
         sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
         payload = {
             "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
@@ -245,8 +259,11 @@ class SmokeTests(unittest.TestCase):
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
         self.assertEqual(payload_json["command_path"], str(output_path))
+        self.assertEqual(payload_json["command_text_path"], str(text_path))
         self.assertTrue(output_path.exists())
+        self.assertTrue(text_path.exists())
         output_path.unlink()
+        text_path.unlink()
 
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
@@ -373,6 +390,27 @@ class SmokeTests(unittest.TestCase):
             },
         )
         output_path.unlink()
+
+    def test_save_codex_handoff_bundle_writes_json_and_text(self) -> None:
+        """Codex handoff helper should save both JSON and text outputs."""
+        json_path = PROJECT_ROOT / ".cache" / "tests" / "handoff_bundle.json"
+        text_path = PROJECT_ROOT / ".cache" / "tests" / "handoff_bundle.txt"
+        if json_path.exists():
+            json_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
+        saved_paths = save_codex_handoff_bundle(
+            "  依存関係を   確認して ",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        self.assertIsNotNone(saved_paths)
+        assert saved_paths is not None
+        self.assertEqual(saved_paths.json_path, json_path)
+        self.assertEqual(saved_paths.text_path, text_path)
+        self.assertEqual(text_path.read_text(encoding="utf-8").strip(), "依存関係を 確認して")
+        json_path.unlink()
+        text_path.unlink()
 
     def test_print_codex_instruction_only_handles_blank(self) -> None:
         """command-only printer should handle blank transcripts."""

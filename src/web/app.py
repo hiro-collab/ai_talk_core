@@ -9,7 +9,12 @@ from uuid import uuid4
 from flask import Flask, jsonify, render_template_string, request
 from werkzeug.utils import secure_filename
 
-from src.core.codex_bridge import build_codex_payload, get_default_codex_output_path, save_codex_payload
+from src.core.codex_bridge import (
+    build_codex_payload,
+    get_default_codex_output_path,
+    get_default_codex_text_path,
+    save_codex_handoff_bundle,
+)
 from src.core.pipeline import AudioChunk, TranscriptionPipeline
 from src.io.audio import (
     AudioEnvironmentError,
@@ -258,8 +263,10 @@ PAGE_TEMPLATE = """<!doctype html>
     <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
     <div id="page-command" class="command" {% if not command %}hidden{% endif %}>Codex instruction draft:
 {{ command or "" }}</div>
-    <div id="page-meta" class="meta" {% if not command_path %}hidden{% endif %}>Saved payload:
-{{ command_path or "" }}</div>
+    <div id="page-meta" class="meta" {% if not command_path and not command_text_path %}hidden{% endif %}>Saved payload:
+{{ command_path or "" }}{% if command_text_path %}
+Saved prompt:
+{{ command_text_path }}{% endif %}</div>
     <div id="page-error" class="error" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
   </main>
 
@@ -325,15 +332,18 @@ PAGE_TEMPLATE = """<!doctype html>
       setRecorderButtons();
     };
 
-    const updateOutput = ({ message = "", transcript = "", command = "", command_path = "", error = "" }) => {
+    const updateOutput = ({ message = "", transcript = "", command = "", command_path = "", command_text_path = "", error = "" }) => {
       pageStatus.hidden = !message;
       pageStatus.textContent = message;
       pageResult.hidden = !transcript;
       pageResult.textContent = transcript;
       pageCommand.hidden = !command;
       pageCommand.textContent = command;
-      pageMeta.hidden = !command_path;
-      pageMeta.textContent = command_path;
+      pageMeta.hidden = !command_path && !command_text_path;
+      pageMeta.textContent = [
+        command_path ? `Saved payload:\n${command_path}` : "",
+        command_text_path ? `Saved prompt:\n${command_text_path}` : "",
+      ].filter(Boolean).join("\n");
       pageError.hidden = !error;
       pageError.textContent = error;
     };
@@ -342,7 +352,7 @@ PAGE_TEMPLATE = """<!doctype html>
       recorderState = "uploading";
       setRecorderButtons();
       setStatus(processingText);
-      updateOutput({ message: processingText, transcript: "", command: "", command_path: "", error: "" });
+      updateOutput({ message: processingText, transcript: "", command: "", command_path: "", command_text_path: "", error: "" });
       renderDebug(`upload start -> ${url}`);
       try {
         const response = await fetch(url, {
@@ -527,6 +537,7 @@ def render_page(
     transcript: str | None = None,
     command: str | None = None,
     command_path: str | None = None,
+    command_text_path: str | None = None,
     error: str | None = None,
     message: str | None = None,
 ) -> str:
@@ -536,6 +547,7 @@ def render_page(
         transcript=transcript,
         command=command,
         command_path=command_path,
+        command_text_path=command_text_path,
         error=error,
         message=message,
     )
@@ -568,6 +580,7 @@ def process_transcription_request(
     transcript = ""
     command = ""
     command_path = ""
+    command_text_path = ""
     error = ""
     status_code = 200
 
@@ -586,11 +599,14 @@ def process_transcription_request(
         payload = build_codex_payload(transcript)
         command = "" if payload is None else payload.command
         if save_command:
-            saved_path = save_codex_payload(
+            saved_paths = save_codex_handoff_bundle(
                 transcript,
-                get_default_codex_output_path(source="web"),
+                json_path=get_default_codex_output_path(source="web"),
+                text_path=get_default_codex_text_path(source="web"),
             )
-            command_path = "" if saved_path is None else str(saved_path)
+            if saved_paths is not None:
+                command_path = str(saved_paths.json_path)
+                command_text_path = str(saved_paths.text_path)
     except AudioInputError as exc:
         error = f"Input error: {escape(str(exc))}"
         status_code = 400
@@ -619,6 +635,7 @@ def process_transcription_request(
         "transcript": "" if command_only else transcript,
         "command": command,
         "command_path": command_path,
+        "command_text_path": command_text_path,
         "error": error,
     }
     return payload, status_code
@@ -645,6 +662,7 @@ def handle_transcription(
         transcript=payload["transcript"],
         command=payload["command"],
         command_path=payload["command_path"],
+        command_text_path=payload["command_text_path"],
         message=payload["message"],
     )
 

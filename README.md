@@ -114,7 +114,7 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
   -F "command_only=true"
 ```
 
-`save_command=true` を送ると、プロジェクト内 `.cache/codex/web_latest.json` に payload を保存し、応答 JSON に `command_path` を返します。
+`save_command=true` を送ると、プロジェクト内 `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に handoff を保存し、応答 JSON に `command_path` と `command_text_path` を返します。
 
 ## Quick start
 
@@ -148,8 +148,10 @@ Codex 連携用 payload を JSON 保存:
 uv run python -m src.main --mic --duration 5 --language ja --command-output .cache/codex/latest.json
 ```
 
+このとき `.txt` 版の prompt も同じ場所に自動生成します。
+
 Web UI でも、アップロード欄とブラウザ録音欄の `Codex 指示草案を優先して返す` を有効にすると `command_only` と同じ挙動になります。
-`Codex payload を保存する` を有効にすると、同じ payload を `.cache/codex/web_latest.json` に保存します。
+`Codex payload を保存する` を有効にすると、同じ handoff を `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に保存します。
 
 ブラウザ GUI を起動:
 
