@@ -26,7 +26,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 12 件の smoke test 成功
+- `uv run python smoke_test.py` で 16 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -58,6 +58,8 @@
 - 有限ループ最終回以外の `final` 条件として、同一結果の連続を反映済み
 - 無音チャンクを Whisper に渡しにくくする軽い VAD 相当を反映済み
 - VAD は未着手
+- `ffprobe` 依存の事前チェックは未着手
+- 無音チャンク時の表示改善は未着手
 - `/api/transcribe-browser-recording` のサーバーテストは反映済み
 - ブラウザ録音の 2 回連続実行は実機確認済み
 - ブラウザ録音の精度改善として `webm` の正規化を反映済み

@@ -117,3 +117,5 @@
 - `uv run python smoke_test.py` を実行し、15 件の smoke test が成功することを確認
 - `src/io/microphone.py` に `ffprobe` / `ffmpeg silencedetect` を使った軽い無音検出を追加
 - `src/main.py` の `--mic-loop` で、ほぼ無音のチャンクは Whisper 転写をスキップするよう変更
+- `uv run python smoke_test.py` を再実行し、16 件の smoke test が成功することを確認
+- レビュー棚卸しを行い、`REVIEW.md` の stale な Web/API 指摘を解消済みとして整理し、open item を `partial/final`, VAD, `ffprobe` 事前チェック, 無音表示 UX に絞った

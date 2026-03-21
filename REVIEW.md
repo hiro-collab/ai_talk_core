@@ -22,7 +22,8 @@ Status: adopted with open follow-ups
 
 #### Findings
 
-- Medium: ユーザー観察として、Web UI のブラウザ録音は改善後も 2 回連続では安定しない。`src/web/app.py:274-327` では `MediaRecorder` と stream の明示リセットが入っているが、実機症状が残っているため、ブラウザ録音の再初期化または実ブラウザ依存の挙動が未解決と見るべき。
+- Medium: `src/io/microphone.py` の無音検出は `ffprobe` を前提にしているが、事前チェックが `ffmpeg` と `arecord` のみで、`ffprobe` 不在時の早期検出がない。`--mic-loop` だけ別マシンで落ちる経路として残っている。
+- Low-Medium: `src/main.py` の無音チャンクは空文字の `TranscriptionResult` として表示されるため、`[partial N] ` が「意図した無音スキップ」なのか「認識失敗」なのか区別しづらい。
 - Low: `src/io/microphone.py:42-50` のデフォルトマイク選択は `HD Pro Webcam C920` という機種名文字列に依存しており、この PC では妥当でも汎用実装ではない。README には記載済みだが、PC 固有ロジックとして扱う必要がある。
 
 #### Open questions / assumptions
@@ -34,13 +35,11 @@ Status: adopted with open follow-ups
 
 #### Recommended next actions
 
-- 1. ブラウザ録音の 2 回連続実行を実ブラウザで再確認し、`MediaRecorder` の再初期化と UI 状態遷移を重点的に切り分ける
-- 2. `smoke_test.py` では拾えないブラウザ実機依存のため、GUI の手動確認項目として連続録音を明文化する
-- 3. このプロジェクトを音声入力フロントエンドとして位置づけ、Codex などへ渡す前段を担う方針を明文化する
-- 4. リアルタイム化の次段階として、`buffer -> partial/final` の API 境界を作る
-- 5. VAD を導入し、発話区間の自動切り出しを先に整える
-- 6. ノイズ対策は denoise より先に VAD と軽い前処理から入る
-- 7. 将来の他システム連携に備え、CLI / Web UI の上に外部連携 API を置けるサービス境界を維持する
+- 1. `ffprobe` 依存の事前チェックを追加し、`--mic-loop` の環境エラーを早期に分かる形へ寄せる
+- 2. 無音チャンク時の CLI / Web UI 表示を明確化し、無音スキップと認識失敗を区別できるようにする
+- 3. `partial/final` は暫定ヒューリスティクス段階なので、より実用的な確定条件へ進める
+- 4. 軽い無音スキップの次段として、本格的な VAD を導入する
+- 5. 将来の他システム連携に備え、CLI / Web UI の上に外部連携 API を置けるサービス境界を維持する
 
 #### Realtime direction
 
@@ -69,12 +68,22 @@ Status: adopted with open follow-ups
 - `--iterations` の 0 以下バリデーションを追加
 - `smoke_test.py` を拡張し、`--iterations` と `--no-trim-silence` の確認を追加
 - `ffmpeg` の `silenceremove` を使った軽い無音トリムを追加
+- `TranscriptionResult` による `partial/final` の暫定結果モデルを追加
+- 有限ループ最終回に加え、同一結果の連続時も `final` に寄せる暫定ヒューリスティクスを追加
+- `ffprobe` / `ffmpeg silencedetect` を使った軽い無音スキップを `--mic-loop` に追加
+- Web UI の転写本体処理を共通化し、fetch 先を `/api/...` に統一
+- `/api/transcribe-browser-recording` のサーバーテストを追加
+- `Recorder Debug` と `requestData()` 除去を含むブラウザ録音の状態改善を追加
+- ブラウザ録音の `webm` を `16kHz mono wav` 相当に正規化してから転写するよう変更
+- ブラウザ録音の 2 回連続実行は実機で成功を確認
+- README の `Overview` / `Quick start` の重複を圧縮
 
 #### Open
 
-- ブラウザ録音の 2 回連続実行は実機未確認ではなく、実機ではまだ不安定というユーザー報告がある
-- `partial -> final` の確定条件は未実装
+- `partial -> final` は暫定ヒューリスティクス段階で、本格的な確定条件は未完了
 - VAD は未実装
+- `ffprobe` 依存の事前チェックがない
+- 無音チャンク時の CLI / Web UI 表示が分かりにくい
 
 #### Resolved findings
 
@@ -102,9 +111,11 @@ Status: adopted with open follow-ups
 - 全体評価としては、`保守 GUI としては妥当、他システム連携の本命としては次に API 境界が必要` という段階。
 
 
-### 2026-03-21 (latest review)
+### 2026-03-21 (older review snapshot)
 
 Status: adopted with open follow-ups
+
+Note: この時点の Web/API 指摘の多くは、後続実装で解消済み。
 
 #### Findings
 
