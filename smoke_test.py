@@ -34,8 +34,10 @@ from src.core.finalization import (
     should_mark_result_final,
 )
 from src.main import (
+    build_doctor_status,
     build_mic_profile_list_data,
     build_mic_tuning_data,
+    format_doctor_status,
     format_mic_profile_list,
     format_mic_loop_tuning,
     format_runtime_status,
@@ -324,6 +326,14 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("direct_dependencies", payload)
         self.assertIn("installed_versions", payload)
         self.assertIn("torch_direct_dependency", payload)
+
+    def test_doctor_can_return_json(self) -> None:
+        """Doctor output should support JSON output."""
+        result = run_cli("--doctor", "--doctor-format", "json")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("runtime", payload)
+        self.assertIn("dependencies", payload)
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -965,6 +975,51 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("torch_direct_dependency", status)
         self.assertIn("installed_versions", status)
         self.assertIn("dependency_note", status)
+
+    def test_format_doctor_status_includes_runtime_and_dependency_sections(self) -> None:
+        """Doctor formatter should combine runtime and dependency summaries."""
+        text = format_doctor_status(
+            {
+                "runtime": {
+                    "ffmpeg_available": True,
+                    "ffprobe_available": True,
+                    "nvidia_smi_available": True,
+                    "nvidia_driver_version": "535.288.01",
+                    "nvidia_gpu_name": "NVIDIA GeForce RTX 3070",
+                    "torch_version": "2.10.0+cu128",
+                    "torch_cuda_version": "12.8",
+                    "torch_cuda_available": False,
+                    "transcription_device": "cpu",
+                    "whisper_version": "20250625",
+                    "runtime_note": "cpu fallback",
+                    "suggested_action": "pin torch locally",
+                },
+                "dependencies": {
+                    "pyproject_path": "/tmp/pyproject.toml",
+                    "direct_dependencies": ["flask>=3.1.3", "openai-whisper>=20250625"],
+                    "direct_dependency_names": ["flask", "openai-whisper"],
+                    "torch_direct_dependency": False,
+                    "installed_versions": {
+                        "flask": "3.1.3",
+                        "openai-whisper": "20250625",
+                        "setuptools": "82.0.1",
+                        "torch": "2.10.0+cu128",
+                        "webrtcvad": "2.0.10",
+                    },
+                    "dependency_note": "torch is transitive",
+                },
+            }
+        )
+        self.assertIn("Doctor summary:", text)
+        self.assertIn("Runtime status:", text)
+        self.assertIn("Dependency status:", text)
+        self.assertIn("torch_direct_dependency: False", text)
+
+    def test_build_doctor_status_returns_expected_sections(self) -> None:
+        """Doctor status helper should include runtime and dependency sections."""
+        status = build_doctor_status()
+        self.assertIn("runtime", status)
+        self.assertIn("dependencies", status)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""

@@ -307,6 +307,29 @@ def format_runtime_status(status: dict[str, str | bool | None]) -> str:
     return "\n".join(lines)
 
 
+def build_doctor_status() -> dict[str, object]:
+    """Return a combined diagnosis view for runtime and dependency state."""
+    return {
+        "runtime": get_runtime_status(),
+        "dependencies": get_dependency_status(),
+    }
+
+
+def format_doctor_status(status: dict[str, object]) -> str:
+    """Format the combined diagnosis view for terminal output."""
+    runtime = status["runtime"]
+    dependencies = status["dependencies"]
+    assert isinstance(runtime, dict)
+    assert isinstance(dependencies, dict)
+    return "\n\n".join(
+        [
+            "Doctor summary:",
+            format_runtime_status(runtime),
+            format_dependency_status(dependencies),
+        ]
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -391,6 +414,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print direct dependency and installed package status and exit.",
     )
     parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Print a combined runtime and dependency diagnosis and exit.",
+    )
+    parser.add_argument(
         "--runtime-status-format",
         choices=("text", "json"),
         default="text",
@@ -401,6 +429,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("text", "json"),
         default="text",
         help="Output format for --show-dependency-status. Default: text",
+    )
+    parser.add_argument(
+        "--doctor-format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for --doctor. Default: text",
     )
     parser.add_argument(
         "--vad-aggressiveness",
@@ -494,6 +528,13 @@ def main() -> int:
                 print(json.dumps(status, ensure_ascii=False, indent=2))
             else:
                 print(format_dependency_status(status))
+            return 0
+        if args.doctor:
+            status = build_doctor_status()
+            if args.doctor_format == "json":
+                print(json.dumps(status, ensure_ascii=False, indent=2))
+            else:
+                print(format_doctor_status(status))
             return 0
         validate_model_name(args.model)
         ensure_ffmpeg_available()

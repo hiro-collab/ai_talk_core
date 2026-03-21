@@ -346,6 +346,18 @@ uv run python -m src.main --show-dependency-status --dependency-status-format js
 
 この出力では、`pyproject.toml` に `torch` が直接書かれているか、現在の `torch` が `openai-whisper` 経由の transitive dependency かを確認できます。
 
+runtime と dependency をまとめて確認する:
+
+```bash
+uv run python -m src.main --doctor
+```
+
+JSON で取り出す:
+
+```bash
+uv run python -m src.main --doctor --doctor-format json
+```
+
 `final` に寄せる安定時間を変える:
 
 ```bash
