@@ -145,3 +145,4 @@
 - `src/core/codex_bridge.py` を追加し、Codex 連携用の payload 生成と JSON 保存処理を共通化
 - `src/main.py` に `--command-output` を追加し、CLI から `{"transcript": "...", "command": "..."}` を保存できるよう変更
 - `src/web/app.py` の command 生成を `src/core/codex_bridge.py` 経由へ統一
+- `src/web/app.py` に `save_command` を追加し、Web/API から `.cache/codex/web_latest.json` へ Codex payload を保存できるよう変更

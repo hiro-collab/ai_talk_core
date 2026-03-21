@@ -9,7 +9,7 @@ from uuid import uuid4
 from flask import Flask, jsonify, render_template_string, request
 from werkzeug.utils import secure_filename
 
-from src.core.codex_bridge import build_codex_payload
+from src.core.codex_bridge import build_codex_payload, get_default_codex_output_path, save_codex_payload
 from src.core.pipeline import AudioChunk, TranscriptionPipeline
 from src.io.audio import (
     AudioEnvironmentError,
@@ -108,13 +108,13 @@ PAGE_TEMPLATE = """<!doctype html>
       background: #efe5d6;
       color: var(--text);
     }
-    .status, .result, .error, .command {
+    .status, .result, .error, .command, .meta {
       margin-top: 20px;
       padding: 16px;
       border-radius: 14px;
       white-space: pre-wrap;
     }
-    .status[hidden], .result[hidden], .error[hidden], .command[hidden] {
+    .status[hidden], .result[hidden], .error[hidden], .command[hidden], .meta[hidden] {
       display: none;
     }
     .status {
@@ -133,6 +133,11 @@ PAGE_TEMPLATE = """<!doctype html>
     .command {
       background: #eef0ff;
       border: 1px solid #b8c1f1;
+    }
+    .meta {
+      background: #f7f4ee;
+      border: 1px solid #d9d0c0;
+      color: var(--muted);
     }
     .row {
       display: flex;
@@ -204,6 +209,11 @@ PAGE_TEMPLATE = """<!doctype html>
             Codex 指示草案を優先して返す
           </label>
 
+          <label class="checkbox" for="upload_save_command">
+            <input id="upload_save_command" name="save_command" type="checkbox" value="true">
+            Codex payload を保存する
+          </label>
+
           <button type="submit">文字起こしする</button>
         </form>
       </section>
@@ -230,6 +240,11 @@ PAGE_TEMPLATE = """<!doctype html>
           Codex 指示草案を優先して返す
         </label>
 
+        <label class="checkbox" for="record_save_command">
+          <input id="record_save_command" type="checkbox" value="true">
+          Codex payload を保存する
+        </label>
+
         <p class="hint">ブラウザ側でマイク許可が必要です。録音停止後に自動でアップロードします。</p>
         <div id="record-status" class="status" hidden></div>
         <div class="debug">
@@ -243,6 +258,8 @@ PAGE_TEMPLATE = """<!doctype html>
     <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
     <div id="page-command" class="command" {% if not command %}hidden{% endif %}>Codex instruction draft:
 {{ command or "" }}</div>
+    <div id="page-meta" class="meta" {% if not command_path %}hidden{% endif %}>Saved payload:
+{{ command_path or "" }}</div>
     <div id="page-error" class="error" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
   </main>
 
@@ -255,6 +272,7 @@ PAGE_TEMPLATE = """<!doctype html>
     const pageStatus = document.getElementById("page-status");
     const pageResult = document.getElementById("page-result");
     const pageCommand = document.getElementById("page-command");
+    const pageMeta = document.getElementById("page-meta");
     const pageError = document.getElementById("page-error");
     let mediaRecorder = null;
     let activeStream = null;
@@ -307,13 +325,15 @@ PAGE_TEMPLATE = """<!doctype html>
       setRecorderButtons();
     };
 
-    const updateOutput = ({ message = "", transcript = "", command = "", error = "" }) => {
+    const updateOutput = ({ message = "", transcript = "", command = "", command_path = "", error = "" }) => {
       pageStatus.hidden = !message;
       pageStatus.textContent = message;
       pageResult.hidden = !transcript;
       pageResult.textContent = transcript;
       pageCommand.hidden = !command;
       pageCommand.textContent = command;
+      pageMeta.hidden = !command_path;
+      pageMeta.textContent = command_path;
       pageError.hidden = !error;
       pageError.textContent = error;
     };
@@ -322,7 +342,7 @@ PAGE_TEMPLATE = """<!doctype html>
       recorderState = "uploading";
       setRecorderButtons();
       setStatus(processingText);
-      updateOutput({ message: processingText, transcript: "", command: "", error: "" });
+      updateOutput({ message: processingText, transcript: "", command: "", command_path: "", error: "" });
       renderDebug(`upload start -> ${url}`);
       try {
         const response = await fetch(url, {
@@ -394,7 +414,10 @@ PAGE_TEMPLATE = """<!doctype html>
           formData.append("model", document.getElementById("record_model").value);
           formData.append("language", document.getElementById("record_language").value);
           if (document.getElementById("record_command_only").checked) {
-            formData.append("command_only", "true");
+          formData.append("command_only", "true");
+        }
+          if (document.getElementById("record_save_command").checked) {
+            formData.append("save_command", "true");
           }
           await submitForTranscription(
             "{{ url_for('api_transcribe_browser_recording') }}",
@@ -503,6 +526,7 @@ def create_app() -> Flask:
 def render_page(
     transcript: str | None = None,
     command: str | None = None,
+    command_path: str | None = None,
     error: str | None = None,
     message: str | None = None,
 ) -> str:
@@ -511,6 +535,7 @@ def render_page(
         PAGE_TEMPLATE,
         transcript=transcript,
         command=command,
+        command_path=command_path,
         error=error,
         message=message,
     )
@@ -530,12 +555,19 @@ def process_transcription_request(
         "yes",
         "on",
     }
+    save_command = request.form.get("save_command", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     temp_path = build_temp_upload_path(filename)
     normalized_path = temp_path.with_suffix(".normalized.wav")
 
     transcript = ""
     command = ""
+    command_path = ""
     error = ""
     status_code = 200
 
@@ -553,6 +585,12 @@ def process_transcription_request(
         )
         payload = build_codex_payload(transcript)
         command = "" if payload is None else payload.command
+        if save_command:
+            saved_path = save_codex_payload(
+                transcript,
+                get_default_codex_output_path(source="web"),
+            )
+            command_path = "" if saved_path is None else str(saved_path)
     except AudioInputError as exc:
         error = f"Input error: {escape(str(exc))}"
         status_code = 400
@@ -580,6 +618,7 @@ def process_transcription_request(
         ),
         "transcript": "" if command_only else transcript,
         "command": command,
+        "command_path": command_path,
         "error": error,
     }
     return payload, status_code
@@ -605,6 +644,7 @@ def handle_transcription(
     return render_page(
         transcript=payload["transcript"],
         command=payload["command"],
+        command_path=payload["command_path"],
         message=payload["message"],
     )
 

@@ -17,6 +17,12 @@ class CodexPayload:
     command: str
 
 
+def get_default_codex_output_path(source: str = "manual") -> Path:
+    """Return a project-local default path for saved Codex payloads."""
+    project_root = Path(__file__).resolve().parents[2]
+    return project_root / ".cache" / "codex" / f"{source}_latest.json"
+
+
 def build_codex_payload(transcript: str) -> CodexPayload | None:
     """Build a Codex payload from transcribed text."""
     draft = build_codex_instruction(transcript)
