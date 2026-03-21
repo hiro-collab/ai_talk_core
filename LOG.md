@@ -71,3 +71,11 @@
 - `src/io/microphone.py` に `capture_microphone_chunk()` を追加
 - `src/main.py` の `run_mic_loop()` を更新し、`AudioBuffer` 経由で最新チャンクを文字起こしするよう変更
 - `uv run python smoke_test.py` を再実行し、8 件の smoke test が成功することを確認
+- `nl -ba src/web/app.py | sed -n '1,420p'` を実行し、Web UI の現状と状態表示の弱さを確認
+- `nl -ba README.md | sed -n '1,420p'` を実行し、README の初見ユーザー向け説明と共通経路説明を確認
+- `nl -ba smoke_test.py | sed -n '1,340p'` を実行し、CLI / Web UI のテスト追従状況を確認
+- `ls -l src/core/pipeline.py` と `uv run python -c "from src.web.app import create_app; print('ok')"` を実行し、共通パイプラインの実体と Web UI import 成立を確認
+- `nl -ba src/core/pipeline.py | sed -n '1,260p'` を実行し、CLI / Web UI の共通経路実装を確認
+- `nl -ba REVIEW.md | sed -n '1,260p'`, `nl -ba README.md | sed -n '1,260p'`, `nl -ba src/main.py | sed -n '1,240p'`, `nl -ba smoke_test.py | sed -n '1,260p'` を実行し、レビュー記録と実装状態の不整合を再確認
+- `REVIEW.md` の解消済み Findings を `Resolved findings` に移し、open 項目を Web UI 状態表示 / `buffer -> partial/final` / VAD に整理
+- `SHARE_NOTE.md` の review-derived actions を未着手項目だけに整理

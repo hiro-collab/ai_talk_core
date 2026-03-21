@@ -22,17 +22,9 @@
 
 ## Review-derived actions
 
-- 入力検証と `ffmpeg` 確認の前倒しは反映済み
-- 不正モデル名の `Input error` 分類は反映済み
-- 録音処理の分離は反映済み
-- 固定時間マイク録音 CLI は反映済み
-- `--mic-loop` による擬似リアルタイム処理は反映済み
-- ローカル Web UI は反映済み
-- 共通の `capture -> buffer -> transcribe` 経路は反映済み
-- CUDA / CPU fallback の README 追記は反映済み
-- `silenceremove` による軽い無音トリムは反映済み
+- Web UI の状態表示改善は未着手
+- `buffer -> partial/final` の API 境界は未着手
 - VAD は未着手
-- smoke test は反映済み
 
 ## Handover notes
 

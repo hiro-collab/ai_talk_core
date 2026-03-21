@@ -18,16 +18,12 @@
 
 ### 2026-03-21
 
-Status: partially adopted
+Status: adopted with open follow-ups
 
 #### Findings
 
-- Medium: 初見の人にとって README の機能境界がまだ掴みにくい。対象: `README.md:3-13`, `README.md:181-190`。冒頭では `file input`, `mic`, `mic-loop`, 無音トリムまで一気に出てくる一方、制約欄には「現状はローカル音声ファイルのみ対応しています」が残っており、何が実装済みかを誤解しやすい。
-- Medium: `README.md:132-135` のエラー種別説明が重複しており、初見ではどちらが正なのか判断しづらい。`Environment error` が 2 行あり、後者だけが無音トリム失敗を含んでいる。
-- Medium: `src/main.py:138-139` の入力エラーメッセージが現状と少しずれている。現在は `--mic-loop` もあるが、表示は `audio_file is required unless --mic is used` のままで、CLI の使い方を学ぶ助けになっていない。
-- Low-Medium: `--mic-loop --iterations 0` が入力エラーにならず、そのまま終了コード 0 で即終了する。対象: `src/main.py:33`, `src/main.py:115-126`。反復回数を指定できる CLI としては、0 以下は無効値として弾く方が自然。
-- Low: `smoke_test.py` は成功系・主要失敗系を押さえているが、`--mic`, `--mic-loop`, `--iterations`, `--no-trim-silence` の検証を含んでいない。README の説明が増えた分、初見ユーザー向けの回帰防止としては追従不足。
 - Low: `src/io/microphone.py:42-50` のデフォルトマイク選択は `HD Pro Webcam C920` という機種名文字列に依存しており、この PC では妥当でも汎用実装ではない。README には記載済みだが、PC 固有ロジックとして扱う必要がある。
+- Low: `src/web/app.py` のブラウザ録音 UI は保守画面としては動作するが、録音中・処理中の状態可視化が弱い。重い処理時に固まって見えやすい。
 
 #### Open questions / assumptions
 
@@ -38,13 +34,9 @@ Status: partially adopted
 
 #### Recommended next actions
 
-- 1. README 冒頭に「今できること / まだできないこと」を 2-3 行で明示し、制約欄の古い文言を削除する
-- 2. エラー種別説明を 1 セットに整理し、無音トリム失敗は `Environment error` の説明へ統合する
-- 3. 引数未指定時のメッセージを `audio_file is required unless --mic or --mic-loop is used` のように現状へ合わせる
-- 4. `--iterations` に 1 以上のバリデーションを追加する
-- 5. `smoke_test.py` に `--iterations` の失敗系、`--mic-loop` の最小検証、`--no-trim-silence` の引数受理確認を追加する
-- 6. リアルタイム化の次段階として、`capture -> buffer -> transcribe` の分離を作る
-- 7. ノイズ対策は denoise より先に VAD / 無音トリムから入る
+- 1. Web UI の状態表示を改善し、録音中・処理中を結果領域の更新で見せる
+- 2. リアルタイム化の次段階として、`buffer -> partial/final` の API 境界を作る
+- 3. ノイズ対策は denoise より先に VAD から入る
 
 #### Realtime direction
 
@@ -76,5 +68,23 @@ Status: partially adopted
 
 #### Open
 
+- Web UI は保守画面としては動作するが、状態可視化の改善余地が残る
 - `buffer -> partial/final` のリアルタイム用 API 境界は未実装
 - VAD は未実装
+
+#### Resolved findings
+
+- README 冒頭に「今できること / まだできないこと」を追加し、古い制約文言を整理した
+- README のエラー種別説明を 1 セットに整理した
+- 引数未指定時の入力エラーメッセージを `--mic-loop` に対応させた
+- `--iterations` の 0 以下バリデーションを追加した
+- `smoke_test.py` を拡張し、`--iterations` と `--no-trim-silence` の確認を追加した
+- `capture -> buffer -> transcribe` の最初の分離として `AudioBuffer` を追加した
+
+#### Side review
+
+- `src/core/pipeline.py` を介して CLI と Web UI が共通経路へ寄った点は妥当。連携用システムを中心に据える方向として筋が良い。
+- 一方で `src/web/app.py` のブラウザ録音 UI は、録音中と処理中の可視化がまだ弱い。`録音中...` と `アップロード中...` の文言だけでは、重い処理時に固まって見えやすい。
+- Web UI の応答はまだ `document.write()` ベースで画面全体差し替えになっており、保守 GUI としての連続性は弱い。将来の GUI 改善や API 化を考えると、結果部分だけ更新する方式の方が自然。
+- README は初見ユーザー向けにかなり改善されており、`今できること / まだできないこと` と `capture -> buffer -> transcribe` の説明は有効。現状理解の補助として十分機能している。
+- 全体評価としては、`保守 GUI としては妥当、他システム連携の本命としては次に API 境界が必要` という段階。
