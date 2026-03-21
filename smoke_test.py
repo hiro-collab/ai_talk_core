@@ -154,6 +154,13 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("こんにちは", result.stdout)
         self.assertNotIn("[command]", result.stdout)
 
+    def test_instruction_only_alias_outputs_instruction_text(self) -> None:
+        """instruction-only alias should behave like command-only."""
+        result = run_cli("data/sample_audio.mp3", "--language", "ja", "--instruction-only")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("こんにちは", result.stdout)
+        self.assertNotIn("[command]", result.stdout)
+
     def test_command_output_writes_payload_json(self) -> None:
         """command-output should save a Codex payload JSON file."""
         output_path = PROJECT_ROOT / ".cache" / "tests" / "command_payload.json"
@@ -175,6 +182,27 @@ class SmokeTests(unittest.TestCase):
         payload_json = json.loads(output_path.read_text(encoding="utf-8"))
         self.assertIn("こんにちは", payload_json["transcript"])
         self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
+        output_path.unlink()
+        text_path.unlink()
+
+    def test_handoff_output_alias_writes_payload_json(self) -> None:
+        """handoff-output alias should save the same payload bundle."""
+        output_path = PROJECT_ROOT / ".cache" / "tests" / "handoff_payload.json"
+        text_path = output_path.with_suffix(".txt")
+        if output_path.exists():
+            output_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
+        result = run_cli(
+            "data/sample_audio.mp3",
+            "--language",
+            "ja",
+            "--handoff-output",
+            str(output_path),
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(output_path.exists())
+        self.assertTrue(text_path.exists())
         output_path.unlink()
         text_path.unlink()
 

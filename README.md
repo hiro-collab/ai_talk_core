@@ -5,7 +5,7 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 
 ## Overview
 
-- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽い無音トリム、Codex 指示草案出力
+- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽い無音トリム、指示草案出力
 - まだできないこと: 真のリアルタイム streaming、`partial/final` の本格運用、VAD
 - 位置づけ: GUI 主体ではなく、音声入力フロントエンド兼サービス境界を優先
 - ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化してから転写
@@ -24,7 +24,7 @@ flowchart LR
     DRAFT["Command Draft\nsrc/core/agent_instruction.py"]
     BRIDGE["Handoff Bridge\nsrc/core/handoff_bridge.py"]
     HANDOFF["Handoff Reader\nsrc.agent_handoff / src.codex_handoff"]
-    RUNNER["Runner\nsrc/codex_runner.py"]
+    RUNNER["Runner\nsrc.agent_runner / src.codex_runner.py"]
     RUNNER_IMPL["Runner impls\nsrc/runners/*"]
     WHISPER["Whisper"]
 
@@ -61,7 +61,7 @@ flowchart LR
     RESULT --> COMMAND
 ```
 
-### Codex Handoff Flow
+### Agent Handoff Flow
 
 ```mermaid
 flowchart LR
@@ -70,8 +70,8 @@ flowchart LR
     SAVE["handoff save\njson + txt"]
     API["/api/agent-handoff-latest\n/api/codex-handoff-latest"]
     CLI["src.agent_handoff\nsrc.codex_handoff"]
-    RUNNER["src.codex_runner"]
-    TARGET["target command / Codex-side process"]
+    RUNNER["src.agent_runner / src.codex_runner"]
+    TARGET["target command / agent-side process"]
 
     TRANSCRIBE --> DRAFT
     DRAFT --> SAVE
@@ -215,27 +215,27 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 ただし、時間条件だけで単発チャンクを即 `final` にすることは避け、最低限の反復を前提にしています。
 これらの `final` ヒューリスティクスは `src/core/finalization.py` に切り出し、CLI 本体から分離しています。
 
-転写結果と Codex 用の指示草案を同時に表示:
+転写結果と指示草案を同時に表示:
 
 ```bash
-uv run python -m src.main --mic --duration 5 --language ja --emit-command
+uv run python -m src.main --mic --duration 5 --language ja --emit-instruction
 ```
 
-Codex 用の指示草案だけ表示:
+指示草案だけ表示:
 
 ```bash
-uv run python -m src.main --mic --duration 5 --language ja --command-only
+uv run python -m src.main --mic --duration 5 --language ja --instruction-only
 ```
 
-Codex 連携用 payload を JSON 保存:
+handoff payload を JSON 保存:
 
 ```bash
-uv run python -m src.main --mic --duration 5 --language ja --command-output .cache/codex/latest.json
+uv run python -m src.main --mic --duration 5 --language ja --handoff-output .cache/codex/latest.json
 ```
 
-このとき `.txt` 版の prompt も同じ場所に自動生成します。中身は `Voice transcript` と `Requested task` を含む、そのまま Codex に渡しやすい形式です。
+このとき `.txt` 版の prompt も同じ場所に自動生成します。中身は `Voice transcript` と `Requested task` を含む、そのまま外部エージェントへ渡しやすい形式です。
 
-Web UI でも、アップロード欄とブラウザ録音欄の `Codex 指示草案を優先して返す` を有効にすると `command_only` と同じ挙動になります。
+Web UI でも、アップロード欄とブラウザ録音欄の `指示草案を優先して返す` を有効にすると `command_only` と同じ挙動になります。
 `handoff payload を保存する` を有効にすると、同じ handoff を `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に保存します。
 
 ブラウザ GUI を起動:
@@ -347,9 +347,9 @@ Whisper のモデルは `models/whisper` に保存されます。
 - 入力: ローカル音声ファイル、固定時間のマイク録音、または簡易マイクループ
 - 対応拡張子: `.mp3`, `.wav`, `.m4a`, `.mp4`, `.mpeg`, `.mpga`, `.webm`
 - 出力: 文字起こし結果を標準出力へ表示
-- `--emit-command` 使用時は Codex 用の指示草案も標準出力へ表示
-- `--command-only` 使用時は転写本文を省いて指示草案だけを表示
-- `--command-output` 使用時は `{"transcript": "...", "command": "..."}` の JSON を保存
+- `--emit-command` / `--emit-instruction` 使用時は指示草案も標準出力へ表示
+- `--command-only` / `--instruction-only` 使用時は転写本文を省いて指示草案だけを表示
+- `--command-output` / `--handoff-output` 使用時は `{"transcript": "...", "command": "..."}` の JSON を保存
 - 既定モデル: `small`
 
 ## Model storage

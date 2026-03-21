@@ -265,16 +265,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--emit-command",
+        "--emit-instruction",
+        dest="emit_command",
         action="store_true",
-        help="Print a Codex-ready instruction draft from the transcript.",
+        help="Print an agent-ready instruction draft from the transcript.",
     )
     parser.add_argument(
         "--command-only",
+        "--instruction-only",
+        dest="command_only",
         action="store_true",
-        help="Print only the Codex-ready instruction draft.",
+        help="Print only the agent-ready instruction draft.",
     )
     parser.add_argument(
         "--command-output",
+        "--handoff-output",
+        dest="command_output",
         default=None,
         help="Optional path to save a handoff payload JSON file.",
     )

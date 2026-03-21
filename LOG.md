@@ -199,3 +199,7 @@
 - `src.main` の内部 helper 名を `print_agent_instruction_*` / `save_handoff_if_requested()` に寄せた
 - `smoke_test.py` に `src.agent_handoff` の prompt / command 読取テストを追加した
 - README / Web UI / SHARE_NOTE の一般説明文を `Codex` 固有表現から `instruction draft` / `handoff` / `agent` 側へ寄せた
+- `src.main` に `--emit-instruction`, `--instruction-only`, `--handoff-output` の互換別名を追加した
+- `src.web.app` の「Codex 指示草案」表現を「指示草案」へ寄せた
+- `uv run python -m py_compile src/main.py src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、72 件の smoke test が成功することを確認

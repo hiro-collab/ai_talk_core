@@ -212,7 +212,7 @@ PAGE_TEMPLATE = """<!doctype html>
 
           <label class="checkbox" for="upload_command_only">
             <input id="upload_command_only" name="command_only" type="checkbox" value="true">
-            Codex 指示草案を優先して返す
+            指示草案を優先して返す
           </label>
 
           <label class="checkbox" for="upload_save_command">
@@ -243,7 +243,7 @@ PAGE_TEMPLATE = """<!doctype html>
 
         <label class="checkbox" for="record_command_only">
           <input id="record_command_only" type="checkbox" value="true">
-          Codex 指示草案を優先して返す
+          指示草案を優先して返す
         </label>
 
         <label class="checkbox" for="record_save_command">
