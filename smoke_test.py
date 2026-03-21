@@ -20,6 +20,7 @@ from src.core.handoff_bridge import (
     save_handoff_bundle,
     save_handoff_payload,
 )
+from src.core.agent_instruction import build_agent_instruction
 from src.core.finalization import (
     has_stable_duration_for_final,
     maybe_finalize_on_interrupt,
@@ -28,7 +29,6 @@ from src.core.finalization import (
     required_repeat_count_for_final,
     should_mark_result_final,
 )
-from src.core.llm import build_codex_instruction
 from src.main import (
     format_transcription_result,
     print_codex_instruction_only,
@@ -52,6 +52,7 @@ from src.web.app import create_app
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 build_codex_payload = build_handoff_payload
+build_codex_instruction = build_agent_instruction
 get_default_codex_output_path = get_default_handoff_output_path
 get_default_codex_text_path = get_default_handoff_text_path
 load_codex_handoff_bundle = load_handoff_bundle

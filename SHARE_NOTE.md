@@ -7,7 +7,7 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `8cdbfae Group runner implementations under src/runners`
 - latest applied review status:
-  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始, `final` ヒューリスティクスの `src/core/finalization.py` 切り出し, `agent_*` handoff / runner 互換入口の追加, `src/core/handoff_bridge.py` で汎用 handoff 境界の導入開始
+  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始, `final` ヒューリスティクスの `src/core/finalization.py` 切り出し, `agent_*` handoff / runner 互換入口の追加, `src/core/handoff_bridge.py` で汎用 handoff 境界の導入開始, `src/core/agent_instruction.py` で指示草案生成の実体化
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
 
@@ -17,6 +17,7 @@
 - `src/core/pipeline.py`
 - `src/main.py`
 - `src/core/handoff_bridge.py`
+- `src/core/agent_instruction.py`
 - `src/web/app.py`
 - `smoke_test.py`
 - `README.md`
@@ -52,6 +53,7 @@
 - `HD Pro Webcam C920` で録音確認済み
 - README に Architecture 図と Mic-loop Flow 図を追加した
 - `src/core/handoff_bridge.py` を実体の handoff 境界として使い始め、`src/core/codex_bridge.py` は互換ラッパーとして残した
+- `src/core/agent_instruction.py` を実体の指示草案生成として使い始め、`src/core/llm.py` は互換ラッパーとして残した
 - CLI に `--command-output` を追加し、Codex 連携用 JSON を保存できるようにした
 - Web/API からも `save_command` で Codex payload を保存できるようにした
 - Codex handoff として JSON に加えて `.txt` prompt も保存できるようにした

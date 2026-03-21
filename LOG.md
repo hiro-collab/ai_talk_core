@@ -192,3 +192,5 @@
 - `src/web/app.py` に `/api/agent-handoff-latest` を追加し、既存 `/api/codex-handoff-latest` の互換別名として同じ handoff を返すよう変更
 - `src/core/handoff_bridge.py` を追加し、`src/web/app.py` と `src/runners/handoff.py` は `codex_bridge` ではなく汎用 handoff 境界を参照し始めた
 - `smoke_test.py` の handoff 保存・読込テストは `src.core.handoff_bridge` を起点に参照するよう更新
+- `src/core/agent_instruction.py` を追加し、`src/main.py` と `src/core/handoff_bridge.py` は `src/core/llm.py` ではなく汎用の指示草案生成境界を参照し始めた
+- `src/core/llm.py` は互換ラッパーへ変更した

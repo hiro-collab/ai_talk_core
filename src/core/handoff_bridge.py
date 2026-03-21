@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from src.core.llm import build_codex_instruction
+from src.core.agent_instruction import build_agent_instruction
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,7 @@ def get_default_handoff_text_path(source: str = "manual") -> Path:
 
 def build_handoff_payload(transcript: str) -> HandoffPayload | None:
     """Build a handoff payload from transcribed text."""
-    draft = build_codex_instruction(transcript)
+    draft = build_agent_instruction(transcript)
     if draft is None:
         return None
     return HandoffPayload(

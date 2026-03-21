@@ -6,6 +6,7 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
+from src.core.agent_instruction import build_agent_instruction
 from src.core.finalization import (
     has_stable_duration_for_final,
     maybe_finalize_on_interrupt,
@@ -15,7 +16,6 @@ from src.core.finalization import (
     should_mark_result_final,
 )
 from src.core.handoff_bridge import save_handoff_bundle
-from src.core.llm import build_codex_instruction
 from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.io.audio import (
     AudioEnvironmentError,
@@ -50,7 +50,7 @@ def print_codex_instruction_if_requested(text: str, emit_command: bool) -> None:
     """Print a Codex-ready instruction draft when requested."""
     if not emit_command:
         return
-    draft = build_codex_instruction(text)
+    draft = build_agent_instruction(text)
     if draft is None:
         print("[command] no instruction draft available")
         return
@@ -59,7 +59,7 @@ def print_codex_instruction_if_requested(text: str, emit_command: bool) -> None:
 
 def print_codex_instruction_only(text: str) -> None:
     """Print only the Codex-ready instruction draft."""
-    draft = build_codex_instruction(text)
+    draft = build_agent_instruction(text)
     if draft is None:
         print("no instruction draft available")
         return

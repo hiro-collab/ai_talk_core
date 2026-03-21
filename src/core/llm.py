@@ -1,29 +1,13 @@
-"""Helpers for building Codex-ready instruction drafts."""
+"""Compatibility wrapper for the generic agent instruction builder."""
 
-from __future__ import annotations
+from src.core.agent_instruction import (
+    AgentInstructionDraft as CodexInstructionDraft,
+    build_agent_instruction as build_codex_instruction,
+    normalize_instruction_text,
+)
 
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class CodexInstructionDraft:
-    """A minimal instruction draft derived from transcribed speech."""
-
-    transcript: str
-    instruction: str
-
-
-def normalize_instruction_text(text: str) -> str:
-    """Normalize transcribed speech into a compact instruction string."""
-    return " ".join(text.strip().split())
-
-
-def build_codex_instruction(transcript: str) -> CodexInstructionDraft | None:
-    """Build a Codex instruction draft from a transcript."""
-    normalized = normalize_instruction_text(transcript)
-    if not normalized:
-        return None
-    return CodexInstructionDraft(
-        transcript=normalized,
-        instruction=normalized,
-    )
+__all__ = [
+    "CodexInstructionDraft",
+    "build_codex_instruction",
+    "normalize_instruction_text",
+]
