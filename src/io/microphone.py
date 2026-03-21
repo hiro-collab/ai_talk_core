@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 
+from src.core.pipeline import AudioChunk
 from src.io.audio import AudioEnvironmentError, AudioInputError
 
 
@@ -138,3 +139,23 @@ def record_microphone_audio(
         return trim_silence(input_path=output_path, output_path=get_trimmed_recording_path())
 
     return output_path
+
+
+def capture_microphone_chunk(
+    output_path: Path,
+    duration: int,
+    device: str = "default",
+    sample_rate: int = 16000,
+    channels: int = 1,
+    trim_silence_enabled: bool = True,
+) -> AudioChunk:
+    """Capture one microphone chunk and wrap it for the pipeline."""
+    audio_path = record_microphone_audio(
+        output_path=output_path,
+        duration=duration,
+        device=device,
+        sample_rate=sample_rate,
+        channels=channels,
+        trim_silence_enabled=trim_silence_enabled,
+    )
+    return AudioChunk(path=audio_path, source="microphone")

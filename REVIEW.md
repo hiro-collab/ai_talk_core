@@ -60,6 +60,7 @@ Status: partially adopted
 - `src/io/audio.py` で不正モデル名を `Input error` に分類するよう修正
 - `src/io/microphone.py` を追加し、録音処理を音声文字起こし処理から分離
 - `src/core/pipeline.py` を追加し、CLI と Web UI で共通の capture -> transcribe 経路を共有
+- `src/core/pipeline.py` に `AudioBuffer` を追加し、`mic-loop` を `capture -> buffer -> transcribe` に寄せた
 - `--mic --duration` による固定時間マイク録音 CLI を追加
 - `--mic-loop` と `--iterations` による擬似リアルタイムの反復 CLI を追加
 - `--no-trim-silence` による軽い無音トリムの ON/OFF 切替を追加

@@ -1,7 +1,7 @@
 # ai_core
 
 Whisper を使ってローカル音声ファイルを文字起こしする最小構成です。
-現在は `file input -> Whisper -> text`、固定時間の `mic -> Whisper -> text`、および簡易ループの `mic-loop -> Whisper -> text` を対象にしています。
+現在は `file input -> Whisper -> text`、固定時間の `mic -> Whisper -> text`、および簡易ループの `mic-loop -> Whisper -> text` を対象にしています。内部の共通経路は `capture -> buffer -> transcribe` へ寄せ始めています。
 
 ## Overview
 
@@ -150,7 +150,7 @@ uv run python -m src.main data/sample_audio.mp3 --language ja
 ai_core/
 ├── data/                # 入力音声サンプル
 ├── models/whisper/      # Whisper モデル保存先
-├── src/core/pipeline.py # capture -> transcribe の共通経路
+├── src/core/pipeline.py # capture -> buffer -> transcribe の共通経路
 ├── src/main.py          # CLI エントリポイント
 ├── src/io/audio.py      # 音声文字起こし
 ├── src/io/microphone.py # 固定時間マイク録音
@@ -198,6 +198,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - `ffmpeg` が無い環境では文字起こしに失敗します
 - マイク入力は固定時間録音の反復であり、真のストリーミング処理ではありません
 - 録音音声は `ffmpeg` の `silenceremove` で軽く前後トリムできます
+- `AudioBuffer` は入っていますが、`buffer -> partial/final` の扱いはまだ未実装です
 - 発話区間検出としての VAD は未実装です
 
 ## Troubleshooting

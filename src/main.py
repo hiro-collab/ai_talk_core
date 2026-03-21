@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.core.pipeline import AudioChunk, TranscriptionPipeline
+from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
@@ -14,7 +14,7 @@ from src.io.audio import (
     validate_audio_file,
     validate_model_name,
 )
-from src.io.microphone import get_temp_recording_path, record_microphone_audio
+from src.io.microphone import capture_microphone_chunk, get_temp_recording_path, record_microphone_audio
 
 
 def run_mic_loop(
@@ -27,20 +27,19 @@ def run_mic_loop(
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
     pipeline = TranscriptionPipeline(model_name=model_name)
+    buffer = AudioBuffer(source="microphone")
     completed_iterations = 0
 
     try:
         while iterations is None or completed_iterations < iterations:
-            audio_path = record_microphone_audio(
+            chunk = capture_microphone_chunk(
                 output_path=get_temp_recording_path(),
                 duration=duration,
                 device=mic_device,
                 trim_silence_enabled=trim_silence_enabled,
             )
-            text = pipeline.transcribe_chunk(
-                AudioChunk(path=audio_path, source="microphone"),
-                language=language,
-            )
+            buffer.append(chunk)
+            text = pipeline.transcribe_buffer(buffer, language=language)
             print(text)
             completed_iterations += 1
     except KeyboardInterrupt:

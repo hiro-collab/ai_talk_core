@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from src.io.audio import load_transcription_model, transcribe_file
+from src.io.audio import AudioInputError, load_transcription_model, transcribe_file
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,28 @@ class AudioChunk:
 
     path: Path
     source: str
+
+
+@dataclass
+class AudioBuffer:
+    """A simple ordered buffer of captured audio chunks."""
+
+    source: str
+    chunks: list[AudioChunk] = field(default_factory=list)
+
+    def append(self, chunk: AudioChunk) -> None:
+        """Append a chunk to the buffer."""
+        if chunk.source != self.source:
+            raise AudioInputError(
+                f"audio chunk source mismatch: expected {self.source}, got {chunk.source}"
+            )
+        self.chunks.append(chunk)
+
+    def latest_chunk(self) -> AudioChunk:
+        """Return the latest chunk in the buffer."""
+        if not self.chunks:
+            raise AudioInputError("audio buffer is empty")
+        return self.chunks[-1]
 
 
 class TranscriptionPipeline:
@@ -27,3 +49,7 @@ class TranscriptionPipeline:
     def transcribe_chunk(self, chunk: AudioChunk, language: str | None = None) -> str:
         """Transcribe a captured audio chunk."""
         return transcribe_file(audio_path=chunk.path, model=self.model, language=language)
+
+    def transcribe_buffer(self, buffer: AudioBuffer, language: str | None = None) -> str:
+        """Transcribe the latest chunk from a buffer."""
+        return self.transcribe_chunk(buffer.latest_chunk(), language=language)
