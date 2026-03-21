@@ -1044,6 +1044,8 @@ class SmokeTests(unittest.TestCase):
                 "recommended_torch_spec": "torch==2.10.0",
                 "recommended_cuda_family": "cu121",
                 "explicit_build_selection_needed": True,
+                "pyproject_dependency_entry": "torch==2.10.0",
+                "uv_add_command": "uv add 'torch==2.10.0'",
                 "steps": ["step one", "step two"],
                 "command_examples": ["uv add 'torch==<base-version>'", "uv lock"],
                 "plan_note": "project-local only",
@@ -1053,6 +1055,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("recommended_cuda_family: cu121", text)
         self.assertIn("uv lock", text)
         self.assertIn("explicit_build_selection_needed: True", text)
+        self.assertIn("uv_add_command: uv add 'torch==2.10.0'", text)
 
     def test_build_torch_pin_status_returns_expected_keys(self) -> None:
         """Torch pin status helper should include planning details."""
@@ -1062,6 +1065,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("current_torch_build_suffix", status)
         self.assertIn("steps", status)
         self.assertIn("command_examples", status)
+        self.assertIn("uv_add_command", status)
 
     def test_get_torch_pin_plan_recommends_project_local_steps(self) -> None:
         """Torch pin plan should emphasize a project-local adjustment path."""

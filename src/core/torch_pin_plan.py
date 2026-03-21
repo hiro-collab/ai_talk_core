@@ -102,6 +102,12 @@ def get_torch_pin_plan() -> dict[str, object]:
         "recommended_torch_spec": recommended_torch_spec,
         "recommended_cuda_family": recommended_cuda_family,
         "explicit_build_selection_needed": explicit_build_selection_needed,
+        "pyproject_dependency_entry": recommended_torch_spec,
+        "uv_add_command": (
+            f"uv add '{recommended_torch_spec}'"
+            if recommended_torch_spec is not None
+            else None
+        ),
         "steps": steps,
         "command_examples": command_examples,
         "plan_note": (
@@ -125,6 +131,8 @@ def format_torch_pin_plan(plan: dict[str, object]) -> str:
     lines.append(
         f"- explicit_build_selection_needed: {plan['explicit_build_selection_needed']}"
     )
+    lines.append(f"- pyproject_dependency_entry: {plan['pyproject_dependency_entry']}")
+    lines.append(f"- uv_add_command: {plan['uv_add_command']}")
     lines.append("- steps:")
     for step in plan["steps"]:
         lines.append(f"  - {step}")
