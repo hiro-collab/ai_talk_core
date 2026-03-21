@@ -9,6 +9,12 @@ from src.codex_handoff import render_handoff_output
 from src.io.audio import AudioInputError
 
 
+TEMPLATES: dict[str, list[str]] = {
+    "cat": ["cat"],
+    "python-stdin": ["python", "-c", "import sys; print(sys.stdin.read())"],
+}
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the Codex runner CLI parser."""
     parser = argparse.ArgumentParser(
@@ -31,6 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the rendered handoff instead of running a command.",
     )
     parser.add_argument(
+        "--template",
+        choices=tuple(TEMPLATES.keys()),
+        default=None,
+        help="Use a built-in command template instead of a manual command.",
+    )
+    parser.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="Command to receive the handoff on stdin.",
@@ -45,6 +57,14 @@ def normalize_command_args(command: list[str]) -> list[str]:
     return command
 
 
+def resolve_runner_command(template: str | None, command: list[str]) -> list[str]:
+    """Resolve the effective command from a template or explicit args."""
+    manual_command = normalize_command_args(command)
+    if template is not None:
+        return TEMPLATES[template]
+    return manual_command
+
+
 def main() -> int:
     """Run the Codex handoff runner."""
     args = build_parser().parse_args()
@@ -54,7 +74,7 @@ def main() -> int:
         print(f"Input error: {exc}")
         return 1
 
-    command = normalize_command_args(args.command)
+    command = resolve_runner_command(args.template, args.command)
     if args.print_only or not command:
         print(payload)
         return 0

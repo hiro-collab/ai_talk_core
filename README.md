@@ -134,6 +134,12 @@ uv run python -m src.codex_handoff --source web --format prompt
 uv run python -m src.codex_runner --source web -- python -c "import sys; print(sys.stdin.read())"
 ```
 
+組み込みテンプレートを使う:
+
+```bash
+uv run python -m src.codex_runner --source web --template cat
+```
+
 ## Quick start
 
 ```bash

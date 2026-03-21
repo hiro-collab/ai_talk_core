@@ -28,7 +28,7 @@ from src.main import (
     should_mark_result_final,
 )
 from src.codex_handoff import render_handoff_output
-from src.codex_runner import normalize_command_args
+from src.codex_runner import normalize_command_args, resolve_runner_command
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -390,6 +390,21 @@ class SmokeTests(unittest.TestCase):
         json_path.unlink()
         text_path.unlink()
 
+    def test_runner_cli_template_cat_outputs_prompt(self) -> None:
+        """Runner CLI should support built-in command templates."""
+        json_path = get_default_codex_output_path(source="runner_template")
+        text_path = get_default_codex_text_path(source="runner_template")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_runner_cli("--source", "runner_template", "--template", "cat")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Voice transcript:", result.stdout)
+        json_path.unlink()
+        text_path.unlink()
+
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
         response = self.client.post("/api/transcribe-upload", data={}, content_type="multipart/form-data")
@@ -632,6 +647,13 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(
             normalize_command_args(["--", "python", "-c", "print('ok')"]),
             ["python", "-c", "print('ok')"],
+        )
+
+    def test_resolve_runner_command_prefers_template(self) -> None:
+        """Runner command resolution should prefer templates when requested."""
+        self.assertEqual(
+            resolve_runner_command("cat", ["--", "python", "-c", "print('ignored')"]),
+            ["cat"],
         )
 
     def test_print_codex_instruction_only_handles_blank(self) -> None:

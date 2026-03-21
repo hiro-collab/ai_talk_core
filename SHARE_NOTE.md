@@ -59,6 +59,7 @@
 - 保存済み handoff を取得する `/api/codex-handoff-latest` を追加した
 - ローカル CLI から最新 handoff を読む `src.codex_handoff` を追加した
 - 最新 handoff を任意コマンドへ流す `src.codex_runner` を追加した
+- `src.codex_runner` に組み込みテンプレートを追加し、毎回コマンド列を書かずに試せるようにした
 - `mic-loop` は安定した発話のあとに無音が来た場合、その発話を `final` とみなせるようになった
 
 ## Next tasks
@@ -80,6 +81,7 @@
 - 他プロセスが最新 handoff を取りに来る API 境界を追加した
 - Web を経由せずローカル handoff を読む CLI 境界も追加した
 - ローカルの Codex 実行プロセスへ handoff を渡す bridge を追加した
+- `codex_runner` は template 指定でも handoff を流せるようにした
 - 無音チャンク直後に直前発話を `final` とみなす補助ルールを追加した
 
 ## Review-derived actions
