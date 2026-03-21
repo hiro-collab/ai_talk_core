@@ -26,6 +26,7 @@ from src.main import (
     print_codex_instruction_only,
     should_mark_result_final,
 )
+from src.codex_handoff import render_handoff_output
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -36,6 +37,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     """Run the CLI and capture its output."""
     command = [sys.executable, "-m", "src.main", *args]
+    return subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def run_handoff_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run the Codex handoff CLI and capture its output."""
+    command = [sys.executable, "-m", "src.codex_handoff", *args]
     return subprocess.run(
         command,
         cwd=PROJECT_ROOT,
@@ -296,6 +309,36 @@ class SmokeTests(unittest.TestCase):
         response = self.client.get("/api/codex-handoff-latest?source=missing")
         self.assertEqual(response.status_code, 404)
 
+    def test_handoff_cli_reads_latest_prompt(self) -> None:
+        """Handoff CLI should print the saved prompt text."""
+        json_path = get_default_codex_output_path(source="cli_test")
+        text_path = get_default_codex_text_path(source="cli_test")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_handoff_cli("--source", "cli_test", "--format", "prompt")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Voice transcript:", result.stdout)
+        json_path.unlink()
+        text_path.unlink()
+
+    def test_handoff_cli_reads_latest_command(self) -> None:
+        """Handoff CLI should print the saved command text."""
+        json_path = get_default_codex_output_path(source="cli_command")
+        text_path = get_default_codex_text_path(source="cli_command")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_handoff_cli("--source", "cli_command", "--format", "command")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(result.stdout.strip(), "依存関係を確認して")
+        json_path.unlink()
+        text_path.unlink()
+
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
         response = self.client.post("/api/transcribe-upload", data={}, content_type="multipart/form-data")
@@ -468,6 +511,20 @@ class SmokeTests(unittest.TestCase):
         assert handoff is not None
         self.assertEqual(handoff.command, "依存関係を確認して")
         self.assertIn("Requested task:", handoff.prompt_text)
+        json_path.unlink()
+        text_path.unlink()
+
+    def test_render_handoff_output_returns_json(self) -> None:
+        """Handoff renderer should support JSON output."""
+        json_path = get_default_codex_output_path(source="render_json")
+        text_path = get_default_codex_text_path(source="render_json")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        payload_json = json.loads(render_handoff_output("render_json", "json"))
+        self.assertEqual(payload_json["command"], "依存関係を確認して")
         json_path.unlink()
         text_path.unlink()
 

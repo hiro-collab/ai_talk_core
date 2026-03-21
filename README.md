@@ -122,6 +122,12 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
 ```
 
+ローカル CLI から最新 handoff を読む:
+
+```bash
+uv run python -m src.codex_handoff --source web --format prompt
+```
+
 ## Quick start
 
 ```bash

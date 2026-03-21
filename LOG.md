@@ -150,3 +150,4 @@
 - `src/web/app.py` の応答に `command_text_path` を追加し、Web/UI から保存先を確認できるよう変更
 - `src/core/codex_bridge.py` の `.txt` 出力を bare command から Codex 向け prompt 形式へ変更
 - `src/core/codex_bridge.py` に最新 handoff 読み込みを追加し、`/api/codex-handoff-latest` から取得できるよう変更
+- `src/codex_handoff.py` を追加し、ローカル CLI から最新 handoff を読む経路を追加
