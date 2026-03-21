@@ -25,6 +25,7 @@ flowchart LR
     BRIDGE["Codex Bridge\nsrc/core/codex_bridge.py"]
     HANDOFF["Handoff Reader\nsrc/codex_handoff.py"]
     RUNNER["Runner\nsrc/codex_runner.py"]
+    RUNNER_IMPL["Runner impls\nsrc/runners/*"]
     WHISPER["Whisper"]
 
     CLI --> PIPE
@@ -40,6 +41,7 @@ flowchart LR
     WEB --> BRIDGE
     BRIDGE --> HANDOFF
     HANDOFF --> RUNNER
+    RUNNER --> RUNNER_IMPL
 ```
 
 ### Mic-loop Flow
@@ -88,6 +90,12 @@ flowchart LR
 - `ffmpeg` がシステムに導入済みであること
 - GPU は任意です
 - 現在の開発環境では CUDA 利用を確認済みです
+
+## Repository stance
+
+- このリポジトリは現時点では `~/projects/ai_core` に置く前提です
+- `~/dev` に移すのは、複数プロジェクトから参照する共通基盤へ育った段階で再検討します
+- いまは「AI 基盤そのもの」より「AI 入力と handoff を育てる開発・実験本体」として扱います
 
 ## Runtime notes
 
@@ -195,6 +203,7 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 また、十分に長い同一発話は 2 回連続でも `final` に寄せます。短い断片は引き続き厳しめです。
 必要なら `--vad-aggressiveness 0..3` で WebRTC VAD のしきい値を調整できます。
 さらに、中くらい以上の発話は安定時間が十分長ければ `final` に寄せます。
+この安定時間は `--final-stable-seconds` で調整できます。
 
 転写結果と Codex 用の指示草案を同時に表示:
 
@@ -265,6 +274,12 @@ VAD の強さを変える:
 
 ```bash
 uv run python -m src.main --mic-loop --duration 3 --language ja --vad-aggressiveness 3
+```
+
+`final` に寄せる安定時間を変える:
+
+```bash
+uv run python -m src.main --mic-loop --duration 3 --language ja --final-stable-seconds 6
 ```
 
 2 回だけループして確認:

@@ -30,6 +30,7 @@ from src.main import (
     print_codex_instruction_only,
     required_repeat_count_for_final,
     should_mark_result_final,
+    validate_final_stable_seconds,
 )
 from src.io.audio import should_retry_model_load_on_cpu
 from src.io.audio import AudioInputError
@@ -41,6 +42,7 @@ from src.codex_runner import (
     resolve_runner_command,
     validate_runner_command_available,
 )
+from src.ollama_runner import build_ollama_command
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -158,6 +160,12 @@ class SmokeTests(unittest.TestCase):
         result = run_cli("--mic-loop", "--duration", "1", "--vad-aggressiveness", "9")
         self.assertEqual(result.returncode, 1)
         self.assertIn("Input error: VAD aggressiveness must be one of: 0, 1, 2, 3", result.stdout)
+
+    def test_final_stable_seconds_must_be_positive(self) -> None:
+        """Mic-loop stable duration threshold should be validated."""
+        result = run_cli("--mic-loop", "--duration", "1", "--final-stable-seconds", "0")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Input error: --final-stable-seconds must be greater than 0", result.stdout)
 
     def test_no_trim_silence_argument_is_accepted(self) -> None:
         """no-trim-silence should parse and follow normal validation flow."""
@@ -465,7 +473,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertTrue(should_mark_result_final(result, 3, False, 3))
+        self.assertTrue(should_mark_result_final(result, 3, False, 3, 8))
 
     def test_blank_transcript_does_not_mark_result_final(self) -> None:
         """Blank transcripts should not become final unless loop ends."""
@@ -475,7 +483,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, 2, False, 3))
+        self.assertFalse(should_mark_result_final(result, 2, False, 3, 8))
 
     def test_short_transcript_does_not_mark_result_final(self) -> None:
         """Very short repeated transcripts should remain partial."""
@@ -485,7 +493,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, 3, False, 3))
+        self.assertFalse(should_mark_result_final(result, 3, False, 3, 8))
 
     def test_single_repeat_does_not_mark_result_final(self) -> None:
         """Two consecutive matching transcripts should still remain partial."""
@@ -495,7 +503,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, 2, False, 3))
+        self.assertFalse(should_mark_result_final(result, 2, False, 3, 8))
 
     def test_long_transcript_marks_result_final_with_two_repeats(self) -> None:
         """Longer stable transcripts may finalize after two repeats."""
@@ -505,7 +513,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertTrue(should_mark_result_final(result, 2, False, 3))
+        self.assertTrue(should_mark_result_final(result, 2, False, 3, 8))
 
     def test_normalize_transcript_text_collapses_whitespace(self) -> None:
         """Transcript normalization should collapse redundant whitespace."""
@@ -518,11 +526,21 @@ class SmokeTests(unittest.TestCase):
 
     def test_stable_duration_for_final_accepts_medium_text_after_longer_time(self) -> None:
         """Time stability should help medium-length transcripts become final."""
-        self.assertTrue(has_stable_duration_for_final("依存関係を確認して", 2, 4))
+        self.assertTrue(has_stable_duration_for_final("依存関係を確認して", 2, 4, 8))
 
     def test_stable_duration_for_final_ignores_short_text(self) -> None:
         """Very short text should not finalize only from elapsed time."""
-        self.assertFalse(has_stable_duration_for_final("はい", 4, 3))
+        self.assertFalse(has_stable_duration_for_final("はい", 4, 3, 8))
+
+    def test_stable_duration_for_final_uses_configured_threshold(self) -> None:
+        """Stable-duration finalization should respect the configured threshold."""
+        self.assertFalse(has_stable_duration_for_final("依存関係を確認して", 2, 3, 8))
+        self.assertTrue(has_stable_duration_for_final("依存関係を確認して", 2, 3, 6))
+
+    def test_validate_final_stable_seconds_accepts_positive_values(self) -> None:
+        """Positive stable-duration thresholds should pass validation."""
+        validate_final_stable_seconds(1)
+        validate_final_stable_seconds(8)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""
@@ -532,7 +550,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=3,
         )
-        self.assertTrue(should_mark_result_final(result, 0, True, 3))
+        self.assertTrue(should_mark_result_final(result, 0, True, 3, 8))
 
     def test_format_transcription_result_marks_silence(self) -> None:
         """Silence results should be labeled explicitly."""
@@ -758,9 +776,18 @@ class SmokeTests(unittest.TestCase):
 
     def test_validate_runner_command_available_rejects_missing_path_entry(self) -> None:
         """PATH lookups should fail early for missing commands."""
-        with mock.patch("src.codex_runner.shutil.which", return_value=None):
+        with mock.patch("src.runners.common.shutil.which", return_value=None):
             with self.assertRaisesRegex(AudioInputError, "runner command not found in PATH: codex"):
                 validate_runner_command_available(["codex", "exec"])
+
+    def test_build_ollama_command_normalizes_model_name(self) -> None:
+        """Ollama runner should trim the model name."""
+        self.assertEqual(build_ollama_command(" llama3 "), ["ollama", "run", "llama3"])
+
+    def test_build_ollama_command_rejects_blank_model_name(self) -> None:
+        """Ollama runner should reject blank model names."""
+        with self.assertRaisesRegex(AudioInputError, "Ollama model name must not be blank"):
+            build_ollama_command("   ")
 
     def test_retry_model_load_on_cpu_matches_busy_cuda_error(self) -> None:
         """CUDA busy errors should trigger a CPU retry."""

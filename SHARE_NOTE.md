@@ -7,7 +7,7 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `dfb0c2c Add Codex handoff runner bridge`
 - latest applied review status:
-  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback
+  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
 
@@ -30,7 +30,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 59 件の smoke test 成功
+- `uv run python smoke_test.py` で 64 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -62,12 +62,14 @@
 - `src.codex_runner` に組み込みテンプレートを追加し、毎回コマンド列を書かずに試せるようにした
 - `src.codex_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
 - `codex-exec` は `codex` コマンドの PATH 存在を実行前に検証するようにした
+- runner 実装を `src/runners/` へ寄せ始め、トップレベル CLI は互換ラッパーとして残す方針にした
 - Whisper モデル読み込み時に CUDA が busy / unavailable の場合、CPU fallback を試すようにした
 - `mic-loop` は安定した発話のあとに無音が来た場合、その発話を `final` とみなせるようになった
 - `mic-loop` は `Ctrl+C` 停止時も、未確定の最後の発話を `final` として flush できるようになった
 - `mic-loop` は十分に長い同一発話であれば、2 回連続でも `final` に寄せるようになった
 - `--mic-loop` では `--vad-aggressiveness 0..3` で WebRTC VAD の強さを調整できる
 - 中くらい以上の発話は、安定時間が十分長ければ `final` に寄せるようになった
+- `--final-stable-seconds` で `final` に寄せる安定時間を調整できる
 - README の Architecture 図を handoff / runner まで含む最新構成に更新した
 
 ## Next tasks
@@ -97,6 +99,8 @@
 - VAD のしきい値は CLI から調整できるようにした
 - `codex-exec` は PATH に `codex` が無い場合、実行前に入力エラーで止まる
 - `final` 判定には repeat 回数に加えて安定時間も使うようにした
+- 時間ベースの `final` 条件は CLI からしきい値を調整できる
+- `ollama_runner` はシステム未導入前提で、コマンド組み立てと失敗モードまでを先に整える
 
 ## Review-derived actions
 

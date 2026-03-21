@@ -175,3 +175,12 @@
 - `uv run python smoke_test.py` を実行し、57 件の smoke test が成功することを確認
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、59 件の smoke test が成功することを確認
+- `src/main.py` に `--final-stable-seconds` を追加し、時間ベースの `final` 条件を CLI から調整できるよう変更
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、62 件の smoke test が成功することを確認
+- runner 実装を `src/runners/` へ寄せ、`src/codex_handoff.py`, `src/codex_runner.py`, `src/ollama_runner.py` は互換ラッパーとして残すよう変更
+- `uv run python -m py_compile src/runners/__init__.py src/runners/handoff.py src/runners/common.py src/runners/codex.py src/runners/ollama.py src/codex_handoff.py src/codex_runner.py src/ollama_runner.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、64 件の smoke test が成功することを確認
+- `src/runners/` 配下に `handoff.py`, `common.py`, `codex.py`, `ollama.py` を追加し、runner 実装の集約を開始
+- `src/codex_handoff.py`, `src/codex_runner.py`, `src/ollama_runner.py` は互換ラッパーへ変更
+- `MEMORY.md` に `~/projects/ai_core` と `~/dev` の役割分担、および runner 実装を `src/runners/` へ寄せる方針を追記

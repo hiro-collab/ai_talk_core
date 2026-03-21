@@ -14,6 +14,7 @@
 - Whisper モデル保存先は `models/whisper`
 - サンプル音声は `data/sample_audio.mp3`
 - ローカル音声ファイルを CLI から文字起こしする最小構成を優先
+- `ai_core` は現時点では `~/projects` 配下の開発・実験本体として扱い、`~/dev` の共通基盤とは分ける
 
 ## Design rules
 
@@ -21,6 +22,7 @@
 - 入出力と文字起こし処理を分ける
 - システム全体を変更しない
 - 既存ディレクトリ構造を尊重する
+- runner 系の実装は `src/runners/` に寄せ、トップレベル CLI は互換ラッパーとして残す
 - `REVIEW.md`, `SHARE_NOTE.md`, `LOG.md`, `MEMORY.md` は用途別に使い分ける
 - `SHARE_NOTE.md` の `Turn contract` は最上段で維持し、レビュー運用の基準点とする
 
