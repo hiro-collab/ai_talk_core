@@ -145,6 +145,18 @@ PAGE_TEMPLATE = """<!doctype html>
       font-size: 0.9rem;
       margin-top: 8px;
     }
+    .checkbox {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .checkbox input {
+      width: auto;
+      margin: 0;
+    }
     .debug {
       margin-top: 16px;
       padding: 14px;
@@ -187,6 +199,11 @@ PAGE_TEMPLATE = """<!doctype html>
           <label for="upload_language">言語コード</label>
           <input id="upload_language" name="language" type="text" value="ja" placeholder="ja">
 
+          <label class="checkbox" for="upload_command_only">
+            <input id="upload_command_only" name="command_only" type="checkbox" value="true">
+            Codex 指示草案を優先して返す
+          </label>
+
           <button type="submit">文字起こしする</button>
         </form>
       </section>
@@ -207,6 +224,11 @@ PAGE_TEMPLATE = """<!doctype html>
 
         <label for="record_language">言語コード</label>
         <input id="record_language" type="text" value="ja" placeholder="ja">
+
+        <label class="checkbox" for="record_command_only">
+          <input id="record_command_only" type="checkbox" value="true">
+          Codex 指示草案を優先して返す
+        </label>
 
         <p class="hint">ブラウザ側でマイク許可が必要です。録音停止後に自動でアップロードします。</p>
         <div id="record-status" class="status" hidden></div>
@@ -371,6 +393,9 @@ PAGE_TEMPLATE = """<!doctype html>
           formData.append("audio_blob", blob, "browser_recording.webm");
           formData.append("model", document.getElementById("record_model").value);
           formData.append("language", document.getElementById("record_language").value);
+          if (document.getElementById("record_command_only").checked) {
+            formData.append("command_only", "true");
+          }
           await submitForTranscription(
             "{{ url_for('api_transcribe_browser_recording') }}",
             formData,

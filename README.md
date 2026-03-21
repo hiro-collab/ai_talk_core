@@ -102,6 +102,8 @@ Codex 用の指示草案だけ表示:
 uv run python -m src.main --mic --duration 5 --language ja --command-only
 ```
 
+Web UI でも、アップロード欄とブラウザ録音欄の `Codex 指示草案を優先して返す` を有効にすると `command_only` と同じ挙動になります。
+
 ブラウザ GUI を起動:
 
 ```bash

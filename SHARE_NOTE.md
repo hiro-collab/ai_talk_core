@@ -46,6 +46,7 @@
 - ブラウザ録音の主課題は連続録音の可否より認識精度側になった
 - 転写結果から `Codex instruction draft` を返す最小ブリッジを追加した
 - API に `command_only` オプションを追加し、`command` を主に返せるようにした
+- Web UI からも `command_only` を切り替えられるようにした
 - Whisper モデルは `models/whisper/small.pt`
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み

@@ -91,6 +91,8 @@ class SmokeTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("ai_core Web UI", response.get_data(as_text=True))
+        self.assertIn("upload_command_only", response.get_data(as_text=True))
+        self.assertIn("record_command_only", response.get_data(as_text=True))
 
     def test_web_upload_transcribes_sample_audio(self) -> None:
         """Web UI upload route should transcribe sample audio."""
@@ -128,6 +130,28 @@ class SmokeTests(unittest.TestCase):
         self.assertIsNotNone(payload_json)
         self.assertIn("こんにちは", payload_json["transcript"])
         self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
+
+    def test_web_upload_fetch_command_only_returns_command_without_transcript(self) -> None:
+        """Fetch-style upload should support command-only responses."""
+        sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
+        payload = {
+            "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
+            "model": "small",
+            "language": "ja",
+            "command_only": "true",
+        }
+        response = self.client.post(
+            "/transcribe-upload",
+            data=payload,
+            content_type="multipart/form-data",
+            headers={"X-Requested-With": "fetch"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertEqual(payload_json["transcript"], "")
+        self.assertIn("こんにちは", payload_json["command"])
 
     def test_api_upload_returns_json(self) -> None:
         """Dedicated API upload route should return JSON."""
