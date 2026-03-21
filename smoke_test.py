@@ -27,6 +27,7 @@ from src.main import (
     should_mark_result_final,
 )
 from src.codex_handoff import render_handoff_output
+from src.codex_runner import normalize_command_args
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -49,6 +50,18 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 def run_handoff_cli(*args: str) -> subprocess.CompletedProcess[str]:
     """Run the Codex handoff CLI and capture its output."""
     command = [sys.executable, "-m", "src.codex_handoff", *args]
+    return subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def run_runner_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run the Codex runner CLI and capture its output."""
+    command = [sys.executable, "-m", "src.codex_runner", *args]
     return subprocess.run(
         command,
         cwd=PROJECT_ROOT,
@@ -339,6 +352,43 @@ class SmokeTests(unittest.TestCase):
         json_path.unlink()
         text_path.unlink()
 
+    def test_runner_cli_print_only_outputs_prompt(self) -> None:
+        """Runner CLI should print the latest prompt in print-only mode."""
+        json_path = get_default_codex_output_path(source="runner_print")
+        text_path = get_default_codex_text_path(source="runner_print")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_runner_cli("--source", "runner_print", "--print-only")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Voice transcript:", result.stdout)
+        json_path.unlink()
+        text_path.unlink()
+
+    def test_runner_cli_pipes_prompt_to_command(self) -> None:
+        """Runner CLI should pass the rendered prompt to stdin."""
+        json_path = get_default_codex_output_path(source="runner_pipe")
+        text_path = get_default_codex_text_path(source="runner_pipe")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_runner_cli(
+            "--source",
+            "runner_pipe",
+            "--",
+            "python",
+            "-c",
+            "import sys; print(sys.stdin.read())",
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Requested task:", result.stdout)
+        json_path.unlink()
+        text_path.unlink()
+
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
         response = self.client.post("/api/transcribe-upload", data={}, content_type="multipart/form-data")
@@ -527,6 +577,13 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(payload_json["command"], "依存関係を確認して")
         json_path.unlink()
         text_path.unlink()
+
+    def test_normalize_command_args_strips_separator(self) -> None:
+        """Runner CLI should strip a leading '--' from command args."""
+        self.assertEqual(
+            normalize_command_args(["--", "python", "-c", "print('ok')"]),
+            ["python", "-c", "print('ok')"],
+        )
 
     def test_print_codex_instruction_only_handles_blank(self) -> None:
         """command-only printer should handle blank transcripts."""

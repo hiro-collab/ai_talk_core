@@ -58,6 +58,7 @@
 - `.txt` 側は bare command ではなく、`Voice transcript` / `Requested task` を含む prompt 形式にした
 - 保存済み handoff を取得する `/api/codex-handoff-latest` を追加した
 - ローカル CLI から最新 handoff を読む `src.codex_handoff` を追加した
+- 最新 handoff を任意コマンドへ流す `src.codex_runner` を追加した
 
 ## Next tasks
 
@@ -77,6 +78,7 @@
 - Web/API 側の `command_text_path` を使って、そのまま貼り付ける運用も可能にした
 - 他プロセスが最新 handoff を取りに来る API 境界を追加した
 - Web を経由せずローカル handoff を読む CLI 境界も追加した
+- ローカルの Codex 実行プロセスへ handoff を渡す bridge を追加した
 
 ## Review-derived actions
 

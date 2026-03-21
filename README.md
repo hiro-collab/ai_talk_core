@@ -128,6 +128,12 @@ curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
 uv run python -m src.codex_handoff --source web --format prompt
 ```
 
+任意コマンドの stdin に最新 handoff を渡す:
+
+```bash
+uv run python -m src.codex_runner --source web -- python -c "import sys; print(sys.stdin.read())"
+```
+
 ## Quick start
 
 ```bash
