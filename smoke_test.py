@@ -22,6 +22,7 @@ from src.core.codex_bridge import (
 from src.core.llm import build_codex_instruction
 from src.main import (
     format_transcription_result,
+    maybe_finalize_on_interrupt,
     maybe_finalize_on_silence,
     normalize_transcript_text,
     print_codex_instruction_only,
@@ -547,6 +548,40 @@ class SmokeTests(unittest.TestCase):
             finalized_text=None,
         )
         self.assertTrue(final_result.is_silence)
+
+    def test_maybe_finalize_on_interrupt_returns_final_result(self) -> None:
+        """Interrupt should flush the latest spoken result when not yet finalized."""
+        last_spoken_result = TranscriptionResult(
+            source="microphone",
+            text="依存関係を確認して",
+            is_final=False,
+            chunk_count=4,
+        )
+        final_result = maybe_finalize_on_interrupt(
+            last_spoken_result=last_spoken_result,
+            finalized_text=None,
+            chunk_count=5,
+        )
+        self.assertIsNotNone(final_result)
+        assert final_result is not None
+        self.assertTrue(final_result.is_final)
+        self.assertEqual(final_result.chunk_count, 5)
+        self.assertEqual(final_result.text, "依存関係を確認して")
+
+    def test_maybe_finalize_on_interrupt_skips_already_finalized_text(self) -> None:
+        """Interrupt should not re-emit already finalized speech."""
+        last_spoken_result = TranscriptionResult(
+            source="microphone",
+            text="依存関係を確認して",
+            is_final=False,
+            chunk_count=4,
+        )
+        final_result = maybe_finalize_on_interrupt(
+            last_spoken_result=last_spoken_result,
+            finalized_text="依存関係を確認して",
+            chunk_count=5,
+        )
+        self.assertIsNone(final_result)
 
     def test_build_codex_instruction_returns_none_for_blank(self) -> None:
         """Blank transcripts should not produce instruction drafts."""

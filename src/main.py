@@ -115,6 +115,28 @@ def maybe_finalize_on_silence(
     )
 
 
+def maybe_finalize_on_interrupt(
+    last_spoken_result: TranscriptionResult | None,
+    finalized_text: str | None,
+    chunk_count: int,
+) -> TranscriptionResult | None:
+    """Finalize the latest spoken result when mic-loop is interrupted."""
+    if last_spoken_result is None:
+        return None
+    spoken_text = normalize_transcript_text(last_spoken_result.text)
+    if not spoken_text or len(spoken_text) < 3:
+        return None
+    if spoken_text == finalized_text:
+        return None
+    return TranscriptionResult(
+        source=last_spoken_result.source,
+        text=last_spoken_result.text,
+        is_final=True,
+        chunk_count=chunk_count,
+        is_silence=False,
+    )
+
+
 def run_mic_loop(
     duration: int,
     mic_device: str,
@@ -188,6 +210,21 @@ def run_mic_loop(
             save_codex_instruction_if_requested(result.text, command_output)
             completed_iterations += 1
     except KeyboardInterrupt:
+        final_result = maybe_finalize_on_interrupt(
+            last_spoken_result=last_spoken_result,
+            finalized_text=finalized_text,
+            chunk_count=len(buffer.chunks),
+        )
+        if final_result is not None:
+            if command_only:
+                print_codex_instruction_only(final_result.text)
+            else:
+                print(format_transcription_result(final_result))
+                print_codex_instruction_if_requested(
+                    final_result.text,
+                    emit_command=emit_command,
+                )
+            save_codex_instruction_if_requested(final_result.text, command_output)
         print("Stopped microphone loop.")
         return 0
 

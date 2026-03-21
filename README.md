@@ -189,6 +189,8 @@ uv run python -m src.main --mic --duration 5 --language ja
 uv run python -m src.main --mic-loop --duration 3 --language ja
 ```
 
+`Ctrl+C` で停止した場合も、直前の安定した発話は `final` として 1 回だけ flush を試みます。
+
 転写結果と Codex 用の指示草案を同時に表示:
 
 ```bash
