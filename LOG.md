@@ -115,3 +115,5 @@
 - `smoke_test.py` に transcript 正規化と repeat-detection の確認を追加
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、15 件の smoke test が成功することを確認
+- `src/io/microphone.py` に `ffprobe` / `ffmpeg silencedetect` を使った軽い無音検出を追加
+- `src/main.py` の `--mic-loop` で、ほぼ無音のチャンクは Whisper 転写をスキップするよう変更

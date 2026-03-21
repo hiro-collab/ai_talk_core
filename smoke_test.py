@@ -185,6 +185,16 @@ class SmokeTests(unittest.TestCase):
         """Transcript normalization should collapse redundant whitespace."""
         self.assertEqual(normalize_transcript_text("  こんにちは   世界 "), "こんにちは 世界")
 
+    def test_last_iteration_marks_blank_result_final(self) -> None:
+        """Last mic-loop iteration should still become final."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="",
+            is_final=False,
+            chunk_count=3,
+        )
+        self.assertTrue(should_mark_result_final(result, None, True))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,7 @@ from src.io.audio import (
     validate_model_name,
 )
 from src.io.microphone import capture_microphone_chunk, get_temp_recording_path, record_microphone_audio
+from src.io.microphone import has_detectable_speech
 
 
 def format_transcription_result(result: object) -> str:
@@ -70,11 +71,19 @@ def run_mic_loop(
             buffer.append(chunk)
             next_iteration = completed_iterations + 1
             is_last_iteration = iterations is not None and next_iteration == iterations
-            result = pipeline.transcribe_buffer_result(
-                buffer,
-                language=language,
-                is_final=False,
-            )
+            if has_detectable_speech(chunk.path):
+                result = pipeline.transcribe_buffer_result(
+                    buffer,
+                    language=language,
+                    is_final=False,
+                )
+            else:
+                result = TranscriptionResult(
+                    source=buffer.source,
+                    text="",
+                    is_final=False,
+                    chunk_count=len(buffer.chunks),
+                )
             if should_mark_result_final(result, previous_text, is_last_iteration):
                 result = replace(result, is_final=True)
             print(format_transcription_result(result))

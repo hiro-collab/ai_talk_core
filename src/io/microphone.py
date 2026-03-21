@@ -100,6 +100,69 @@ def trim_silence(
     return output_path
 
 
+def get_audio_duration_seconds(audio_path: Path) -> float:
+    """Return audio duration in seconds via ffprobe."""
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(audio_path),
+    ]
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        raise AudioEnvironmentError(f"audio duration probe failed: {message}") from exc
+
+    try:
+        return float(result.stdout.strip())
+    except ValueError as exc:
+        raise AudioEnvironmentError(
+            f"audio duration probe returned invalid output: {result.stdout.strip()}"
+        ) from exc
+
+
+def has_detectable_speech(
+    audio_path: Path,
+    silence_threshold_db: float = -35.0,
+    silence_duration: float = 0.2,
+) -> bool:
+    """Return whether ffmpeg detects non-silent audio in the clip."""
+    duration = get_audio_duration_seconds(audio_path)
+    if duration <= 0.0:
+        return False
+
+    command = [
+        "ffmpeg",
+        "-i",
+        str(audio_path),
+        "-af",
+        f"silencedetect=noise={silence_threshold_db}dB:d={silence_duration}",
+        "-f",
+        "null",
+        "-",
+    ]
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        raise AudioEnvironmentError(f"speech detection failed: {message}") from exc
+
+    stderr = result.stderr
+    match_start = re.search(r"silence_start:\s*0(?:\.0+)?", stderr)
+    match_end = re.search(r"silence_end:\s*([0-9.]+)", stderr)
+    if match_start and match_end:
+        silence_end = float(match_end.group(1))
+        if silence_end >= max(duration - 0.1, 0.0):
+            return False
+
+    return True
+
+
 def record_microphone_audio(
     output_path: Path,
     duration: int,
