@@ -88,12 +88,15 @@ def has_stable_duration_for_final(
     text: str,
     repeat_count: int,
     chunk_duration: int,
+    final_stable_seconds: int,
 ) -> bool:
     """Return whether a transcript stayed stable long enough to finalize."""
     if len(text) < 6:
         return False
+    if repeat_count < 2:
+        return False
     stable_seconds = repeat_count * chunk_duration
-    return stable_seconds >= 8
+    return stable_seconds >= final_stable_seconds
 
 
 def should_mark_result_final(
@@ -101,6 +104,7 @@ def should_mark_result_final(
     repeat_count: int,
     is_last_iteration: bool,
     chunk_duration: int,
+    final_stable_seconds: int,
 ) -> bool:
     """Decide whether a mic-loop result can be treated as final."""
     if is_last_iteration:
@@ -112,7 +116,12 @@ def should_mark_result_final(
         return False
     if repeat_count >= required_repeat_count_for_final(current_text):
         return True
-    return has_stable_duration_for_final(current_text, repeat_count, chunk_duration)
+    return has_stable_duration_for_final(
+        current_text,
+        repeat_count,
+        chunk_duration,
+        final_stable_seconds,
+    )
 
 
 def maybe_finalize_on_silence(
@@ -175,6 +184,7 @@ def run_mic_loop(
     command_only: bool,
     command_output: str | None,
     vad_aggressiveness: int,
+    final_stable_seconds: int,
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
     pipeline = TranscriptionPipeline(model_name=model_name)
@@ -226,7 +236,13 @@ def run_mic_loop(
                 last_spoken_result = result
             else:
                 repeat_count = 0
-            if should_mark_result_final(result, repeat_count, is_last_iteration, duration):
+            if should_mark_result_final(
+                result,
+                repeat_count,
+                is_last_iteration,
+                duration,
+                final_stable_seconds,
+            ):
                 result = replace(result, is_final=True)
             if result.is_final and not result.is_silence and normalized_text:
                 finalized_text = normalized_text
@@ -268,6 +284,12 @@ def validate_iterations(iterations: int | None) -> None:
 def validate_mic_loop_options(vad_aggressiveness: int) -> None:
     """Validate mic-loop specific options."""
     validate_vad_aggressiveness(vad_aggressiveness)
+
+
+def validate_final_stable_seconds(final_stable_seconds: int) -> None:
+    """Validate the stable-duration threshold for finalization."""
+    if final_stable_seconds <= 0:
+        raise AudioInputError("--final-stable-seconds must be greater than 0")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -329,6 +351,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="WebRTC VAD aggressiveness for --mic-loop (0-3). Default: 2",
     )
     parser.add_argument(
+        "--final-stable-seconds",
+        type=int,
+        default=8,
+        help="Stable duration threshold in seconds for mic-loop finalization. Default: 8",
+    )
+    parser.add_argument(
         "--emit-command",
         action="store_true",
         help="Print a Codex-ready instruction draft from the transcript.",
@@ -362,6 +390,7 @@ def main() -> int:
             raise AudioInputError("--iterations can only be used with --mic-loop")
         if args.mic_loop:
             validate_mic_loop_options(args.vad_aggressiveness)
+            validate_final_stable_seconds(args.final_stable_seconds)
             if args.audio_file is not None:
                 raise AudioInputError("audio_file cannot be used together with --mic-loop")
             return run_mic_loop(
@@ -375,6 +404,7 @@ def main() -> int:
                 command_only=args.command_only,
                 command_output=args.command_output,
                 vad_aggressiveness=args.vad_aggressiveness,
+                final_stable_seconds=args.final_stable_seconds,
             )
         if args.mic:
             if args.audio_file is not None:

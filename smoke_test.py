@@ -537,6 +537,10 @@ class SmokeTests(unittest.TestCase):
         self.assertFalse(has_stable_duration_for_final("依存関係を確認して", 2, 3, 8))
         self.assertTrue(has_stable_duration_for_final("依存関係を確認して", 2, 3, 6))
 
+    def test_stable_duration_for_final_requires_more_than_one_repeat(self) -> None:
+        """A single long chunk should not finalize only from chunk duration."""
+        self.assertFalse(has_stable_duration_for_final("依存関係を確認して", 1, 8, 8))
+
     def test_validate_final_stable_seconds_accepts_positive_values(self) -> None:
         """Positive stable-duration thresholds should pass validation."""
         validate_final_stable_seconds(1)
