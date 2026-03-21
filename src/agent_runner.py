@@ -1,6 +1,6 @@
 """Compatibility wrapper for the shared agent runner CLI."""
 
-from src.runners.codex import (
+from src.runners.agent import (
     STATIC_TEMPLATES,
     build_parser,
     build_template_command,

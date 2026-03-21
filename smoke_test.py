@@ -97,6 +97,18 @@ def run_runner_cli(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def run_agent_runner_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run the generic agent runner CLI and capture its output."""
+    command = [sys.executable, "-m", "src.agent_runner", *args]
+    return subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 class SmokeTests(unittest.TestCase):
     """Smoke tests for the current CLI behavior."""
 
@@ -434,6 +446,21 @@ class SmokeTests(unittest.TestCase):
             text_path=text_path,
         )
         result = run_runner_cli("--source", "runner_print", "--print-only")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Voice transcript:", result.stdout)
+        json_path.unlink()
+        text_path.unlink()
+
+    def test_agent_runner_cli_print_only_outputs_prompt(self) -> None:
+        """Generic agent runner CLI should print the latest prompt in print-only mode."""
+        json_path = get_default_codex_output_path(source="agent_runner_print")
+        text_path = get_default_codex_text_path(source="agent_runner_print")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        result = run_agent_runner_cli("--source", "agent_runner_print", "--print-only")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Voice transcript:", result.stdout)
         json_path.unlink()

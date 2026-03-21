@@ -165,7 +165,7 @@ curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
 uv run python -m src.codex_handoff --source web --format prompt
 ```
 
-互換性を保ったまま、より汎用的な入口も使えます。内部では `src/core/handoff_bridge.py` と `src/core/agent_instruction.py` を参照し始めていますが、既存の `src/core/codex_bridge.py` と `src/core/llm.py` は互換のため残しています。
+互換性を保ったまま、より汎用的な入口も使えます。内部では `src/core/handoff_bridge.py`, `src/core/agent_instruction.py`, `src/runners/agent.py` を参照し始めていますが、既存の `src/core/codex_bridge.py`, `src/core/llm.py`, `src/runners/codex.py` は互換のため残しています。
 
 ```bash
 curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web

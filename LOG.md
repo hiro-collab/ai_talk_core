@@ -194,3 +194,5 @@
 - `smoke_test.py` の handoff 保存・読込テストは `src.core.handoff_bridge` を起点に参照するよう更新
 - `src/core/agent_instruction.py` を追加し、`src/main.py` と `src/core/handoff_bridge.py` は `src/core/llm.py` ではなく汎用の指示草案生成境界を参照し始めた
 - `src/core/llm.py` は互換ラッパーへ変更した
+- `src/runners/agent.py` を追加し、`src/agent_runner.py` は `src.runners.agent` を参照するよう変更した
+- `src/runners/codex.py` は runner 実体ではなく互換ラッパーへ変更した
