@@ -79,6 +79,11 @@ def get_runtime_status() -> dict[str, str | bool | None]:
             "Torch CUDA build is present but unavailable; transcription will use CPU "
             "fallback."
         )
+        if nvidia_smi_available and nvidia_driver_version is not None:
+            note += (
+                " nvidia-smi is available, so a Torch/driver CUDA mismatch or local "
+                "CUDA initialization problem is likely."
+            )
     return {
         "ffmpeg_available": shutil.which("ffmpeg") is not None,
         "ffprobe_available": shutil.which("ffprobe") is not None,

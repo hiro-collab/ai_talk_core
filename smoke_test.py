@@ -884,7 +884,11 @@ class SmokeTests(unittest.TestCase):
                 "torch_cuda_available": False,
                 "transcription_device": "cpu",
                 "whisper_version": "20250625",
-                "runtime_note": "Torch CUDA build is present but unavailable; transcription will use CPU fallback.",
+                "runtime_note": (
+                    "Torch CUDA build is present but unavailable; transcription will use CPU "
+                    "fallback. nvidia-smi is available, so a Torch/driver CUDA mismatch or "
+                    "local CUDA initialization problem is likely."
+                ),
             }
         )
         self.assertIn("Runtime status:", text)
@@ -892,6 +896,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("nvidia_driver_version: 535.288.01", text)
         self.assertIn("transcription_device: cpu", text)
         self.assertIn("ffmpeg_available: True", text)
+        self.assertIn("Torch/driver CUDA mismatch", text)
 
     def test_get_runtime_status_returns_expected_keys(self) -> None:
         """Runtime status helper should return the expected status fields."""

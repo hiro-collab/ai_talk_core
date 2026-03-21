@@ -4,6 +4,7 @@
 
 - turn mode: `code changes allowed`
 - reviewer may update: `REVIEW.md` only
+- design reviewer may update: `DESIGN_REVIEW.md` only
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `fd7e728 Accept generic instruction and handoff API aliases`
 - latest applied review status:
@@ -89,6 +90,7 @@
 - `--show-runtime-status` を追加し、Whisper / Torch / ffmpeg / ffprobe の runtime 状態を text/json で確認できるようにした
 - runtime status には `transcription_device` と `runtime_note` も含め、GPU 不可時の CPU fallback を読み取りやすくした
 - runtime status には `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name` も含め、driver 側と Torch 側の食い違いを見やすくした
+- `nvidia-smi` は見えるのに `torch_cuda_available` が `False` の場合、runtime status は Torch/driver CUDA mismatch または local CUDA 初期化問題の疑いも示すようにした
 - `--mic-loop` の `[mic-tuning] ...` と停止メッセージは stderr に出し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 
 ## Next tasks
@@ -142,3 +144,4 @@
 - 入力はローカル音声ファイル前提
 - 出力は標準出力のみ
 - `MEMORY.md`, `REVIEW.md`, `SHARE_NOTE.md`, `LOG.md` を用途別に使い分ける
+- デザインレビューは `DESIGN_REVIEW.md` を主記録先にし、コードレビューとは混ぜない

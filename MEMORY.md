@@ -24,7 +24,9 @@
 - 既存ディレクトリ構造を尊重する
 - runner 系の実装は `src/runners/` に寄せ、トップレベル CLI は互換ラッパーとして残す
 - `REVIEW.md`, `SHARE_NOTE.md`, `LOG.md`, `MEMORY.md` は用途別に使い分ける
+- `DESIGN_REVIEW.md` はデザインレビュー専用の主記録先として使い、コードレビューとは混ぜない
 - `SHARE_NOTE.md` の `Turn contract` は最上段で維持し、レビュー運用の基準点とする
+- `AGENTS.md` や `/init` 相当の運用ファイルは重複作成しない。既存ファイルの有無を先に確認し、必要時は追加前に提案する
 
 ## Future direction
 

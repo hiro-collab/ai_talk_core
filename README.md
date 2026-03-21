@@ -330,7 +330,7 @@ JSON で取り出す:
 uv run python -m src.main --show-runtime-status --runtime-status-format json
 ```
 
-この出力には `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name`, `transcription_device`, `runtime_note` も含まれ、driver 側と Torch 側の食い違い、および GPU が使えないときの CPU fallback を読み取りやすくします。
+この出力には `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name`, `transcription_device`, `runtime_note` も含まれ、driver 側と Torch 側の食い違い、および GPU が使えないときの CPU fallback を読み取りやすくします。`nvidia-smi` は見えるのに `torch_cuda_available` が `False` の場合は、`runtime_note` に Torch/driver CUDA mismatch の疑いも出します。
 
 `final` に寄せる安定時間を変える:
 
