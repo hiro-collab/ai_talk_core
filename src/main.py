@@ -193,10 +193,39 @@ def validate_mic_loop_options(vad_aggressiveness: int) -> None:
     validate_vad_aggressiveness(vad_aggressiveness)
 
 
+def validate_mic_profile(profile: str) -> None:
+    """Validate the selected mic-loop tuning profile."""
+    if profile not in {"responsive", "balanced", "strict"}:
+        raise AudioInputError(
+            "--mic-profile must be one of: responsive, balanced, strict"
+        )
+
+
 def validate_final_stable_seconds(final_stable_seconds: int) -> None:
     """Validate the stable-duration threshold for finalization."""
     if final_stable_seconds <= 0:
         raise AudioInputError("--final-stable-seconds must be greater than 0")
+
+
+def resolve_mic_loop_tuning(
+    profile: str,
+    vad_aggressiveness: int | None,
+    final_stable_seconds: int | None,
+) -> tuple[int, int]:
+    """Resolve mic-loop tuning from a named profile and optional overrides."""
+    presets = {
+        "responsive": (1, 5),
+        "balanced": (2, 8),
+        "strict": (3, 10),
+    }
+    preset_vad, preset_final_seconds = presets[profile]
+    resolved_vad = preset_vad if vad_aggressiveness is None else vad_aggressiveness
+    resolved_final_seconds = (
+        preset_final_seconds
+        if final_stable_seconds is None
+        else final_stable_seconds
+    )
+    return resolved_vad, resolved_final_seconds
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -252,16 +281,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable ffmpeg-based silence trimming for microphone recordings.",
     )
     parser.add_argument(
+        "--mic-profile",
+        default="balanced",
+        help="Mic-loop tuning profile: responsive, balanced, or strict. Default: balanced",
+    )
+    parser.add_argument(
         "--vad-aggressiveness",
         type=int,
-        default=2,
-        help="WebRTC VAD aggressiveness for --mic-loop (0-3). Default: 2",
+        default=None,
+        help="WebRTC VAD aggressiveness for --mic-loop (0-3). Overrides --mic-profile.",
     )
     parser.add_argument(
         "--final-stable-seconds",
         type=int,
-        default=8,
-        help="Stable duration threshold in seconds for mic-loop finalization. Default: 8",
+        default=None,
+        help="Stable duration threshold in seconds for mic-loop finalization. Overrides --mic-profile.",
     )
     parser.add_argument(
         "--emit-command",
@@ -302,8 +336,16 @@ def main() -> int:
         if args.iterations is not None and not args.mic_loop:
             raise AudioInputError("--iterations can only be used with --mic-loop")
         if args.mic_loop:
-            validate_mic_loop_options(args.vad_aggressiveness)
-            validate_final_stable_seconds(args.final_stable_seconds)
+            validate_mic_profile(args.mic_profile)
+            resolved_vad_aggressiveness, resolved_final_stable_seconds = (
+                resolve_mic_loop_tuning(
+                    profile=args.mic_profile,
+                    vad_aggressiveness=args.vad_aggressiveness,
+                    final_stable_seconds=args.final_stable_seconds,
+                )
+            )
+            validate_mic_loop_options(resolved_vad_aggressiveness)
+            validate_final_stable_seconds(resolved_final_stable_seconds)
             if args.audio_file is not None:
                 raise AudioInputError("audio_file cannot be used together with --mic-loop")
             return run_mic_loop(
@@ -316,8 +358,8 @@ def main() -> int:
                 emit_command=args.emit_command,
                 command_only=args.command_only,
                 command_output=args.command_output,
-                vad_aggressiveness=args.vad_aggressiveness,
-                final_stable_seconds=args.final_stable_seconds,
+                vad_aggressiveness=resolved_vad_aggressiveness,
+                final_stable_seconds=resolved_final_stable_seconds,
             )
         if args.mic:
             if args.audio_file is not None:

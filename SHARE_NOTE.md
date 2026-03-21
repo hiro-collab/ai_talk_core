@@ -32,7 +32,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 74 件の smoke test 成功
+- `uv run python smoke_test.py` で 78 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -81,6 +81,7 @@
 - CLI に `--emit-instruction`, `--instruction-only`, `--handoff-output` の互換別名を追加した
 - Web UI の「Codex 指示草案」表現を「指示草案」へ寄せた
 - Web/API でも `instruction_only` と `save_handoff` の別名を受けられるようにした
+- `--mic-profile responsive|balanced|strict` を追加し、VAD と final の調整値をプリセットから選べるようにした
 
 ## Next tasks
 

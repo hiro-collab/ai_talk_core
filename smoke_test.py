@@ -32,7 +32,9 @@ from src.core.finalization import (
 from src.main import (
     format_transcription_result,
     print_agent_instruction_only,
+    resolve_mic_loop_tuning,
     validate_final_stable_seconds,
+    validate_mic_profile,
 )
 from src.io.audio import should_retry_model_load_on_cpu
 from src.io.audio import AudioInputError
@@ -223,6 +225,15 @@ class SmokeTests(unittest.TestCase):
         result = run_cli("--mic-loop", "--duration", "1", "--vad-aggressiveness", "9")
         self.assertEqual(result.returncode, 1)
         self.assertIn("Input error: VAD aggressiveness must be one of: 0, 1, 2, 3", result.stdout)
+
+    def test_mic_profile_must_be_supported_value(self) -> None:
+        """Mic-loop profile should reject unknown values."""
+        result = run_cli("--mic-loop", "--duration", "1", "--mic-profile", "fastish")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "Input error: --mic-profile must be one of: responsive, balanced, strict",
+            result.stdout,
+        )
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -733,6 +744,23 @@ class SmokeTests(unittest.TestCase):
         """Positive stable-duration thresholds should pass validation."""
         validate_final_stable_seconds(1)
         validate_final_stable_seconds(8)
+
+    def test_validate_mic_profile_accepts_supported_values(self) -> None:
+        """Supported mic profiles should pass validation."""
+        for value in ("responsive", "balanced", "strict"):
+            validate_mic_profile(value)
+
+    def test_resolve_mic_loop_tuning_uses_profile_defaults(self) -> None:
+        """Mic profile should resolve default VAD and final thresholds."""
+        self.assertEqual(resolve_mic_loop_tuning("responsive", None, None), (1, 5))
+        self.assertEqual(resolve_mic_loop_tuning("balanced", None, None), (2, 8))
+        self.assertEqual(resolve_mic_loop_tuning("strict", None, None), (3, 10))
+
+    def test_resolve_mic_loop_tuning_preserves_explicit_overrides(self) -> None:
+        """Explicit CLI overrides should win over profile defaults."""
+        self.assertEqual(resolve_mic_loop_tuning("strict", 0, None), (0, 10))
+        self.assertEqual(resolve_mic_loop_tuning("responsive", None, 12), (1, 12))
+        self.assertEqual(resolve_mic_loop_tuning("balanced", 3, 6), (3, 6))
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""

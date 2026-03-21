@@ -209,9 +209,10 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 
 `Ctrl+C` で停止した場合も、直前の安定した発話は `final` として 1 回だけ flush を試みます。
 また、十分に長い同一発話は 2 回連続でも `final` に寄せます。短い断片は引き続き厳しめです。
-必要なら `--vad-aggressiveness 0..3` で WebRTC VAD のしきい値を調整できます。
-さらに、中くらい以上の発話は安定時間が十分長ければ `final` に寄せます。
-この安定時間は `--final-stable-seconds` で調整できます。
+必要なら `--mic-profile responsive|balanced|strict` で mic-loop の調整プリセットを切り替えられます。
+さらに細かく詰めたい場合は `--vad-aggressiveness 0..3` で WebRTC VAD のしきい値を上書きできます。
+中くらい以上の発話は安定時間が十分長ければ `final` に寄せます。
+この安定時間は `--final-stable-seconds` で上書きできます。
 ただし、時間条件だけで単発チャンクを即 `final` にすることは避け、最低限の反復を前提にしています。
 これらの `final` ヒューリスティクスは `src/core/finalization.py` に切り出し、CLI 本体から分離しています。
 
@@ -284,6 +285,12 @@ VAD の強さを変える:
 
 ```bash
 uv run python -m src.main --mic-loop --duration 3 --language ja --vad-aggressiveness 3
+```
+
+mic-loop の調整プリセットを切り替える:
+
+```bash
+uv run python -m src.main --mic-loop --duration 3 --language ja --mic-profile strict
 ```
 
 `final` に寄せる安定時間を変える:
