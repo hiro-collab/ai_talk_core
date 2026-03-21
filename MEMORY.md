@@ -22,6 +22,7 @@
 - システム全体を変更しない
 - 既存ディレクトリ構造を尊重する
 - `REVIEW.md`, `SHARE_NOTE.md`, `LOG.md`, `MEMORY.md` は用途別に使い分ける
+- `SHARE_NOTE.md` の `Turn contract` は最上段で維持し、レビュー運用の基準点とする
 
 ## Future direction
 

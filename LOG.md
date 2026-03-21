@@ -85,3 +85,5 @@
 - `uv run python smoke_test.py` を再実行し、9 件の smoke test が成功することを確認
 - `SHARE_NOTE.md` に turn mode / reviewer update scope / latest reviewed commit / changed files を追加
 - `REVIEWER_INSTRUCTIONS.md` にレビュー依頼時の必須情報と推奨テンプレートを追加
+- レビュアー所見として、`SHARE_NOTE.md` の `Turn contract` は有効であり、`reviewer may update` / `implementer may update` を最上段維持する方針が妥当であることを確認
+- `MEMORY.md` に `SHARE_NOTE.md` の `Turn contract` を最上段維持する運用ルールを追加
