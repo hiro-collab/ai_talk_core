@@ -5,20 +5,12 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 
 ## Overview
 
-- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、軽い無音トリム
-- まだできないこと: 真のリアルタイム streaming、partial/final 出し分け、VAD
-- ローカル音声ファイルを入力し、Whisper で文字起こしします
-- 固定時間のマイク録音から文字起こしする最小 CLI も使えます
-- `--mic-loop` で擬似リアルタイムの反復処理を試せます
-- ローカル Web UI からファイルアップロードやブラウザ録音でも文字起こしできます
-- Web UI は結果領域だけを更新するので、録音中・処理中の状態が見やすくなっています
-- 外部連携用に JSON API ルートも持てる形になっています
-- 位置づけとしては GUI 主体より、音声入力フロントエンド兼サービス境界を優先しています
-- Web UI の言語入力欄は既定で `ja` になっています
-- ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化してから転写します
-- `HD Pro Webcam C920` で録音自体は確認済みです
-- マイク録音では軽い無音トリムを有効化できます
-- 常時動作のマイク入力 CLI と本格的なノイズ対策は未実装です
+- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽い無音トリム
+- まだできないこと: 真のリアルタイム streaming、`partial/final` の本格運用、VAD
+- 位置づけ: GUI 主体ではなく、音声入力フロントエンド兼サービス境界を優先
+- ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化してから転写
+- Web UI の言語入力欄は既定で `ja`
+- `HD Pro Webcam C920` で録音確認済み
 
 ## Requirements
 
@@ -73,25 +65,13 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 
 ## Quick start
 
-サンプル音声を文字起こし:
-
 ```bash
 uv run python -m src.main data/sample_audio.mp3 --language ja
 ```
 
-手元で録音した wav を文字起こし:
-
-```bash
-uv run python -m src.main data/mic_speech_test_c920_retry.wav --language ja
-```
-
-マイクから 5 秒録音して文字起こし:
-
 ```bash
 uv run python -m src.main --mic --duration 5 --language ja
 ```
-
-マイクから 3 秒ごとに繰り返し文字起こし:
 
 ```bash
 uv run python -m src.main --mic-loop --duration 3 --language ja
@@ -161,6 +141,12 @@ uv run python -m src.main --mic --duration 5 --no-trim-silence --language ja
 
 ```bash
 uv run python -m src.main data/sample_audio.mp3 --language ja
+```
+
+手元で録音した wav を文字起こし:
+
+```bash
+uv run python -m src.main data/mic_speech_test_c920_retry.wav --language ja
 ```
 
 ## Directory structure

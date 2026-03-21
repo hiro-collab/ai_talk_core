@@ -5,16 +5,16 @@
 - turn mode: `code changes allowed`
 - reviewer may update: `REVIEW.md` only
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
-- latest reviewed commit: `34fe6e2 Harden browser recording reset flow`
+- latest reviewed commit: `ae2c72c Normalize browser audio before transcription`
 - latest applied review status:
   - reflected in code: browser audio normalization before transcription
   - reflected in records: yes
-  - remaining open items: `final` 条件の高度化, `VAD`, browser recording repeat test
+  - remaining open items: `final` 条件の高度化, `VAD`, README 圧縮
 
 ## Changed files in latest implementation turn
 
+- `src/io/audio.py`
 - `src/web/app.py`
-- `smoke_test.py`
 - `README.md`
 - `SHARE_NOTE.md`
 - `LOG.md`
@@ -26,7 +26,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 11 件の smoke test 成功
+- `uv run python smoke_test.py` で 12 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -38,6 +38,8 @@
 - ブラウザ録音には `Recorder Debug` を追加し、state と blob size を可視化した
 - Web UI の言語入力欄は既定で `ja` にした
 - ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化するようになった
+- ブラウザ録音はユーザー実機で 2 回連続実行でき、録音状態の復帰と blob 生成は確認済み
+- ブラウザ録音の主課題は連続録音の可否より認識精度側になった
 - Whisper モデルは `models/whisper/small.pt`
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み
@@ -47,14 +49,15 @@
 - `--mic-loop` の出力確定方針を決める
 - VAD の導入方針を決める
 - `partial` を `final` に切り替える条件を高度化する
-- ブラウザ録音の 2 回連続実行を実機確認する
+- README の `Overview` / `Quick start` の重複を圧縮する
 
 ## Review-derived actions
 
 - 有限ループ最終回以外の `final` 条件は未着手
 - VAD は未着手
 - `/api/transcribe-browser-recording` のサーバーテストは反映済み
-- ブラウザ録音の 2 回連続実行確認は未着手
+- ブラウザ録音の 2 回連続実行は実機確認済み
+- ブラウザ録音の精度改善として `webm` の正規化を反映済み
 - README への位置づけ反映は対応済み
 
 ## Handover notes

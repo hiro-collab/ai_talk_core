@@ -108,3 +108,6 @@
 - `src/web/app.py` の Web UI 言語入力欄を既定で `ja` に変更
 - `src/io/audio.py` に `normalize_audio_for_transcription()` を追加
 - `src/web/app.py` でブラウザ録音の `.webm` を `16kHz mono wav` 相当に正規化してから転写するよう変更
+- ユーザー実機でブラウザ録音を 2 回連続実行し、`state=idle`, `mediaRecorder=none`, `lastBlobSize>0` で 2 回とも処理完了することを確認
+- ブラウザ録音の主課題が連続実行可否ではなく、認識精度側に寄っていることを確認
+- `SHARE_NOTE.md` を更新し、latest reviewed commit を `ae2c72c` に合わせ、smoke test 件数を 12 件へ修正
