@@ -89,3 +89,5 @@
 - `MEMORY.md` に `SHARE_NOTE.md` の `Turn contract` を最上段維持する運用ルールを追加
 - `src/core/pipeline.py` に `TranscriptionResult` を追加
 - `src/main.py` の `--mic-loop` を更新し、各チャンクを `[partial N] ...` 形式で表示するよう変更
+- `src/web/app.py` を更新し、`MediaRecorder` と stream のリセット処理、アップロード中の再録音防止、録音エラー時の復帰処理を追加
+- `SHARE_NOTE.md` にブラウザ録音 2 回連続実行の確認タスクを追加

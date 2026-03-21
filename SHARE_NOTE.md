@@ -7,16 +7,13 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `fc0d76b Improve web UI status updates`
 - latest applied review status:
-  - reflected in code: partial result boundary for `mic-loop`
+  - reflected in code: browser recording reset flow hardening
   - reflected in records: yes
-  - remaining open items: `partial -> final` condition, `VAD`
+  - remaining open items: `partial -> final` condition, `VAD`, browser recording repeat test
 
 ## Changed files in latest implementation turn
 
-- `src/core/pipeline.py`
-- `src/main.py`
-- `README.md`
-- `REVIEW.md`
+- `src/web/app.py`
 - `SHARE_NOTE.md`
 - `LOG.md`
 
@@ -32,6 +29,7 @@
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
 - Web UI は fetch ベースで結果領域だけを更新するようになった
+- ブラウザ録音は `MediaRecorder` と stream を明示的にリセットするようになった
 - Whisper モデルは `models/whisper/small.pt`
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み
@@ -41,11 +39,13 @@
 - `--mic-loop` の出力確定方針を決める
 - VAD の導入方針を決める
 - `partial` を `final` に切り替える条件を決める
+- ブラウザ録音の 2 回連続実行を実機確認する
 
 ## Review-derived actions
 
 - `partial -> final` の確定条件は未着手
 - VAD は未着手
+- ブラウザ録音の 2 回連続実行確認は未着手
 
 ## Handover notes
 

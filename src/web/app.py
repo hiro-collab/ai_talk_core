@@ -202,11 +202,29 @@ PAGE_TEMPLATE = """<!doctype html>
     const pageResult = document.getElementById("page-result");
     const pageError = document.getElementById("page-error");
     let mediaRecorder = null;
+    let activeStream = null;
+    let isUploading = false;
     let chunks = [];
 
     const setStatus = (text) => {
       statusBox.hidden = false;
       statusBox.textContent = text;
+    };
+
+    const stopActiveStream = () => {
+      if (!activeStream) {
+        return;
+      }
+      activeStream.getTracks().forEach((track) => track.stop());
+      activeStream = null;
+    };
+
+    const resetRecorderState = () => {
+      stopActiveStream();
+      mediaRecorder = null;
+      chunks = [];
+      startButton.disabled = isUploading;
+      stopButton.disabled = true;
     };
 
     const updateOutput = ({ message = "", transcript = "", error = "" }) => {
@@ -219,6 +237,9 @@ PAGE_TEMPLATE = """<!doctype html>
     };
 
     const submitForTranscription = async (url, formData, processingText) => {
+      isUploading = true;
+      startButton.disabled = true;
+      stopButton.disabled = true;
       setStatus(processingText);
       updateOutput({ message: processingText, transcript: "", error: "" });
       try {
@@ -234,6 +255,9 @@ PAGE_TEMPLATE = """<!doctype html>
         const message = "通信に失敗しました: " + error;
         updateOutput({ error: message });
         setStatus(message);
+      } finally {
+        isUploading = false;
+        startButton.disabled = false;
       }
     };
 
@@ -248,17 +272,27 @@ PAGE_TEMPLATE = """<!doctype html>
     });
 
     startButton?.addEventListener("click", async () => {
+      if (mediaRecorder || isUploading) {
+        return;
+      }
       chunks = [];
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(activeStream);
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
             chunks.push(event.data);
           }
         };
         mediaRecorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+          const recorder = mediaRecorder;
+          const recordedChunks = [...chunks];
+          resetRecorderState();
+          if (!recorder || recordedChunks.length === 0) {
+            setStatus("録音データが空です。もう一度試してください。");
+            return;
+          }
+          const blob = new Blob(recordedChunks, { type: recorder.mimeType || "audio/webm" });
           const formData = new FormData();
           formData.append("audio_blob", blob, "browser_recording.webm");
           formData.append("model", document.getElementById("record_model").value);
@@ -269,22 +303,25 @@ PAGE_TEMPLATE = """<!doctype html>
             "録音データをアップロードして処理中..."
           );
         };
+        mediaRecorder.onerror = () => {
+          resetRecorderState();
+          setStatus("録音中にエラーが発生しました。");
+        };
         mediaRecorder.start();
         startButton.disabled = true;
         stopButton.disabled = false;
         setStatus("録音中...");
       } catch (error) {
+        resetRecorderState();
         setStatus("録音開始に失敗しました: " + error);
       }
     });
 
     stopButton?.addEventListener("click", () => {
-      if (!mediaRecorder) {
+      if (!mediaRecorder || mediaRecorder.state === "inactive") {
         return;
       }
       mediaRecorder.stop();
-      mediaRecorder.stream.getTracks().forEach((track) => track.stop());
-      startButton.disabled = false;
       stopButton.disabled = true;
       setStatus("録音停止。処理中...");
     });
