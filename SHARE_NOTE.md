@@ -32,7 +32,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 83 件の smoke test 成功
+- `uv run python smoke_test.py` で 87 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -85,6 +85,7 @@
 - `--mic-loop` の開始時に、実際に使われる profile / VAD / final しきい値を `[mic-tuning] ...` として表示するようにした
 - `--list-mic-profiles` を追加し、利用可能な mic-loop プリセット一覧を CLI から確認できるようにした
 - `--show-mic-tuning` を追加し、profile と override から解決される tuning 値だけを録音前に確認できるようにした
+- `--list-mic-profiles` と `--show-mic-tuning` は `--mic-tuning-format json` でも出力できるようにした
 
 ## Next tasks
 

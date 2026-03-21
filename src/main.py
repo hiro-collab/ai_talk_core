@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from src.io.audio import (
     AudioInputError,
     AudioTranscriptionError,
     ensure_ffmpeg_available,
+    get_runtime_status,
     validate_audio_file,
     validate_model_name,
 )
@@ -264,6 +266,40 @@ def format_mic_profile_list() -> str:
     return "\n".join(lines)
 
 
+def build_mic_profile_list_data() -> list[dict[str, str | int]]:
+    """Return the available mic-loop profiles as structured data."""
+    return [
+        {
+            "profile": profile,
+            "vad_aggressiveness": vad,
+            "final_stable_seconds": stable_seconds,
+            "description": description,
+        }
+        for profile, (vad, stable_seconds, description) in MIC_LOOP_PROFILES.items()
+    ]
+
+
+def build_mic_tuning_data(
+    profile: str,
+    vad_aggressiveness: int,
+    final_stable_seconds: int,
+) -> dict[str, str | int]:
+    """Return the resolved mic-loop tuning as structured data."""
+    return {
+        "profile": profile,
+        "vad_aggressiveness": vad_aggressiveness,
+        "final_stable_seconds": final_stable_seconds,
+    }
+
+
+def format_runtime_status(status: dict[str, str | bool | None]) -> str:
+    """Format the local runtime status for terminal output."""
+    lines = ["Runtime status:"]
+    for key, value in status.items():
+        lines.append(f"- {key}: {value}")
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -332,6 +368,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the resolved mic-loop tuning values and exit.",
     )
     parser.add_argument(
+        "--mic-tuning-format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for --list-mic-profiles or --show-mic-tuning. Default: text",
+    )
+    parser.add_argument(
+        "--show-runtime-status",
+        action="store_true",
+        help="Print the local Whisper / Torch / ffmpeg runtime status and exit.",
+    )
+    parser.add_argument(
+        "--runtime-status-format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for --show-runtime-status. Default: text",
+    )
+    parser.add_argument(
         "--vad-aggressiveness",
         type=int,
         default=None,
@@ -373,7 +426,10 @@ def main() -> int:
 
     try:
         if args.list_mic_profiles:
-            print(format_mic_profile_list())
+            if args.mic_tuning_format == "json":
+                print(json.dumps(build_mic_profile_list_data(), ensure_ascii=False, indent=2))
+            else:
+                print(format_mic_profile_list())
             return 0
         if args.show_mic_tuning:
             validate_mic_profile(args.mic_profile)
@@ -386,13 +442,33 @@ def main() -> int:
             )
             validate_mic_loop_options(resolved_vad_aggressiveness)
             validate_final_stable_seconds(resolved_final_stable_seconds)
-            print(
-                format_mic_loop_tuning(
-                    profile=args.mic_profile,
-                    vad_aggressiveness=resolved_vad_aggressiveness,
-                    final_stable_seconds=resolved_final_stable_seconds,
+            if args.mic_tuning_format == "json":
+                print(
+                    json.dumps(
+                        build_mic_tuning_data(
+                            profile=args.mic_profile,
+                            vad_aggressiveness=resolved_vad_aggressiveness,
+                            final_stable_seconds=resolved_final_stable_seconds,
+                        ),
+                        ensure_ascii=False,
+                        indent=2,
+                    )
                 )
-            )
+            else:
+                print(
+                    format_mic_loop_tuning(
+                        profile=args.mic_profile,
+                        vad_aggressiveness=resolved_vad_aggressiveness,
+                        final_stable_seconds=resolved_final_stable_seconds,
+                    )
+                )
+            return 0
+        if args.show_runtime_status:
+            status = get_runtime_status()
+            if args.runtime_status_format == "json":
+                print(json.dumps(status, ensure_ascii=False, indent=2))
+            else:
+                print(format_runtime_status(status))
             return 0
         validate_model_name(args.model)
         ensure_ffmpeg_available()

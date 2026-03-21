@@ -300,10 +300,34 @@ uv run python -m src.main --mic-loop --duration 3 --language ja --mic-profile st
 uv run python -m src.main --list-mic-profiles
 ```
 
+JSON で取り出す:
+
+```bash
+uv run python -m src.main --list-mic-profiles --mic-tuning-format json
+```
+
 現在の profile と override から解決される tuning 値だけ確認する:
 
 ```bash
 uv run python -m src.main --show-mic-tuning --mic-profile responsive --vad-aggressiveness 3 --final-stable-seconds 9
+```
+
+JSON で取り出す:
+
+```bash
+uv run python -m src.main --show-mic-tuning --mic-profile balanced --mic-tuning-format json
+```
+
+Whisper / Torch / ffmpeg の runtime 状態を確認する:
+
+```bash
+uv run python -m src.main --show-runtime-status
+```
+
+JSON で取り出す:
+
+```bash
+uv run python -m src.main --show-runtime-status --runtime-status-format json
 ```
 
 `final` に寄せる安定時間を変える:

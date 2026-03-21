@@ -216,3 +216,6 @@
 - `src.main` に `--show-mic-tuning` を追加し、profile と override から解決される tuning 値だけを録音前に表示できるようにした
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、83 件の smoke test が成功することを確認
+- `src.main` に `--mic-tuning-format text|json` を追加し、profile 一覧と解決済み tuning 値を JSON でも出力できるようにした
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、87 件の smoke test が成功することを確認

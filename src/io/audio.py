@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from typing import Any
 
+import torch
 import whisper
 
 
@@ -43,6 +44,18 @@ def ensure_ffmpeg_available() -> None:
     """Ensure ffmpeg is available in the local environment."""
     if shutil.which("ffmpeg") is None:
         raise AudioEnvironmentError("ffmpeg is not installed or not found in PATH")
+
+
+def get_runtime_status() -> dict[str, str | bool | None]:
+    """Return a compact view of the local transcription runtime status."""
+    return {
+        "ffmpeg_available": shutil.which("ffmpeg") is not None,
+        "ffprobe_available": shutil.which("ffprobe") is not None,
+        "torch_version": torch.__version__,
+        "torch_cuda_version": torch.version.cuda,
+        "torch_cuda_available": torch.cuda.is_available(),
+        "whisper_version": getattr(whisper, "__version__", None),
+    }
 
 
 

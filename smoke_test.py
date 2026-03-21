@@ -30,8 +30,11 @@ from src.core.finalization import (
     should_mark_result_final,
 )
 from src.main import (
+    build_mic_profile_list_data,
+    build_mic_tuning_data,
     format_mic_profile_list,
     format_transcription_result,
+    format_runtime_status,
     format_mic_loop_tuning,
     print_agent_instruction_only,
     resolve_mic_loop_tuning,
@@ -40,6 +43,7 @@ from src.main import (
 )
 from src.io.audio import should_retry_model_load_on_cpu
 from src.io.audio import AudioInputError
+from src.io.audio import get_runtime_status
 from src.io.microphone import validate_vad_aggressiveness
 from src.codex_handoff import render_handoff_output
 from src.codex_runner import (
@@ -246,6 +250,14 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("balanced", result.stdout)
         self.assertIn("strict", result.stdout)
 
+    def test_list_mic_profiles_can_return_json(self) -> None:
+        """Profile listing should support JSON output."""
+        result = run_cli("--list-mic-profiles", "--mic-tuning-format", "json")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload[0]["profile"], "responsive")
+        self.assertIn("description", payload[0])
+
     def test_show_mic_tuning_uses_profile_defaults(self) -> None:
         """show-mic-tuning should print the resolved default preset values."""
         result = run_cli("--show-mic-tuning", "--mic-profile", "strict")
@@ -271,6 +283,30 @@ class SmokeTests(unittest.TestCase):
             "[mic-tuning] profile=responsive vad_aggressiveness=3 final_stable_seconds=9",
             result.stdout,
         )
+
+    def test_show_mic_tuning_can_return_json(self) -> None:
+        """Resolved tuning should support JSON output."""
+        result = run_cli(
+            "--show-mic-tuning",
+            "--mic-profile",
+            "balanced",
+            "--mic-tuning-format",
+            "json",
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["profile"], "balanced")
+        self.assertEqual(payload["vad_aggressiveness"], 2)
+        self.assertEqual(payload["final_stable_seconds"], 8)
+
+    def test_show_runtime_status_can_return_json(self) -> None:
+        """Runtime status should support JSON output."""
+        result = run_cli("--show-runtime-status", "--runtime-status-format", "json")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("ffmpeg_available", payload)
+        self.assertIn("ffprobe_available", payload)
+        self.assertIn("torch_cuda_available", payload)
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -812,6 +848,48 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("responsive", listing)
         self.assertIn("vad_aggressiveness=1", listing)
         self.assertIn("final_stable_seconds=10", listing)
+
+    def test_build_mic_profile_list_data_returns_structured_profiles(self) -> None:
+        """Structured profile listing should expose all expected keys."""
+        payload = build_mic_profile_list_data()
+        self.assertEqual(payload[0]["profile"], "responsive")
+        self.assertEqual(payload[1]["vad_aggressiveness"], 2)
+        self.assertIn("description", payload[2])
+
+    def test_build_mic_tuning_data_returns_structured_values(self) -> None:
+        """Structured tuning data should match the resolved values."""
+        self.assertEqual(
+            build_mic_tuning_data("strict", 3, 10),
+            {
+                "profile": "strict",
+                "vad_aggressiveness": 3,
+                "final_stable_seconds": 10,
+            },
+        )
+
+    def test_format_runtime_status_mentions_core_fields(self) -> None:
+        """Runtime status formatter should expose core runtime keys."""
+        text = format_runtime_status(
+            {
+                "ffmpeg_available": True,
+                "ffprobe_available": True,
+                "torch_version": "2.10.0+cu128",
+                "torch_cuda_version": "12.8",
+                "torch_cuda_available": False,
+                "whisper_version": "20250625",
+            }
+        )
+        self.assertIn("Runtime status:", text)
+        self.assertIn("torch_cuda_available: False", text)
+        self.assertIn("ffmpeg_available: True", text)
+
+    def test_get_runtime_status_returns_expected_keys(self) -> None:
+        """Runtime status helper should return the expected status fields."""
+        status = get_runtime_status()
+        self.assertIn("ffmpeg_available", status)
+        self.assertIn("ffprobe_available", status)
+        self.assertIn("torch_version", status)
+        self.assertIn("torch_cuda_available", status)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""
