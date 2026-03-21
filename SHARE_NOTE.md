@@ -16,7 +16,7 @@
 - `src/io/audio.py`
 - `src/core/pipeline.py`
 - `src/main.py`
-- `src/core/codex_bridge.py`
+- `src/core/handoff_bridge.py`
 - `src/web/app.py`
 - `smoke_test.py`
 - `README.md`
@@ -51,7 +51,7 @@
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み
 - README に Architecture 図と Mic-loop Flow 図を追加した
-- `src/core/codex_bridge.py` を追加し、Codex 連携用 payload を共通化した
+- `src/core/handoff_bridge.py` を実体の handoff 境界として使い始め、`src/core/codex_bridge.py` は互換ラッパーとして残した
 - CLI に `--command-output` を追加し、Codex 連携用 JSON を保存できるようにした
 - Web/API からも `save_command` で Codex payload を保存できるようにした
 - Codex handoff として JSON に加えて `.txt` prompt も保存できるようにした
@@ -111,7 +111,7 @@
 - 短すぎる断片は `final` に寄せにくくする調整を反映済み
 - `final` は連続回数ベースで安定化を進めている
 - 無音チャンクを Whisper に渡しにくくする軽い VAD 相当を反映済み
-- VAD は未着手
+- 本格的な VAD 運用の詰めは未着手
 - `webrtcvad` ベースの speech detection を反映済み
 - 無音チャンク時の表示改善を反映済み
 - デフォルトマイク選択の一般化を反映済み
