@@ -18,6 +18,8 @@
 
 ### 2026-03-21
 
+Status: partially adopted
+
 #### Findings
 
 - High: 無効な入力でも先に Whisper モデルをロードしており、入力エラー時にもモデル準備コストを払う実装になっている。対象: `src/main.py:41-43`, `src/io/audio.py:65-68`
@@ -42,3 +44,20 @@
 - 4. マイク入力追加前に、録音処理を `src/io/audio.py` から分離できる境界を決める
 - 5. ノイズ対策は最初から重い denoise を入れず、`mono / 16kHz / silence trim` または VAD から始める
 - 6. サンプル音声の成功系と主要失敗系の smoke test を追加する
+
+#### Adopted
+
+- `src/main.py` で入力ファイル検証、モデル名検証、`ffmpeg` 確認をモデルロード前に実施
+- `src/io/audio.py` で不正モデル名を `Input error` に分類するよう修正
+- `src/io/microphone.py` を追加し、録音処理を音声文字起こし処理から分離
+- `--mic --duration` による固定時間マイク録音 CLI を追加
+- `HD Pro Webcam C920` を優先するデフォルトマイク選択を追加
+- README の前提条件、制約、エラー種別は整理済み
+
+#### Open
+
+- CUDA 対応 Torch の再現方法は README に未記載
+- CPU fallback 条件の詳細は README に未記載
+- モデル保存方針の注意点は追加の余地あり
+- VAD / silence trim は未実装
+- smoke test は未追加

@@ -27,5 +27,13 @@
 - `uv run python -c "from src.io.audio import load_transcription_model; ..."` を実行し、ロードした Whisper モデルの `device` が `cuda:0` であることを確認
 - `uv run python -m src.main no_such_file.wav` を実行し、`Input error: audio file not found: /home/hiromu/projects/ai_core/no_such_file.wav` を確認
 - `uv run python -m src.main data/sample_audio.mp3 --model notamodel` を実行し、`Environment error: failed to load Whisper model 'notamodel': Model notamodel not found ...` を確認
+- `src/main.py` で入力検証と `ffmpeg` 確認をモデルロード前に移動
+- `src/io/audio.py` で `validate_model_name()` を追加
+- `uv run python -m src.main data/sample_audio.mp3 --model notamodel` を再実行し、`Input error: invalid Whisper model name: notamodel` を確認
+- `src/io/microphone.py` を追加し、固定時間マイク録音を実装
+- `uv run python -m src.main --mic data/sample_audio.mp3` を実行し、`Input error: audio_file cannot be used together with --mic` を確認
+- `uv run python -m src.main --mic --duration 5 --mic-device plughw:2,0 --language ja` を実行し、固定時間マイク録音から文字起こしまで成功することを確認
+- `src/io/microphone.py` で `arecord -l` から `HD Pro Webcam C920` を優先するデフォルトデバイス選択を追加
+- `uv run python -m src.main --mic --duration 5 --language ja` を実行し、`--mic-device` 省略時でも文字起こし成功を確認
 - `sed -n '1,240p' REVIEWER_INSTRUCTIONS.md` を実行し、レビュー記録ルールを確認
 - `sed -n '1,240p' REVIEW.md`, `SHARE_NOTE.md`, `LOG.md`, `MEMORY.md` を実行し、既存記録内容を確認

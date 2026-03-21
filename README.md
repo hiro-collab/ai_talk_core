@@ -1,14 +1,14 @@
 # ai_core
 
 Whisper を使ってローカル音声ファイルを文字起こしする最小構成です。
-現在は `file input -> Whisper -> text` のみを対象にしています。
+現在は `file input -> Whisper -> text` と、固定時間の `mic -> Whisper -> text` を対象にしています。
 
 ## Overview
 
 - ローカル音声ファイルを入力し、Whisper で文字起こしします
-- 現状は CLI から単発実行する最小構成です
+- 固定時間のマイク録音から文字起こしする最小 CLI も使えます
 - `HD Pro Webcam C920` で録音自体は確認済みです
-- マイク入力用 CLI とノイズ対策は未実装です
+- 常時動作のマイク入力 CLI とノイズ対策は未実装です
 
 ## Requirements
 
@@ -42,6 +42,14 @@ uv run python -m src.main data/sample_audio.mp3 --language ja
 uv run python -m src.main data/mic_speech_test_c920_retry.wav --language ja
 ```
 
+マイクから 5 秒録音して文字起こし:
+
+```bash
+uv run python -m src.main --mic --duration 5 --language ja
+```
+
+このマシンでは `--mic-device` を省略した場合、`HD Pro Webcam C920` が見つかれば自動的に優先されます。
+
 ## Usage
 
 基本実行:
@@ -62,6 +70,18 @@ uv run python -m src.main /path/to/audio.wav --language ja
 uv run python -m src.main /path/to/audio.wav --model base
 ```
 
+マイク録音:
+
+```bash
+uv run python -m src.main --mic --duration 5 --language ja
+```
+
+マイクデバイス指定:
+
+```bash
+uv run python -m src.main --mic --duration 5 --mic-device plughw:2,0 --language ja
+```
+
 サンプル音声:
 
 ```bash
@@ -71,7 +91,7 @@ uv run python -m src.main data/sample_audio.mp3 --language ja
 エラー種別:
 
 - `Input error`: ファイルパス、拡張子、モデル名などの入力不備
-- `Environment error`: `ffmpeg` 不在、モデルロード失敗、CUDA 実行環境不備
+- `Environment error`: `ffmpeg` / `arecord` 不在、モデルロード失敗、CUDA 実行環境不備
 - `Transcription error`: Whisper 実行中の失敗
 
 ## Directory structure
@@ -82,6 +102,7 @@ ai_core/
 ├── models/whisper/      # Whisper モデル保存先
 ├── src/main.py          # CLI エントリポイント
 ├── src/io/audio.py      # 音声文字起こし
+├── src/io/microphone.py # 固定時間マイク録音
 ├── MEMORY.md            # 長期前提・設計判断
 ├── REVIEW.md            # レビュー結果
 ├── REVIEWER_INSTRUCTIONS.md # レビュアー向け記録ルール
@@ -93,7 +114,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 
 ## 入出力
 
-- 入力: ローカル音声ファイル
+- 入力: ローカル音声ファイル、または固定時間のマイク録音
 - 対応拡張子: `.mp3`, `.wav`, `.m4a`, `.mp4`, `.mpeg`, `.mpga`, `.webm`
 - 出力: 文字起こし結果を標準出力へ表示
 - 既定モデル: `small`
@@ -123,6 +144,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - GPU が使えない場合は CPU 実行になります
 - `ffmpeg` が無い環境では文字起こしに失敗します
 - 現状はローカル音声ファイルのみ対応しています
+- マイク録音は固定時間のみで、常時ストリーミングは未対応です
 - 録音音声はそのまま投入しており、VAD や無音トリムは未実装です
 
 ## Troubleshooting
@@ -135,6 +157,12 @@ Whisper のモデルは `models/whisper` に保存されます。
   `small`, `base` など有効なモデル名を指定してください
 - `Environment error: ffmpeg is not installed or not found in PATH`
   `ffmpeg` が利用可能か確認してください
+- `Environment error: arecord is not installed or not found in PATH`
+  `arecord` が利用可能か確認してください
+- `Environment error: failed to list microphone devices: ...`
+  `arecord -l` が成功するか確認してください
+- `Environment error: microphone recording failed: ...`
+  デバイス名やマイク接続状態を確認してください
 - `Environment error: failed to load Whisper model ...`
   モデル取得や CUDA 実行環境を確認してください
 - GPU が使えない環境では CPU fallback で遅くなる場合があります
@@ -149,7 +177,6 @@ Whisper のモデルは `models/whisper` に保存されます。
 
 ## 今後の予定
 
-- マイク録音から文字起こしまでを一発で行う CLI の追加
 - マイク入力対応
 - VAD / 無音トリム
 - ノイズ対策
