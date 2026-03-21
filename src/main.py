@@ -7,6 +7,14 @@ from dataclasses import replace
 from pathlib import Path
 
 from src.core.codex_bridge import save_codex_handoff_bundle
+from src.core.finalization import (
+    has_stable_duration_for_final,
+    maybe_finalize_on_interrupt,
+    maybe_finalize_on_silence,
+    normalize_transcript_text,
+    required_repeat_count_for_final,
+    should_mark_result_final,
+)
 from src.core.llm import build_codex_instruction
 from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.io.audio import (
@@ -36,11 +44,6 @@ def format_transcription_result(result: object) -> str:
     chunk_count = getattr(result, "chunk_count", "?")
     text = getattr(result, "text", "")
     return f"[{result_type} {chunk_count}] {text}"
-
-
-def normalize_transcript_text(text: str) -> str:
-    """Normalize transcript text for lightweight repeat detection."""
-    return " ".join(text.strip().split())
 
 
 def print_codex_instruction_if_requested(text: str, emit_command: bool) -> None:
@@ -75,102 +78,6 @@ def save_codex_instruction_if_requested(text: str, output_path: str | None) -> N
         return
     print(f"[command-file] {saved_paths.json_path}")
     print(f"[command-text] {saved_paths.text_path}")
-
-
-def required_repeat_count_for_final(text: str) -> int:
-    """Return the repeat threshold for a given normalized transcript."""
-    if len(text) >= 12:
-        return 2
-    return 3
-
-
-def has_stable_duration_for_final(
-    text: str,
-    repeat_count: int,
-    chunk_duration: int,
-    final_stable_seconds: int,
-) -> bool:
-    """Return whether a transcript stayed stable long enough to finalize."""
-    if len(text) < 6:
-        return False
-    if repeat_count < 2:
-        return False
-    stable_seconds = repeat_count * chunk_duration
-    return stable_seconds >= final_stable_seconds
-
-
-def should_mark_result_final(
-    result: TranscriptionResult,
-    repeat_count: int,
-    is_last_iteration: bool,
-    chunk_duration: int,
-    final_stable_seconds: int,
-) -> bool:
-    """Decide whether a mic-loop result can be treated as final."""
-    if is_last_iteration:
-        return True
-    current_text = normalize_transcript_text(result.text)
-    if not current_text:
-        return False
-    if len(current_text) < 3:
-        return False
-    if repeat_count >= required_repeat_count_for_final(current_text):
-        return True
-    return has_stable_duration_for_final(
-        current_text,
-        repeat_count,
-        chunk_duration,
-        final_stable_seconds,
-    )
-
-
-def maybe_finalize_on_silence(
-    result: TranscriptionResult,
-    last_spoken_result: TranscriptionResult | None,
-    repeat_count: int,
-    finalized_text: str | None,
-) -> TranscriptionResult:
-    """Convert a silence chunk into a final result when speech just ended."""
-    if not result.is_silence:
-        return result
-    if last_spoken_result is None:
-        return result
-    spoken_text = normalize_transcript_text(last_spoken_result.text)
-    if not spoken_text or len(spoken_text) < 3:
-        return result
-    if spoken_text == finalized_text:
-        return result
-    if repeat_count < 2:
-        return result
-    return TranscriptionResult(
-        source=last_spoken_result.source,
-        text=last_spoken_result.text,
-        is_final=True,
-        chunk_count=result.chunk_count,
-        is_silence=False,
-    )
-
-
-def maybe_finalize_on_interrupt(
-    last_spoken_result: TranscriptionResult | None,
-    finalized_text: str | None,
-    chunk_count: int,
-) -> TranscriptionResult | None:
-    """Finalize the latest spoken result when mic-loop is interrupted."""
-    if last_spoken_result is None:
-        return None
-    spoken_text = normalize_transcript_text(last_spoken_result.text)
-    if not spoken_text or len(spoken_text) < 3:
-        return None
-    if spoken_text == finalized_text:
-        return None
-    return TranscriptionResult(
-        source=last_spoken_result.source,
-        text=last_spoken_result.text,
-        is_final=True,
-        chunk_count=chunk_count,
-        is_silence=False,
-    )
 
 
 def run_mic_loop(

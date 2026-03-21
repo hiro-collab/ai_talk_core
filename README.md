@@ -205,6 +205,7 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 さらに、中くらい以上の発話は安定時間が十分長ければ `final` に寄せます。
 この安定時間は `--final-stable-seconds` で調整できます。
 ただし、時間条件だけで単発チャンクを即 `final` にすることは避け、最低限の反復を前提にしています。
+これらの `final` ヒューリスティクスは `src/core/finalization.py` に切り出し、CLI 本体から分離しています。
 
 転写結果と Codex 用の指示草案を同時に表示:
 

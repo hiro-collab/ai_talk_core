@@ -20,16 +20,18 @@ from src.core.codex_bridge import (
     save_codex_handoff_bundle,
     save_codex_payload,
 )
-from src.core.llm import build_codex_instruction
-from src.main import (
-    format_transcription_result,
+from src.core.finalization import (
     has_stable_duration_for_final,
     maybe_finalize_on_interrupt,
     maybe_finalize_on_silence,
     normalize_transcript_text,
-    print_codex_instruction_only,
     required_repeat_count_for_final,
     should_mark_result_final,
+)
+from src.core.llm import build_codex_instruction
+from src.main import (
+    format_transcription_result,
+    print_codex_instruction_only,
     validate_final_stable_seconds,
 )
 from src.io.audio import should_retry_model_load_on_cpu

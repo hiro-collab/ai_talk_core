@@ -184,3 +184,7 @@
 - `src/runners/` 配下に `handoff.py`, `common.py`, `codex.py`, `ollama.py` を追加し、runner 実装の集約を開始
 - `src/codex_handoff.py`, `src/codex_runner.py`, `src/ollama_runner.py` は互換ラッパーへ変更
 - `MEMORY.md` に `~/projects/ai_core` と `~/dev` の役割分担、および runner 実装を `src/runners/` へ寄せる方針を追記
+- `src/core/finalization.py` を追加し、`partial/final` の repeat / silence / interrupt / stable-seconds 判定を `src/main.py` から切り出した
+- `smoke_test.py` の finalization 関連テストを `src.core.finalization` 参照へ更新
+- `uv run python -m py_compile src/core/finalization.py src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、65 件の smoke test が成功することを確認
