@@ -327,6 +327,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print available mic-loop tuning profiles and exit.",
     )
     parser.add_argument(
+        "--show-mic-tuning",
+        action="store_true",
+        help="Print the resolved mic-loop tuning values and exit.",
+    )
+    parser.add_argument(
         "--vad-aggressiveness",
         type=int,
         default=None,
@@ -369,6 +374,25 @@ def main() -> int:
     try:
         if args.list_mic_profiles:
             print(format_mic_profile_list())
+            return 0
+        if args.show_mic_tuning:
+            validate_mic_profile(args.mic_profile)
+            resolved_vad_aggressiveness, resolved_final_stable_seconds = (
+                resolve_mic_loop_tuning(
+                    profile=args.mic_profile,
+                    vad_aggressiveness=args.vad_aggressiveness,
+                    final_stable_seconds=args.final_stable_seconds,
+                )
+            )
+            validate_mic_loop_options(resolved_vad_aggressiveness)
+            validate_final_stable_seconds(resolved_final_stable_seconds)
+            print(
+                format_mic_loop_tuning(
+                    profile=args.mic_profile,
+                    vad_aggressiveness=resolved_vad_aggressiveness,
+                    final_stable_seconds=resolved_final_stable_seconds,
+                )
+            )
             return 0
         validate_model_name(args.model)
         ensure_ffmpeg_available()

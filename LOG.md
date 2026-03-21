@@ -213,3 +213,6 @@
 - `src.main` に `MIC_LOOP_PROFILES` と `--list-mic-profiles` を追加し、利用可能な mic-loop プリセット一覧を CLI から確認できるようにした
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、81 件の smoke test が成功することを確認
+- `src.main` に `--show-mic-tuning` を追加し、profile と override から解決される tuning 値だけを録音前に表示できるようにした
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、83 件の smoke test が成功することを確認

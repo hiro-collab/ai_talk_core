@@ -300,6 +300,12 @@ uv run python -m src.main --mic-loop --duration 3 --language ja --mic-profile st
 uv run python -m src.main --list-mic-profiles
 ```
 
+現在の profile と override から解決される tuning 値だけ確認する:
+
+```bash
+uv run python -m src.main --show-mic-tuning --mic-profile responsive --vad-aggressiveness 3 --final-stable-seconds 9
+```
+
 `final` に寄せる安定時間を変える:
 
 ```bash

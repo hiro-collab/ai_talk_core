@@ -246,6 +246,32 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("balanced", result.stdout)
         self.assertIn("strict", result.stdout)
 
+    def test_show_mic_tuning_uses_profile_defaults(self) -> None:
+        """show-mic-tuning should print the resolved default preset values."""
+        result = run_cli("--show-mic-tuning", "--mic-profile", "strict")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn(
+            "[mic-tuning] profile=strict vad_aggressiveness=3 final_stable_seconds=10",
+            result.stdout,
+        )
+
+    def test_show_mic_tuning_applies_explicit_overrides(self) -> None:
+        """show-mic-tuning should reflect CLI overrides over preset defaults."""
+        result = run_cli(
+            "--show-mic-tuning",
+            "--mic-profile",
+            "responsive",
+            "--vad-aggressiveness",
+            "3",
+            "--final-stable-seconds",
+            "9",
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn(
+            "[mic-tuning] profile=responsive vad_aggressiveness=3 final_stable_seconds=9",
+            result.stdout,
+        )
+
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
         result = run_cli("--mic-loop", "--duration", "1", "--final-stable-seconds", "0")
