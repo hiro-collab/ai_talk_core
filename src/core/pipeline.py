@@ -25,6 +25,7 @@ class TranscriptionResult:
     text: str
     is_final: bool
     chunk_count: int
+    is_silence: bool = False
 
 
 @dataclass

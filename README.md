@@ -5,7 +5,7 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 
 ## Overview
 
-- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽い無音トリム
+- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽い無音トリム、Codex 指示草案出力
 - まだできないこと: 真のリアルタイム streaming、`partial/final` の本格運用、VAD
 - 位置づけ: GUI 主体ではなく、音声入力フロントエンド兼サービス境界を優先
 - ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化してから転写
@@ -19,6 +19,7 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 - 仮想環境は `.venv` を使用
 - パッケージ管理は `uv` を使用
 - `ffmpeg` がシステムに導入済みであること
+- `ffprobe` がシステムに導入済みであること
 - GPU は任意です
 - 現在の開発環境では CUDA 利用を確認済みです
 
@@ -63,6 +64,8 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
   -F "language=ja"
 ```
 
+応答 JSON には `transcript` に加えて `command` が含まれます。
+
 ## Quick start
 
 ```bash
@@ -75,6 +78,12 @@ uv run python -m src.main --mic --duration 5 --language ja
 
 ```bash
 uv run python -m src.main --mic-loop --duration 3 --language ja
+```
+
+転写結果と Codex 用の指示草案を同時に表示:
+
+```bash
+uv run python -m src.main --mic --duration 5 --language ja --emit-command
 ```
 
 ブラウザ GUI を起動:
@@ -174,6 +183,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - 入力: ローカル音声ファイル、固定時間のマイク録音、または簡易マイクループ
 - 対応拡張子: `.mp3`, `.wav`, `.m4a`, `.mp4`, `.mpeg`, `.mpga`, `.webm`
 - 出力: 文字起こし結果を標準出力へ表示
+- `--emit-command` 使用時は Codex 用の指示草案も標準出力へ表示
 - 既定モデル: `small`
 
 ## Model storage
@@ -204,6 +214,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - マイク入力は固定時間録音の反復であり、真のストリーミング処理ではありません
 - 録音音声は `ffmpeg` の `silenceremove` で軽く前後トリムできます
 - `--mic-loop` では `ffmpeg` の `silencedetect` でほぼ無音のチャンクを軽くスキップします
+- 無音チャンクは CLI では `[silence N] silence detected` と表示します
 - `AudioBuffer` は入っていますが、`buffer -> partial/final` の扱いはまだ未実装です
 - `--mic-loop` では通常チャンクを `partial` として表示し、有限ループの最後または同一結果の連続時に `final` へ寄せます
 - 発話区間検出としての VAD は未実装です
@@ -232,6 +243,8 @@ Whisper のモデルは `models/whisper` に保存されます。
   `small`, `base` など有効なモデル名を指定してください
 - `Environment error: ffmpeg is not installed or not found in PATH`
   `ffmpeg` が利用可能か確認してください
+- `Environment error: ffprobe is not installed or not found in PATH`
+  `ffprobe` が利用可能か確認してください
 - `Environment error: arecord is not installed or not found in PATH`
   `arecord` が利用可能か確認してください
 - `Environment error: failed to list microphone devices: ...`

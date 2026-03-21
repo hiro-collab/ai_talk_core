@@ -9,6 +9,7 @@ from uuid import uuid4
 from flask import Flask, jsonify, render_template_string, request
 from werkzeug.utils import secure_filename
 
+from src.core.llm import build_codex_instruction
 from src.core.pipeline import AudioChunk, TranscriptionPipeline
 from src.io.audio import (
     AudioEnvironmentError,
@@ -107,13 +108,13 @@ PAGE_TEMPLATE = """<!doctype html>
       background: #efe5d6;
       color: var(--text);
     }
-    .status, .result, .error {
+    .status, .result, .error, .command {
       margin-top: 20px;
       padding: 16px;
       border-radius: 14px;
       white-space: pre-wrap;
     }
-    .status[hidden], .result[hidden], .error[hidden] {
+    .status[hidden], .result[hidden], .error[hidden], .command[hidden] {
       display: none;
     }
     .status {
@@ -128,6 +129,10 @@ PAGE_TEMPLATE = """<!doctype html>
       background: #fff0ef;
       border: 1px solid #e8b2ad;
       color: #7d2314;
+    }
+    .command {
+      background: #eef0ff;
+      border: 1px solid #b8c1f1;
     }
     .row {
       display: flex;
@@ -214,6 +219,7 @@ PAGE_TEMPLATE = """<!doctype html>
 
     <div id="page-status" class="status" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
     <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
+    <div id="page-command" class="command" {% if not command %}hidden{% endif %}>{{ command or "" }}</div>
     <div id="page-error" class="error" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
   </main>
 
@@ -225,6 +231,7 @@ PAGE_TEMPLATE = """<!doctype html>
     const debugBox = document.getElementById("record-debug");
     const pageStatus = document.getElementById("page-status");
     const pageResult = document.getElementById("page-result");
+    const pageCommand = document.getElementById("page-command");
     const pageError = document.getElementById("page-error");
     let mediaRecorder = null;
     let activeStream = null;
@@ -277,11 +284,13 @@ PAGE_TEMPLATE = """<!doctype html>
       setRecorderButtons();
     };
 
-    const updateOutput = ({ message = "", transcript = "", error = "" }) => {
+    const updateOutput = ({ message = "", transcript = "", command = "", error = "" }) => {
       pageStatus.hidden = !message;
       pageStatus.textContent = message;
       pageResult.hidden = !transcript;
       pageResult.textContent = transcript;
+      pageCommand.hidden = !command;
+      pageCommand.textContent = command;
       pageError.hidden = !error;
       pageError.textContent = error;
     };
@@ -290,7 +299,7 @@ PAGE_TEMPLATE = """<!doctype html>
       recorderState = "uploading";
       setRecorderButtons();
       setStatus(processingText);
-      updateOutput({ message: processingText, transcript: "", error: "" });
+      updateOutput({ message: processingText, transcript: "", command: "", error: "" });
       renderDebug(`upload start -> ${url}`);
       try {
         const response = await fetch(url, {
@@ -467,6 +476,7 @@ def create_app() -> Flask:
 
 def render_page(
     transcript: str | None = None,
+    command: str | None = None,
     error: str | None = None,
     message: str | None = None,
 ) -> str:
@@ -474,6 +484,7 @@ def render_page(
     return render_template_string(
         PAGE_TEMPLATE,
         transcript=transcript,
+        command=command,
         error=error,
         message=message,
     )
@@ -492,6 +503,7 @@ def process_transcription_request(
     normalized_path = temp_path.with_suffix(".normalized.wav")
 
     transcript = ""
+    command = ""
     error = ""
     status_code = 200
 
@@ -507,6 +519,8 @@ def process_transcription_request(
             AudioChunk(path=audio_path, source="web"),
             language=language,
         )
+        draft = build_codex_instruction(transcript)
+        command = "" if draft is None else draft.instruction
     except AudioInputError as exc:
         error = f"Input error: {escape(str(exc))}"
         status_code = 400
@@ -523,8 +537,17 @@ def process_transcription_request(
             normalized_path.unlink()
 
     payload = {
-        "message": "" if error else (message or "文字起こしが完了しました。"),
+        "message": (
+            ""
+            if error
+            else (
+                "音声を認識できませんでした。"
+                if not transcript
+                else (message or "文字起こしが完了しました。")
+            )
+        ),
         "transcript": transcript,
+        "command": command,
         "error": error,
     }
     return payload, status_code
@@ -547,7 +570,11 @@ def handle_transcription(
         return response
     if payload["error"]:
         return render_page(error=payload["error"])
-    return render_page(transcript=payload["transcript"], message=payload["message"])
+    return render_page(
+        transcript=payload["transcript"],
+        command=payload["command"],
+        message=payload["message"],
+    )
 
 
 def handle_transcription_api(

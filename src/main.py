@@ -6,12 +6,14 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
+from src.core.llm import build_codex_instruction
 from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
     AudioTranscriptionError,
     ensure_ffmpeg_available,
+    ensure_ffprobe_available,
     validate_audio_file,
     validate_model_name,
 )
@@ -21,6 +23,10 @@ from src.io.microphone import has_detectable_speech
 
 def format_transcription_result(result: object) -> str:
     """Format a realtime transcription result for terminal output."""
+    if getattr(result, "is_silence", False):
+        chunk_count = getattr(result, "chunk_count", "?")
+        result_type = "final" if getattr(result, "is_final", False) else "silence"
+        return f"[{result_type} {chunk_count}] silence detected"
     result_type = "final" if getattr(result, "is_final", False) else "partial"
     chunk_count = getattr(result, "chunk_count", "?")
     text = getattr(result, "text", "")
@@ -30,6 +36,17 @@ def format_transcription_result(result: object) -> str:
 def normalize_transcript_text(text: str) -> str:
     """Normalize transcript text for lightweight repeat detection."""
     return " ".join(text.strip().split())
+
+
+def print_codex_instruction_if_requested(text: str, emit_command: bool) -> None:
+    """Print a Codex-ready instruction draft when requested."""
+    if not emit_command:
+        return
+    draft = build_codex_instruction(text)
+    if draft is None:
+        print("[command] no instruction draft available")
+        return
+    print(f"[command] {draft.instruction}")
 
 
 def should_mark_result_final(
@@ -53,6 +70,7 @@ def run_mic_loop(
     language: str | None,
     iterations: int | None,
     trim_silence_enabled: bool,
+    emit_command: bool,
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
     pipeline = TranscriptionPipeline(model_name=model_name)
@@ -83,10 +101,12 @@ def run_mic_loop(
                     text="",
                     is_final=False,
                     chunk_count=len(buffer.chunks),
+                    is_silence=True,
                 )
             if should_mark_result_final(result, previous_text, is_last_iteration):
                 result = replace(result, is_final=True)
             print(format_transcription_result(result))
+            print_codex_instruction_if_requested(result.text, emit_command=emit_command)
             normalized_text = normalize_transcript_text(result.text)
             if normalized_text:
                 previous_text = normalized_text
@@ -156,6 +176,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable ffmpeg-based silence trimming for microphone recordings.",
     )
+    parser.add_argument(
+        "--emit-command",
+        action="store_true",
+        help="Print a Codex-ready instruction draft from the transcript.",
+    )
     return parser
 
 
@@ -166,6 +191,8 @@ def main() -> int:
     try:
         validate_model_name(args.model)
         ensure_ffmpeg_available()
+        if args.mic or args.mic_loop:
+            ensure_ffprobe_available()
         if args.mic and args.mic_loop:
             raise AudioInputError("--mic and --mic-loop cannot be used together")
         validate_iterations(args.iterations)
@@ -181,6 +208,7 @@ def main() -> int:
                 language=args.language,
                 iterations=args.iterations,
                 trim_silence_enabled=not args.no_trim_silence,
+                emit_command=args.emit_command,
             )
         if args.mic:
             if args.audio_file is not None:
@@ -217,6 +245,7 @@ def main() -> int:
         return 1
 
     print(text)
+    print_codex_instruction_if_requested(text, emit_command=args.emit_command)
     return 0
 
 

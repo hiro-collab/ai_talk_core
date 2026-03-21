@@ -119,3 +119,13 @@
 - `src/main.py` の `--mic-loop` で、ほぼ無音のチャンクは Whisper 転写をスキップするよう変更
 - `uv run python smoke_test.py` を再実行し、16 件の smoke test が成功することを確認
 - レビュー棚卸しを行い、`REVIEW.md` の stale な Web/API 指摘を解消済みとして整理し、open item を `partial/final`, VAD, `ffprobe` 事前チェック, 無音表示 UX に絞った
+- `src/io/audio.py` に `ensure_ffprobe_available()` を追加
+- `src/main.py` で `--mic` / `--mic-loop` 時に `ffprobe` を事前チェックするよう変更
+- `src/core/pipeline.py` の `TranscriptionResult` に `is_silence` を追加
+- `src/main.py` で無音チャンクを `[silence N] silence detected` と表示するよう変更
+- `src/web/app.py` で空文字転写時は `音声を認識できませんでした。` を返すよう変更
+- `uv run python -m py_compile src/io/audio.py src/core/pipeline.py src/main.py src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、17 件の smoke test が成功することを確認
+- `src/core/llm.py` に `CodexInstructionDraft` と `build_codex_instruction()` を追加
+- `src/main.py` に `--emit-command` を追加し、転写結果から Codex 用の指示草案を表示できるよう変更
+- `src/web/app.py` の JSON 応答に `command` を追加し、Web UI に Codex 用の指示草案欄を追加

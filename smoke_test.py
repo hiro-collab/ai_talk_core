@@ -8,7 +8,8 @@ import subprocess
 import sys
 import unittest
 
-from src.main import normalize_transcript_text, should_mark_result_final
+from src.core.llm import build_codex_instruction
+from src.main import format_transcription_result, normalize_transcript_text, should_mark_result_final
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -113,6 +114,7 @@ class SmokeTests(unittest.TestCase):
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
         self.assertIn("こんにちは", payload_json["transcript"])
+        self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
 
     def test_api_upload_returns_json(self) -> None:
         """Dedicated API upload route should return JSON."""
@@ -132,6 +134,7 @@ class SmokeTests(unittest.TestCase):
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
         self.assertIn("こんにちは", payload_json["transcript"])
+        self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
 
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
@@ -194,6 +197,28 @@ class SmokeTests(unittest.TestCase):
             chunk_count=3,
         )
         self.assertTrue(should_mark_result_final(result, None, True))
+
+    def test_format_transcription_result_marks_silence(self) -> None:
+        """Silence results should be labeled explicitly."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="",
+            is_final=False,
+            chunk_count=4,
+            is_silence=True,
+        )
+        self.assertEqual(format_transcription_result(result), "[silence 4] silence detected")
+
+    def test_build_codex_instruction_returns_none_for_blank(self) -> None:
+        """Blank transcripts should not produce instruction drafts."""
+        self.assertIsNone(build_codex_instruction("   "))
+
+    def test_build_codex_instruction_normalizes_whitespace(self) -> None:
+        """Instruction drafts should normalize whitespace."""
+        draft = build_codex_instruction("  依存関係を   確認して ")
+        self.assertIsNotNone(draft)
+        assert draft is not None
+        self.assertEqual(draft.instruction, "依存関係を 確認して")
 
 
 if __name__ == "__main__":

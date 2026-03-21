@@ -105,6 +105,8 @@ Status: adopted with open follow-ups
 
 #### Side review
 
+- README は機能一覧としては十分だが、CLI / Web UI / JSON API / pipeline / io 層の関係が文章だけでは追いにくい。初見の人にとっては、長文追加より `Overview` 直後の全体構成図と `mic-loop` の処理フロー図を 1 つずつ入れる方が効果的。
+
 - `src/core/pipeline.py` を介して CLI と Web UI が共通経路へ寄った点は妥当。連携用システムを中心に据える方向として筋が良い。
 - `src/web/app.py` のブラウザ録音 UI は、結果領域だけ更新する fetch ベースに変わり、録音中・処理中の状態が見やすくなった。
 - README は初見ユーザー向けにかなり改善されており、`今できること / まだできないこと` と `capture -> buffer -> transcribe` の説明は有効。現状理解の補助として十分機能している。
