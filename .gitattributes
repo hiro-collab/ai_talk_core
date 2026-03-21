@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+*.pt binary
+*.mp3 binary
+*.wav binary
+*.m4a binary
+*.mp4 binary
+*.mpeg binary
+*.mpga binary
+*.webm binary

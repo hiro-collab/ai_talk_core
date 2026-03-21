@@ -1,0 +1,12 @@
+.venv/
+.cache/
+.codex/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+models/whisper/
+data/mic_test_*.wav
+data/mic_speech_test_*.wav
