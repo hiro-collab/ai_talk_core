@@ -30,6 +30,7 @@ from src.main import (
     should_mark_result_final,
 )
 from src.io.audio import should_retry_model_load_on_cpu
+from src.io.microphone import validate_vad_aggressiveness
 from src.codex_handoff import render_handoff_output
 from src.codex_runner import build_template_command, normalize_command_args, resolve_runner_command
 from src.core.pipeline import TranscriptionResult
@@ -144,6 +145,12 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("Input error: --iterations must be greater than 0", result.stdout)
 
+    def test_vad_aggressiveness_must_be_in_supported_range(self) -> None:
+        """Mic-loop VAD aggressiveness should be validated."""
+        result = run_cli("--mic-loop", "--duration", "1", "--vad-aggressiveness", "9")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Input error: VAD aggressiveness must be one of: 0, 1, 2, 3", result.stdout)
+
     def test_no_trim_silence_argument_is_accepted(self) -> None:
         """no-trim-silence should parse and follow normal validation flow."""
         result = run_cli("--mic", "--duration", "1", "--no-trim-silence", "data/sample_audio.mp3")
@@ -166,6 +173,11 @@ class SmokeTests(unittest.TestCase):
 
         module = importlib.import_module("_webrtcvad")
         self.assertTrue(hasattr(module, "create"))
+
+    def test_validate_vad_aggressiveness_accepts_supported_values(self) -> None:
+        """Supported VAD aggressiveness values should pass validation."""
+        for value in (0, 1, 2, 3):
+            validate_vad_aggressiveness(value)
 
     def test_web_upload_transcribes_sample_audio(self) -> None:
         """Web UI upload route should transcribe sample audio."""

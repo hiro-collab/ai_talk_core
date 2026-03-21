@@ -17,8 +17,13 @@ from src.io.audio import (
     validate_audio_file,
     validate_model_name,
 )
-from src.io.microphone import capture_microphone_chunk, get_temp_recording_path, record_microphone_audio
-from src.io.microphone import has_detectable_speech
+from src.io.microphone import (
+    capture_microphone_chunk,
+    get_temp_recording_path,
+    has_detectable_speech,
+    record_microphone_audio,
+    validate_vad_aggressiveness,
+)
 
 
 def format_transcription_result(result: object) -> str:
@@ -154,6 +159,7 @@ def run_mic_loop(
     emit_command: bool,
     command_only: bool,
     command_output: str | None,
+    vad_aggressiveness: int,
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
     pipeline = TranscriptionPipeline(model_name=model_name)
@@ -175,7 +181,7 @@ def run_mic_loop(
             buffer.append(chunk)
             next_iteration = completed_iterations + 1
             is_last_iteration = iterations is not None and next_iteration == iterations
-            if has_detectable_speech(chunk.path):
+            if has_detectable_speech(chunk.path, aggressiveness=vad_aggressiveness):
                 result = pipeline.transcribe_buffer_result(
                     buffer,
                     language=language,
@@ -244,6 +250,11 @@ def validate_iterations(iterations: int | None) -> None:
         raise AudioInputError("--iterations must be greater than 0")
 
 
+def validate_mic_loop_options(vad_aggressiveness: int) -> None:
+    """Validate mic-loop specific options."""
+    validate_vad_aggressiveness(vad_aggressiveness)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -297,6 +308,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable ffmpeg-based silence trimming for microphone recordings.",
     )
     parser.add_argument(
+        "--vad-aggressiveness",
+        type=int,
+        default=2,
+        help="WebRTC VAD aggressiveness for --mic-loop (0-3). Default: 2",
+    )
+    parser.add_argument(
         "--emit-command",
         action="store_true",
         help="Print a Codex-ready instruction draft from the transcript.",
@@ -329,6 +346,7 @@ def main() -> int:
         if args.iterations is not None and not args.mic_loop:
             raise AudioInputError("--iterations can only be used with --mic-loop")
         if args.mic_loop:
+            validate_mic_loop_options(args.vad_aggressiveness)
             if args.audio_file is not None:
                 raise AudioInputError("audio_file cannot be used together with --mic-loop")
             return run_mic_loop(
@@ -341,6 +359,7 @@ def main() -> int:
                 emit_command=args.emit_command,
                 command_only=args.command_only,
                 command_output=args.command_output,
+                vad_aggressiveness=args.vad_aggressiveness,
             )
         if args.mic:
             if args.audio_file is not None:

@@ -83,6 +83,12 @@ def validate_duration(duration: int) -> None:
         raise AudioInputError("microphone duration must be greater than 0 seconds")
 
 
+def validate_vad_aggressiveness(aggressiveness: int) -> None:
+    """Validate the supported WebRTC VAD aggressiveness range."""
+    if aggressiveness not in {0, 1, 2, 3}:
+        raise AudioInputError("VAD aggressiveness must be one of: 0, 1, 2, 3")
+
+
 def trim_silence(
     input_path: Path,
     output_path: Path,
@@ -136,6 +142,7 @@ def has_detectable_speech(
     aggressiveness: int = 2,
 ) -> bool:
     """Return whether WebRTC VAD detects speech in a wav clip."""
+    validate_vad_aggressiveness(aggressiveness)
     try:
         with wave.open(str(audio_path), "rb") as wav_file:
             sample_rate = wav_file.getframerate()
