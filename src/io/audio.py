@@ -74,6 +74,7 @@ def get_runtime_status() -> dict[str, str | bool | None]:
             nvidia_driver_version = None
             nvidia_gpu_name = None
     note: str | None = None
+    suggested_action: str | None = None
     if not cuda_available and torch.version.cuda is not None:
         note = (
             "Torch CUDA build is present but unavailable; transcription will use CPU "
@@ -83,6 +84,15 @@ def get_runtime_status() -> dict[str, str | bool | None]:
             note += (
                 " nvidia-smi is available, so a Torch/driver CUDA mismatch or local "
                 "CUDA initialization problem is likely."
+            )
+            suggested_action = (
+                "Inspect the uv-managed Torch version and pin a driver-compatible "
+                "build inside .venv before changing system drivers."
+            )
+        else:
+            suggested_action = (
+                "Check local CUDA initialization and Torch runtime configuration "
+                "before relying on GPU transcription."
             )
     return {
         "ffmpeg_available": shutil.which("ffmpeg") is not None,
@@ -96,6 +106,7 @@ def get_runtime_status() -> dict[str, str | bool | None]:
         "transcription_device": device,
         "whisper_version": getattr(whisper, "__version__", None),
         "runtime_note": note,
+        "suggested_action": suggested_action,
     }
 
 

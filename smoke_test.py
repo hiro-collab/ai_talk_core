@@ -310,6 +310,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("nvidia_smi_available", payload)
         self.assertIn("torch_cuda_available", payload)
         self.assertIn("transcription_device", payload)
+        self.assertIn("suggested_action", payload)
 
     def test_final_stable_seconds_must_be_positive(self) -> None:
         """Mic-loop stable duration threshold should be validated."""
@@ -889,6 +890,10 @@ class SmokeTests(unittest.TestCase):
                     "fallback. nvidia-smi is available, so a Torch/driver CUDA mismatch or "
                     "local CUDA initialization problem is likely."
                 ),
+                "suggested_action": (
+                    "Inspect the uv-managed Torch version and pin a driver-compatible "
+                    "build inside .venv before changing system drivers."
+                ),
             }
         )
         self.assertIn("Runtime status:", text)
@@ -897,6 +902,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("transcription_device: cpu", text)
         self.assertIn("ffmpeg_available: True", text)
         self.assertIn("Torch/driver CUDA mismatch", text)
+        self.assertIn("uv-managed Torch version", text)
 
     def test_get_runtime_status_returns_expected_keys(self) -> None:
         """Runtime status helper should return the expected status fields."""
@@ -910,6 +916,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("torch_cuda_available", status)
         self.assertIn("transcription_device", status)
         self.assertIn("runtime_note", status)
+        self.assertIn("suggested_action", status)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""
