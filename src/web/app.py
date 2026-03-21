@@ -425,8 +425,8 @@ Saved prompt:
           formData.append("model", document.getElementById("record_model").value);
           formData.append("language", document.getElementById("record_language").value);
           if (document.getElementById("record_command_only").checked) {
-          formData.append("command_only", "true");
-        }
+            formData.append("command_only", "true");
+          }
           if (document.getElementById("record_save_command").checked) {
             formData.append("save_command", "true");
           }

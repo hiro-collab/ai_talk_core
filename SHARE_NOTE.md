@@ -5,11 +5,11 @@
 - turn mode: `code changes allowed`
 - reviewer may update: `REVIEW.md` only
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
-- latest reviewed commit: `ae2c72c Normalize browser audio before transcription`
+- latest reviewed commit: `dfb0c2c Add Codex handoff runner bridge`
 - latest applied review status:
-  - reflected in code: generic default microphone selection
+  - reflected in code: runner CLI and mic-loop finalization on silence
   - reflected in records: yes
-  - remaining open items: `final` 条件の高度化, faster-whisper 比較, README 図解
+  - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
 
 ## Changed files in latest implementation turn
 
@@ -30,7 +30,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 21 件の smoke test 成功
+- `uv run python smoke_test.py` で 43 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -59,12 +59,13 @@
 - 保存済み handoff を取得する `/api/codex-handoff-latest` を追加した
 - ローカル CLI から最新 handoff を読む `src.codex_handoff` を追加した
 - 最新 handoff を任意コマンドへ流す `src.codex_runner` を追加した
+- `mic-loop` は安定した発話のあとに無音が来た場合、その発話を `final` とみなせるようになった
 
 ## Next tasks
 
 - `--mic-loop` の出力確定方針を決める
-- VAD の導入方針を決める
-- `partial` を `final` に切り替える条件を高度化する
+- VAD の実用的な運用方針を決める
+- `partial` を `final` に切り替える条件をさらに高度化する
 - `--mic-loop` は有限ループ最終回に加えて、同一結果の連続でも `final` に寄せるようになった
 - `webrtcvad` ベースの speech detection を追加した
 - デフォルトマイク選択を C920 固定から、最初の入力デバイス優先へ一般化した
