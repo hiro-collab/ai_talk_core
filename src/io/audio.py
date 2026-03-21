@@ -25,6 +25,12 @@ class AudioTranscriptionError(RuntimeError):
     """Raised when Whisper fails while transcribing."""
 
 
+def should_retry_model_load_on_cpu(exc: Exception) -> bool:
+    """Return True when a Whisper load failure should retry on CPU."""
+    message = str(exc).lower()
+    return "cuda-capable device" in message or "cuda error" in message or "devices unavailable" in message
+
+
 def get_model_dir() -> Path:
     """Return the local directory used for Whisper model files."""
     project_root = Path(__file__).resolve().parents[2]
@@ -85,10 +91,22 @@ def normalize_audio_for_transcription(input_path: Path, output_path: Path) -> Pa
 def load_transcription_model(model_name: str = "small") -> Any:
     """Load a Whisper model from the local model directory."""
     validate_model_name(model_name)
+    download_root = str(get_model_dir())
 
     try:
-        return whisper.load_model(model_name, download_root=str(get_model_dir()))
+        return whisper.load_model(model_name, download_root=download_root)
     except Exception as exc:
+        if should_retry_model_load_on_cpu(exc):
+            try:
+                return whisper.load_model(
+                    model_name,
+                    download_root=download_root,
+                    device="cpu",
+                )
+            except Exception as cpu_exc:
+                raise AudioEnvironmentError(
+                    f"failed to load Whisper model '{model_name}': {cpu_exc}"
+                ) from cpu_exc
         raise AudioEnvironmentError(
             f"failed to load Whisper model '{model_name}': {exc}"
         ) from exc

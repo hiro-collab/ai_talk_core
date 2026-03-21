@@ -4,15 +4,25 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+from pathlib import Path
 
 from src.codex_handoff import render_handoff_output
 from src.io.audio import AudioInputError
 
 
-TEMPLATES: dict[str, list[str]] = {
+STATIC_TEMPLATES: dict[str, list[str]] = {
     "cat": ["cat"],
     "python-stdin": ["python", "-c", "import sys; print(sys.stdin.read())"],
 }
+
+
+def build_template_command(template: str, workdir: Path) -> list[str]:
+    """Build one of the supported runner template commands."""
+    if template in STATIC_TEMPLATES:
+        return STATIC_TEMPLATES[template]
+    if template == "codex-exec":
+        return ["codex", "exec", "-C", str(workdir), "-"]
+    raise AudioInputError(f"unknown runner template: {template}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--template",
-        choices=tuple(TEMPLATES.keys()),
+        choices=("cat", "python-stdin", "codex-exec"),
         default=None,
         help="Use a built-in command template instead of a manual command.",
     )
@@ -57,11 +67,11 @@ def normalize_command_args(command: list[str]) -> list[str]:
     return command
 
 
-def resolve_runner_command(template: str | None, command: list[str]) -> list[str]:
+def resolve_runner_command(template: str | None, command: list[str], workdir: Path) -> list[str]:
     """Resolve the effective command from a template or explicit args."""
     manual_command = normalize_command_args(command)
     if template is not None:
-        return TEMPLATES[template]
+        return build_template_command(template, workdir)
     return manual_command
 
 
@@ -74,7 +84,7 @@ def main() -> int:
         print(f"Input error: {exc}")
         return 1
 
-    command = resolve_runner_command(args.template, args.command)
+    command = resolve_runner_command(args.template, args.command, Path.cwd())
     if args.print_only or not command:
         print(payload)
         return 0

@@ -27,8 +27,9 @@ from src.main import (
     print_codex_instruction_only,
     should_mark_result_final,
 )
+from src.io.audio import should_retry_model_load_on_cpu
 from src.codex_handoff import render_handoff_output
-from src.codex_runner import normalize_command_args, resolve_runner_command
+from src.codex_runner import build_template_command, normalize_command_args, resolve_runner_command
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -652,9 +653,30 @@ class SmokeTests(unittest.TestCase):
     def test_resolve_runner_command_prefers_template(self) -> None:
         """Runner command resolution should prefer templates when requested."""
         self.assertEqual(
-            resolve_runner_command("cat", ["--", "python", "-c", "print('ignored')"]),
+            resolve_runner_command(
+                "cat",
+                ["--", "python", "-c", "print('ignored')"],
+                PROJECT_ROOT,
+            ),
             ["cat"],
         )
+
+    def test_build_template_command_supports_codex_exec(self) -> None:
+        """Runner templates should include a Codex exec bridge."""
+        self.assertEqual(
+            build_template_command("codex-exec", PROJECT_ROOT),
+            ["codex", "exec", "-C", str(PROJECT_ROOT), "-"],
+        )
+
+    def test_retry_model_load_on_cpu_matches_busy_cuda_error(self) -> None:
+        """CUDA busy errors should trigger a CPU retry."""
+        exc = RuntimeError("CUDA error: CUDA-capable device(s) is/are busy or unavailable")
+        self.assertTrue(should_retry_model_load_on_cpu(exc))
+
+    def test_retry_model_load_on_cpu_ignores_unrelated_errors(self) -> None:
+        """Non-CUDA model load errors should not trigger a CPU retry."""
+        exc = RuntimeError("unknown Whisper load failure")
+        self.assertFalse(should_retry_model_load_on_cpu(exc))
 
     def test_print_codex_instruction_only_handles_blank(self) -> None:
         """command-only printer should handle blank transcripts."""

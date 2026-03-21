@@ -22,6 +22,9 @@ flowchart LR
     MIC["Microphone I/O\nsrc/io/microphone.py"]
     AUDIO["Audio I/O\nsrc/io/audio.py"]
     DRAFT["Command Draft\nsrc/core/llm.py"]
+    BRIDGE["Codex Bridge\nsrc/core/codex_bridge.py"]
+    HANDOFF["Handoff Reader\nsrc/codex_handoff.py"]
+    RUNNER["Runner\nsrc/codex_runner.py"]
     WHISPER["Whisper"]
 
     CLI --> PIPE
@@ -32,6 +35,11 @@ flowchart LR
     PIPE --> WHISPER
     CLI --> DRAFT
     WEB --> DRAFT
+    DRAFT --> BRIDGE
+    CLI --> BRIDGE
+    WEB --> BRIDGE
+    BRIDGE --> HANDOFF
+    HANDOFF --> RUNNER
 ```
 
 ### Mic-loop Flow
@@ -51,6 +59,26 @@ flowchart LR
     RESULT --> COMMAND
 ```
 
+### Codex Handoff Flow
+
+```mermaid
+flowchart LR
+    TRANSCRIBE["transcription result"]
+    DRAFT["command draft"]
+    SAVE["handoff save\njson + txt"]
+    API["/api/codex-handoff-latest"]
+    CLI["src.codex_handoff"]
+    RUNNER["src.codex_runner"]
+    TARGET["target command / Codex-side process"]
+
+    TRANSCRIBE --> DRAFT
+    DRAFT --> SAVE
+    SAVE --> API
+    SAVE --> CLI
+    CLI --> RUNNER
+    RUNNER --> TARGET
+```
+
 ## Requirements
 
 - Ubuntu 22.04
@@ -67,6 +95,7 @@ flowchart LR
 - GPU 利用は PyTorch の CUDA 対応ビルドと NVIDIA ドライバが正しく揃っていることが前提です
 - `pyproject.toml` では Torch の CUDA バリアントを固定していないため、別マシンでは CPU 版 Torch が入る可能性があります
 - CPU 版 Torch が入った場合でも CLI は動作しますが、Whisper は CPU fallback で遅くなります
+- CUDA デバイスが一時的に busy / unavailable の場合も、モデル読み込み時は CPU fallback を試みます
 
 ## Setup
 
@@ -138,6 +167,12 @@ uv run python -m src.codex_runner --source web -- python -c "import sys; print(s
 
 ```bash
 uv run python -m src.codex_runner --source web --template cat
+```
+
+Codex CLI にそのまま渡す:
+
+```bash
+uv run python -m src.codex_runner --source web --template codex-exec
 ```
 
 ## Quick start

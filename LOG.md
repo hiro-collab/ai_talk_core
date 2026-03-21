@@ -153,4 +153,10 @@
 - `src/codex_handoff.py` を追加し、ローカル CLI から最新 handoff を読む経路を追加
 - `src/codex_runner.py` を追加し、最新 handoff を任意コマンドの stdin に流せるよう変更
 - `src/codex_runner.py` に `--template` を追加し、組み込みコマンドで handoff を流せるよう変更
+- `src/codex_runner.py` に `codex-exec` テンプレートを追加し、最新 handoff を `codex exec -C <repo> -` にそのまま流せるよう変更
+- `src/io/audio.py` に CUDA busy / unavailable 時の CPU fallback 判定を追加し、Whisper モデル読み込みの一時失敗を吸収するよう変更
 - `src/main.py` の `mic-loop` で、安定した発話の直後に無音が来た場合は直前発話を `final` とみなす補助ルールを追加
+- `README.md` の Architecture / Handoff Flow 図を、`codex_bridge` / `codex_handoff` / `codex_runner` を含む構成に更新
+- `uv run python -m py_compile src/codex_runner.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python -m py_compile src/io/audio.py src/codex_runner.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、48 件の smoke test が成功することを確認

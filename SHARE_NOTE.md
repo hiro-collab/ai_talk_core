@@ -7,7 +7,7 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `dfb0c2c Add Codex handoff runner bridge`
 - latest applied review status:
-  - reflected in code: runner CLI and mic-loop finalization on silence
+  - reflected in code: runner CLI, mic-loop finalization on silence, Codex exec template, CUDA busy 時の CPU fallback
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
 
@@ -30,7 +30,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 43 件の smoke test 成功
+- `uv run python smoke_test.py` で 48 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -60,7 +60,10 @@
 - ローカル CLI から最新 handoff を読む `src.codex_handoff` を追加した
 - 最新 handoff を任意コマンドへ流す `src.codex_runner` を追加した
 - `src.codex_runner` に組み込みテンプレートを追加し、毎回コマンド列を書かずに試せるようにした
+- `src.codex_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
+- Whisper モデル読み込み時に CUDA が busy / unavailable の場合、CPU fallback を試すようにした
 - `mic-loop` は安定した発話のあとに無音が来た場合、その発話を `final` とみなせるようになった
+- README の Architecture 図を handoff / runner まで含む最新構成に更新した
 
 ## Next tasks
 
@@ -82,6 +85,7 @@
 - Web を経由せずローカル handoff を読む CLI 境界も追加した
 - ローカルの Codex 実行プロセスへ handoff を渡す bridge を追加した
 - `codex_runner` は template 指定でも handoff を流せるようにした
+- `codex_runner` は `codex-exec` テンプレートで Codex CLI にそのまま handoff を流せる
 - 無音チャンク直後に直前発話を `final` とみなす補助ルールを追加した
 
 ## Review-derived actions
