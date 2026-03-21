@@ -96,6 +96,7 @@
 - dependency status では `torch` が direct dependency ではなく `openai-whisper` 経由の transitive dependency であることを確認できるようにした
 - `--doctor` を追加し、runtime と dependency の状態をまとめて確認できるようにした
 - `--show-torch-pin-plan` を追加し、`.venv` 内で完結する Torch pin 方針を text/json で確認できるようにした
+- Torch version に `+cu128` などの build suffix がある場合は、version-only pin ではなく build/source 選択も必要になり得ることを plan で示すようにした
 - `--mic-loop` の `[mic-tuning] ...` と停止メッセージは stderr に出し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 
 ## Next tasks

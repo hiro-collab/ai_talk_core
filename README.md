@@ -371,6 +371,7 @@ uv run python -m src.main --show-torch-pin-plan --torch-pin-plan-format json
 ```
 
 `torch.cuda.is_available() == False` かつ `nvidia-smi` が見えている場合は、まず system driver を触る前に `.venv` 内の Torch pin 方針を確認してください。
+また、現在の Torch に `+cu128` のような build suffix が付いている場合は、単なる version pin ではなく build/source の選択まで必要になることがあります。
 
 `final` に寄せる安定時間を変える:
 

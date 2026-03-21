@@ -1037,24 +1037,29 @@ class SmokeTests(unittest.TestCase):
             {
                 "torch_direct_dependency": False,
                 "current_torch_version": "2.10.0+cu128",
+                "current_torch_base_version": "2.10.0",
+                "current_torch_build_suffix": "cu128",
                 "current_torch_cuda_version": "12.8",
                 "current_driver_version": "535.288.01",
                 "recommended_torch_spec": "torch==2.10.0",
                 "recommended_cuda_family": "cu121",
+                "explicit_build_selection_needed": True,
                 "steps": ["step one", "step two"],
-                "command_examples": ["uv lock", "uv sync"],
+                "command_examples": ["uv add 'torch==<base-version>'", "uv lock"],
                 "plan_note": "project-local only",
             }
         )
         self.assertIn("Torch pin plan:", text)
         self.assertIn("recommended_cuda_family: cu121", text)
         self.assertIn("uv lock", text)
+        self.assertIn("explicit_build_selection_needed: True", text)
 
     def test_build_torch_pin_status_returns_expected_keys(self) -> None:
         """Torch pin status helper should include planning details."""
         status = build_torch_pin_status()
         self.assertIn("torch_direct_dependency", status)
         self.assertIn("current_torch_version", status)
+        self.assertIn("current_torch_build_suffix", status)
         self.assertIn("steps", status)
         self.assertIn("command_examples", status)
 
@@ -1064,6 +1069,11 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("steps", plan)
         self.assertIn("command_examples", plan)
         self.assertIn(".venv", str(plan["plan_note"]))
+
+    def test_get_torch_pin_plan_marks_explicit_build_selection_when_suffix_exists(self) -> None:
+        """Torch pin plan should flag version-only pinning as insufficient when a local CUDA suffix exists."""
+        plan = get_torch_pin_plan()
+        self.assertIn("explicit_build_selection_needed", plan)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""

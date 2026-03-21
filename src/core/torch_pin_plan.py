@@ -13,6 +13,13 @@ def _base_torch_version(torch_version: str | None) -> str | None:
     return torch_version.split("+", 1)[0]
 
 
+def _torch_build_suffix(torch_version: str | None) -> str | None:
+    """Return the local build suffix from a Torch version string."""
+    if torch_version is None or "+" not in torch_version:
+        return None
+    return torch_version.split("+", 1)[1]
+
+
 def _recommended_cuda_family(
     driver_version: str | None,
     torch_cuda_version: str | None,
@@ -47,8 +54,15 @@ def get_torch_pin_plan() -> dict[str, object]:
     base_version = _base_torch_version(
         torch_version if isinstance(torch_version, str) else None
     )
+    build_suffix = _torch_build_suffix(
+        torch_version if isinstance(torch_version, str) else None
+    )
     if base_version is not None:
         recommended_torch_spec = f"torch=={base_version}"
+
+    explicit_build_selection_needed = bool(
+        recommended_cuda_family is not None and build_suffix is not None
+    )
 
     steps = [
         "Confirm the current state with `uv run python -m src.main --doctor`.",
@@ -63,9 +77,15 @@ def get_torch_pin_plan() -> dict[str, object]:
             3,
             f"For the current driver generation, try a {recommended_cuda_family}-class Torch build rather than the current CUDA {torch_cuda_version} build.",
         )
+    if explicit_build_selection_needed:
+        steps.insert(
+            4,
+            "Because the installed Torch already carries a CUDA build suffix, an explicit build/source choice may be required instead of a version-only pin.",
+        )
 
     command_examples = [
         "uv run python -m src.main --doctor --doctor-format json",
+        "uv add 'torch==<base-version>'",
         "uv lock",
         "uv sync",
         'uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"',
@@ -75,10 +95,13 @@ def get_torch_pin_plan() -> dict[str, object]:
     return {
         "torch_direct_dependency": dependencies["torch_direct_dependency"],
         "current_torch_version": torch_version,
+        "current_torch_base_version": base_version,
+        "current_torch_build_suffix": build_suffix,
         "current_torch_cuda_version": torch_cuda_version,
         "current_driver_version": driver_version,
         "recommended_torch_spec": recommended_torch_spec,
         "recommended_cuda_family": recommended_cuda_family,
+        "explicit_build_selection_needed": explicit_build_selection_needed,
         "steps": steps,
         "command_examples": command_examples,
         "plan_note": (
@@ -93,10 +116,15 @@ def format_torch_pin_plan(plan: dict[str, object]) -> str:
     lines = ["Torch pin plan:"]
     lines.append(f"- torch_direct_dependency: {plan['torch_direct_dependency']}")
     lines.append(f"- current_torch_version: {plan['current_torch_version']}")
+    lines.append(f"- current_torch_base_version: {plan['current_torch_base_version']}")
+    lines.append(f"- current_torch_build_suffix: {plan['current_torch_build_suffix']}")
     lines.append(f"- current_torch_cuda_version: {plan['current_torch_cuda_version']}")
     lines.append(f"- current_driver_version: {plan['current_driver_version']}")
     lines.append(f"- recommended_torch_spec: {plan['recommended_torch_spec']}")
     lines.append(f"- recommended_cuda_family: {plan['recommended_cuda_family']}")
+    lines.append(
+        f"- explicit_build_selection_needed: {plan['explicit_build_selection_needed']}"
+    )
     lines.append("- steps:")
     for step in plan["steps"]:
         lines.append(f"  - {step}")
