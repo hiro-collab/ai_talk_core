@@ -307,6 +307,7 @@ class SmokeTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertIn("ffmpeg_available", payload)
         self.assertIn("ffprobe_available", payload)
+        self.assertIn("nvidia_smi_available", payload)
         self.assertIn("torch_cuda_available", payload)
         self.assertIn("transcription_device", payload)
 
@@ -875,6 +876,9 @@ class SmokeTests(unittest.TestCase):
             {
                 "ffmpeg_available": True,
                 "ffprobe_available": True,
+                "nvidia_smi_available": True,
+                "nvidia_driver_version": "535.288.01",
+                "nvidia_gpu_name": "NVIDIA GeForce RTX 3070",
                 "torch_version": "2.10.0+cu128",
                 "torch_cuda_version": "12.8",
                 "torch_cuda_available": False,
@@ -885,6 +889,7 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertIn("Runtime status:", text)
         self.assertIn("torch_cuda_available: False", text)
+        self.assertIn("nvidia_driver_version: 535.288.01", text)
         self.assertIn("transcription_device: cpu", text)
         self.assertIn("ffmpeg_available: True", text)
 
@@ -893,6 +898,9 @@ class SmokeTests(unittest.TestCase):
         status = get_runtime_status()
         self.assertIn("ffmpeg_available", status)
         self.assertIn("ffprobe_available", status)
+        self.assertIn("nvidia_smi_available", status)
+        self.assertIn("nvidia_driver_version", status)
+        self.assertIn("nvidia_gpu_name", status)
         self.assertIn("torch_version", status)
         self.assertIn("torch_cuda_available", status)
         self.assertIn("transcription_device", status)

@@ -50,6 +50,29 @@ def get_runtime_status() -> dict[str, str | bool | None]:
     """Return a compact view of the local transcription runtime status."""
     cuda_available = torch.cuda.is_available()
     device = "cuda" if cuda_available else "cpu"
+    nvidia_driver_version: str | None = None
+    nvidia_gpu_name: str | None = None
+    nvidia_smi_available = shutil.which("nvidia-smi") is not None
+    if nvidia_smi_available:
+        try:
+            command = [
+                "nvidia-smi",
+                "--query-gpu=driver_version,gpu_name",
+                "--format=csv,noheader",
+            ]
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            first_line = completed.stdout.strip().splitlines()[0]
+            driver_value, gpu_value = [part.strip() for part in first_line.split(",", 1)]
+            nvidia_driver_version = driver_value
+            nvidia_gpu_name = gpu_value
+        except (subprocess.CalledProcessError, IndexError, ValueError):
+            nvidia_driver_version = None
+            nvidia_gpu_name = None
     note: str | None = None
     if not cuda_available and torch.version.cuda is not None:
         note = (
@@ -59,6 +82,9 @@ def get_runtime_status() -> dict[str, str | bool | None]:
     return {
         "ffmpeg_available": shutil.which("ffmpeg") is not None,
         "ffprobe_available": shutil.which("ffprobe") is not None,
+        "nvidia_smi_available": nvidia_smi_available,
+        "nvidia_driver_version": nvidia_driver_version,
+        "nvidia_gpu_name": nvidia_gpu_name,
         "torch_version": torch.__version__,
         "torch_cuda_version": torch.version.cuda,
         "torch_cuda_available": cuda_available,

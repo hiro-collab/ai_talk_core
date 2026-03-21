@@ -88,6 +88,7 @@
 - `--list-mic-profiles` と `--show-mic-tuning` は `--mic-tuning-format json` でも出力できるようにした
 - `--show-runtime-status` を追加し、Whisper / Torch / ffmpeg / ffprobe の runtime 状態を text/json で確認できるようにした
 - runtime status には `transcription_device` と `runtime_note` も含め、GPU 不可時の CPU fallback を読み取りやすくした
+- runtime status には `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name` も含め、driver 側と Torch 側の食い違いを見やすくした
 - `--mic-loop` の `[mic-tuning] ...` と停止メッセージは stderr に出し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 
 ## Next tasks
