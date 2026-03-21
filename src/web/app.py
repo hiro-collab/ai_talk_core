@@ -139,6 +139,24 @@ PAGE_TEMPLATE = """<!doctype html>
       font-size: 0.9rem;
       margin-top: 8px;
     }
+    .debug {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px dashed var(--line);
+      background: #faf6ee;
+      font-size: 0.88rem;
+    }
+    .debug strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+    .debug pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -186,6 +204,10 @@ PAGE_TEMPLATE = """<!doctype html>
 
         <p class="hint">ブラウザ側でマイク許可が必要です。録音停止後に自動でアップロードします。</p>
         <div id="record-status" class="status" hidden></div>
+        <div class="debug">
+          <strong>Recorder Debug</strong>
+          <pre id="record-debug">state=idle</pre>
+        </div>
       </section>
     </div>
 
@@ -199,6 +221,7 @@ PAGE_TEMPLATE = """<!doctype html>
     const startButton = document.getElementById("start-record");
     const stopButton = document.getElementById("stop-record");
     const statusBox = document.getElementById("record-status");
+    const debugBox = document.getElementById("record-debug");
     const pageStatus = document.getElementById("page-status");
     const pageResult = document.getElementById("page-result");
     const pageError = document.getElementById("page-error");
@@ -206,6 +229,20 @@ PAGE_TEMPLATE = """<!doctype html>
     let activeStream = null;
     let recorderState = "idle";
     let chunks = [];
+    let lastBlobSize = 0;
+
+    const renderDebug = (note = "") => {
+      const lines = [
+        `state=${recorderState}`,
+        `mediaRecorder=${mediaRecorder ? mediaRecorder.state : "none"}`,
+        `chunks=${chunks.length}`,
+        `lastBlobSize=${lastBlobSize}`,
+      ];
+      if (note) {
+        lines.push(`note=${note}`);
+      }
+      debugBox.textContent = lines.join("\\n");
+    };
 
     const setStatus = (text) => {
       statusBox.hidden = false;
@@ -215,6 +252,7 @@ PAGE_TEMPLATE = """<!doctype html>
     const setRecorderButtons = () => {
       startButton.disabled = recorderState !== "idle";
       stopButton.disabled = recorderState !== "recording";
+      renderDebug("buttons updated");
     };
 
     const stopActiveStream = () => {
@@ -252,6 +290,7 @@ PAGE_TEMPLATE = """<!doctype html>
       setRecorderButtons();
       setStatus(processingText);
       updateOutput({ message: processingText, transcript: "", error: "" });
+      renderDebug(`upload start -> ${url}`);
       try {
         const response = await fetch(url, {
           method: "POST",
@@ -261,10 +300,12 @@ PAGE_TEMPLATE = """<!doctype html>
         const payload = await response.json();
         updateOutput(payload);
         setStatus(payload.error ? "処理に失敗しました。" : "処理完了");
+        renderDebug(`upload done status=${response.status}`);
       } catch (error) {
         const message = "通信に失敗しました: " + error;
         updateOutput({ error: message });
         setStatus(message);
+        renderDebug(`upload failed: ${error}`);
       } finally {
         recorderState = "idle";
         setRecorderButtons();
@@ -283,29 +324,38 @@ PAGE_TEMPLATE = """<!doctype html>
 
     startButton?.addEventListener("click", async () => {
       if (recorderState !== "idle") {
+        renderDebug("start ignored because recorder is not idle");
         return;
       }
       chunks = [];
+      lastBlobSize = 0;
       try {
         activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const recorder = new MediaRecorder(activeStream);
         mediaRecorder = recorder;
+        renderDebug("getUserMedia ok; recorder created");
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
             chunks.push(event.data);
           }
+          renderDebug(`dataavailable size=${event.data.size}`);
         };
         recorder.onstop = async () => {
           if (mediaRecorder !== recorder) {
+            renderDebug("onstop ignored because recorder changed");
             return;
           }
           const recordedChunks = [...chunks];
+          lastBlobSize = recordedChunks.reduce((total, chunk) => total + chunk.size, 0);
           resetRecorderState();
           if (!recorder || recordedChunks.length === 0) {
             setStatus("録音データが空です。もう一度試してください。");
+            renderDebug("no recorded chunks after stop");
             return;
           }
           const blob = new Blob(recordedChunks, { type: recorder.mimeType || "audio/webm" });
+          lastBlobSize = blob.size;
+          renderDebug(`blob ready size=${blob.size}`);
           const formData = new FormData();
           formData.append("audio_blob", blob, "browser_recording.webm");
           formData.append("model", document.getElementById("record_model").value);
@@ -319,32 +369,35 @@ PAGE_TEMPLATE = """<!doctype html>
         recorder.onerror = () => {
           resetRecorderState();
           setStatus("録音中にエラーが発生しました。");
+          renderDebug("recorder error");
         };
         recorder.start();
         recorderState = "recording";
         setRecorderButtons();
         setStatus("録音中...");
+        renderDebug("recording started");
       } catch (error) {
         resetRecorderState();
         setStatus("録音開始に失敗しました: " + error);
+        renderDebug(`start failed: ${error}`);
       }
     });
 
     stopButton?.addEventListener("click", () => {
       if (!mediaRecorder || mediaRecorder.state === "inactive" || recorderState !== "recording") {
+        renderDebug("stop ignored because recorder is not active");
         return;
       }
       recorderState = "stopping";
       setRecorderButtons();
-      if (typeof mediaRecorder.requestData === "function") {
-        mediaRecorder.requestData();
-      }
       mediaRecorder.stop();
       stopButton.disabled = true;
       setStatus("録音停止。処理中...");
+      renderDebug("stop requested");
     });
 
     setRecorderButtons();
+    renderDebug("ready");
   </script>
 </body>
 </html>

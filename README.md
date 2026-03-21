@@ -225,6 +225,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - Web UI でブラウザ録音を 2 回連続で実行する
 - 1 回目の録音後に `録音開始` が再び押せることを確認する
 - 2 回目の録音後も結果更新とエラー表示が正常に動くことを確認する
+- `Recorder Debug` に `state`, `chunks`, `lastBlobSize` が妥当な値で出ることを確認する
 
 ## Troubleshooting
 

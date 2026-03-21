@@ -102,3 +102,6 @@
 - `src/web/app.py` の転写本体処理を `process_transcription_request()` へ共通化
 - Web UI の fetch 先を `/api/transcribe-upload` と `/api/transcribe-browser-recording` に統一
 - `smoke_test.py` に `/api/transcribe-browser-recording` の最小サーバーテストを追加
+- `src/web/app.py` に `Recorder Debug` を追加し、録音 state / chunks / blob size を表示するよう更新
+- `src/web/app.py` から `requestData()` を外し、`stop()` 後の `dataavailable` に寄せるよう変更
+- `README.md` の manual checks に `Recorder Debug` の確認項目を追加
