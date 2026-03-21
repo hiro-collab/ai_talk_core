@@ -72,6 +72,13 @@ def save_codex_instruction_if_requested(text: str, output_path: str | None) -> N
     print(f"[command-text] {saved_paths.text_path}")
 
 
+def required_repeat_count_for_final(text: str) -> int:
+    """Return the repeat threshold for a given normalized transcript."""
+    if len(text) >= 12:
+        return 2
+    return 3
+
+
 def should_mark_result_final(
     result: TranscriptionResult,
     repeat_count: int,
@@ -85,7 +92,7 @@ def should_mark_result_final(
         return False
     if len(current_text) < 3:
         return False
-    return repeat_count >= 3
+    return repeat_count >= required_repeat_count_for_final(current_text)
 
 
 def maybe_finalize_on_silence(

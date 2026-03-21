@@ -157,9 +157,12 @@
 - `src/io/audio.py` に CUDA busy / unavailable 時の CPU fallback 判定を追加し、Whisper モデル読み込みの一時失敗を吸収するよう変更
 - `src/main.py` の `mic-loop` で、安定した発話の直後に無音が来た場合は直前発話を `final` とみなす補助ルールを追加
 - `src/main.py` に `maybe_finalize_on_interrupt()` を追加し、`Ctrl+C` 停止時も直前の安定発話を `final` として flush できるよう変更
+- `src/main.py` に `required_repeat_count_for_final()` を追加し、十分に長い発話は 2 回連続でも `final` に寄せるよう変更
 - `README.md` の Architecture / Handoff Flow 図を、`codex_bridge` / `codex_handoff` / `codex_runner` を含む構成に更新
 - `uv run python -m py_compile src/codex_runner.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python -m py_compile src/io/audio.py src/codex_runner.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、48 件の smoke test が成功することを確認
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、50 件の smoke test が成功することを確認
+- `uv run python -m py_compile src/main.py smoke_test.py` を再実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を再実行し、52 件の smoke test が成功することを確認

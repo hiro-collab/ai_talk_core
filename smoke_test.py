@@ -26,6 +26,7 @@ from src.main import (
     maybe_finalize_on_silence,
     normalize_transcript_text,
     print_codex_instruction_only,
+    required_repeat_count_for_final,
     should_mark_result_final,
 )
 from src.io.audio import should_retry_model_load_on_cpu
@@ -476,9 +477,24 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertFalse(should_mark_result_final(result, 2, False))
 
+    def test_long_transcript_marks_result_final_with_two_repeats(self) -> None:
+        """Longer stable transcripts may finalize after two repeats."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="依存関係を確認してから進めてください",
+            is_final=False,
+            chunk_count=2,
+        )
+        self.assertTrue(should_mark_result_final(result, 2, False))
+
     def test_normalize_transcript_text_collapses_whitespace(self) -> None:
         """Transcript normalization should collapse redundant whitespace."""
         self.assertEqual(normalize_transcript_text("  こんにちは   世界 "), "こんにちは 世界")
+
+    def test_required_repeat_count_for_final_relaxes_for_long_text(self) -> None:
+        """Longer transcripts should require fewer repeats."""
+        self.assertEqual(required_repeat_count_for_final("依存関係を確認してから進めてください"), 2)
+        self.assertEqual(required_repeat_count_for_final("こんにちは"), 3)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""
