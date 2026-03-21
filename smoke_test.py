@@ -149,6 +149,27 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("こんにちは", payload_json["transcript"])
         self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
 
+    def test_api_upload_command_only_returns_command_without_transcript(self) -> None:
+        """Dedicated API upload route should support command-only responses."""
+        sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
+        payload = {
+            "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
+            "model": "small",
+            "language": "ja",
+            "command_only": "true",
+        }
+        response = self.client.post(
+            "/api/transcribe-upload",
+            data=payload,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertEqual(payload_json["transcript"], "")
+        self.assertIn("こんにちは", payload_json["command"])
+
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
         response = self.client.post("/api/transcribe-upload", data={}, content_type="multipart/form-data")
@@ -176,6 +197,7 @@ class SmokeTests(unittest.TestCase):
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
         self.assertIn("こんにちは", payload_json["transcript"])
+        self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
 
     def test_repeat_transcript_marks_result_final(self) -> None:
         """Repeated mic-loop transcripts should be treated as final."""

@@ -45,6 +45,7 @@
 - ブラウザ録音はユーザー実機で 2 回連続実行でき、録音状態の復帰と blob 生成は確認済み
 - ブラウザ録音の主課題は連続録音の可否より認識精度側になった
 - 転写結果から `Codex instruction draft` を返す最小ブリッジを追加した
+- API に `command_only` オプションを追加し、`command` を主に返せるようにした
 - Whisper モデルは `models/whisper/small.pt`
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み

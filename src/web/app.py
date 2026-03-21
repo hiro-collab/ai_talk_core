@@ -499,6 +499,12 @@ def process_transcription_request(
     """Run one transcription request and normalize the response payload."""
     model_name = request.form.get("model", "small").strip() or "small"
     language = request.form.get("language", "").strip() or None
+    command_only = request.form.get("command_only", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     temp_path = build_temp_upload_path(filename)
     normalized_path = temp_path.with_suffix(".normalized.wav")
@@ -547,7 +553,7 @@ def process_transcription_request(
                 else (message or "文字起こしが完了しました。")
             )
         ),
-        "transcript": transcript,
+        "transcript": "" if command_only else transcript,
         "command": command,
         "error": error,
     }

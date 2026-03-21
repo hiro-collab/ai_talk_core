@@ -66,6 +66,16 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 
 応答 JSON には `transcript` に加えて `command` が含まれます。
 
+`command_only=true` を送ると、`transcript` を空にして `command` を主に返せます。
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
+  -F "audio_file=@data/sample_audio.mp3" \
+  -F "model=small" \
+  -F "language=ja" \
+  -F "command_only=true"
+```
+
 ## Quick start
 
 ```bash
