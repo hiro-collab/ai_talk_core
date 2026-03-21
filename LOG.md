@@ -137,3 +137,5 @@
 - `src/main.py` の `partial/final` 判定で、短すぎる断片は `final` に寄せにくくする調整を追加
 - `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、25 件の smoke test が成功することを確認
+- `src/io/microphone.py` のデフォルトマイク選択を C920 固定から、`arecord -l` の最初の入力デバイス優先へ変更
+- `README.md` に Mermaid の Architecture 図と Mic-loop Flow 図を追加

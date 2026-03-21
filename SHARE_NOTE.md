@@ -7,9 +7,9 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `ae2c72c Normalize browser audio before transcription`
 - latest applied review status:
-  - reflected in code: webrtcvad-based speech detection
+  - reflected in code: generic default microphone selection
   - reflected in records: yes
-  - remaining open items: `final` 条件の高度化, C920 依存の一般化, faster-whisper 比較
+  - remaining open items: `final` 条件の高度化, faster-whisper 比較, README 図解
 
 ## Changed files in latest implementation turn
 
@@ -50,6 +50,7 @@
 - Whisper モデルは `models/whisper/small.pt`
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み
+- README に Architecture 図と Mic-loop Flow 図を追加した
 
 ## Next tasks
 
@@ -58,6 +59,7 @@
 - `partial` を `final` に切り替える条件を高度化する
 - `--mic-loop` は有限ループ最終回に加えて、同一結果の連続でも `final` に寄せるようになった
 - `webrtcvad` ベースの speech detection を追加した
+- デフォルトマイク選択を C920 固定から、最初の入力デバイス優先へ一般化した
 - 無音チャンクは CLI で `[silence N] silence detected` と表示するようになった
 - CLI に `--emit-command` を追加した
 - CLI に `--command-only` を追加した
@@ -71,6 +73,7 @@
 - VAD は未着手
 - `webrtcvad` ベースの speech detection を反映済み
 - 無音チャンク時の表示改善を反映済み
+- デフォルトマイク選択の一般化を反映済み
 - `/api/transcribe-browser-recording` のサーバーテストは反映済み
 - ブラウザ録音の 2 回連続実行は実機確認済み
 - ブラウザ録音の精度改善として `webm` の正規化を反映済み

@@ -12,6 +12,45 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 - Web UI の言語入力欄は既定で `ja`
 - `HD Pro Webcam C920` で録音確認済み
 
+### Architecture
+
+```mermaid
+flowchart LR
+    CLI["CLI\nsrc/main.py"]
+    WEB["Web UI / JSON API\nsrc/web/app.py"]
+    PIPE["Pipeline\nsrc/core/pipeline.py"]
+    MIC["Microphone I/O\nsrc/io/microphone.py"]
+    AUDIO["Audio I/O\nsrc/io/audio.py"]
+    DRAFT["Command Draft\nsrc/core/llm.py"]
+    WHISPER["Whisper"]
+
+    CLI --> PIPE
+    WEB --> PIPE
+    CLI --> MIC
+    WEB --> AUDIO
+    PIPE --> AUDIO
+    PIPE --> WHISPER
+    CLI --> DRAFT
+    WEB --> DRAFT
+```
+
+### Mic-loop Flow
+
+```mermaid
+flowchart LR
+    CAPTURE["capture chunk"]
+    VAD["webrtcvad speech detection"]
+    TRANSCRIBE["Whisper transcribe"]
+    RESULT["partial / final heuristic"]
+    COMMAND["Codex instruction draft"]
+
+    CAPTURE --> VAD
+    VAD -->|speech| TRANSCRIBE
+    VAD -->|silence| RESULT
+    TRANSCRIBE --> RESULT
+    RESULT --> COMMAND
+```
+
 ## Requirements
 
 - Ubuntu 22.04
@@ -111,7 +150,7 @@ uv run python -m src.web.app
 
 起動後に `http://127.0.0.1:8000` を開きます。
 
-このマシンでは `--mic-device` を省略した場合、`HD Pro Webcam C920` が見つかれば自動的に優先されます。
+このマシンでは `--mic-device` を省略した場合、`arecord -l` で見つかった最初の入力デバイスを優先します。
 
 ## Usage
 

@@ -54,7 +54,7 @@ def ensure_arecord_available() -> None:
 
 
 def get_default_microphone_device() -> str:
-    """Return a preferred arecord device string for this machine."""
+    """Return a preferred arecord device string from detected capture devices."""
     ensure_arecord_available()
 
     try:
@@ -69,8 +69,6 @@ def get_default_microphone_device() -> str:
         raise AudioEnvironmentError(f"failed to list microphone devices: {message}") from exc
 
     for line in result.stdout.splitlines():
-        if "HD Pro Webcam C920" not in line:
-            continue
         match = re.search(r"card\s+(\d+).+device\s+(\d+)", line)
         if match:
             card_index, device_index = match.groups()
