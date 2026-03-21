@@ -129,3 +129,6 @@
 - `src/core/llm.py` に `CodexInstructionDraft` と `build_codex_instruction()` を追加
 - `src/main.py` に `--emit-command` を追加し、転写結果から Codex 用の指示草案を表示できるよう変更
 - `src/web/app.py` の JSON 応答に `command` を追加し、Web UI に Codex 用の指示草案欄を追加
+- `src/main.py` に `--command-only` を追加し、転写本文を省いて指示草案だけを出せるよう変更
+- `uv run python -m py_compile src/core/llm.py src/main.py src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、21 件の smoke test が成功することを確認

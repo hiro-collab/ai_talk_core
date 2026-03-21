@@ -86,6 +86,12 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 uv run python -m src.main --mic --duration 5 --language ja --emit-command
 ```
 
+Codex 用の指示草案だけ表示:
+
+```bash
+uv run python -m src.main --mic --duration 5 --language ja --command-only
+```
+
 ブラウザ GUI を起動:
 
 ```bash
@@ -184,6 +190,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - 対応拡張子: `.mp3`, `.wav`, `.m4a`, `.mp4`, `.mpeg`, `.mpga`, `.webm`
 - 出力: 文字起こし結果を標準出力へ表示
 - `--emit-command` 使用時は Codex 用の指示草案も標準出力へ表示
+- `--command-only` 使用時は転写本文を省いて指示草案だけを表示
 - 既定モデル: `small`
 
 ## Model storage

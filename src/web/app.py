@@ -219,7 +219,8 @@ PAGE_TEMPLATE = """<!doctype html>
 
     <div id="page-status" class="status" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
     <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
-    <div id="page-command" class="command" {% if not command %}hidden{% endif %}>{{ command or "" }}</div>
+    <div id="page-command" class="command" {% if not command %}hidden{% endif %}>Codex instruction draft:
+{{ command or "" }}</div>
     <div id="page-error" class="error" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
   </main>
 

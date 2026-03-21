@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import io
+import contextlib
 from pathlib import Path
 import subprocess
 import sys
 import unittest
 
 from src.core.llm import build_codex_instruction
-from src.main import format_transcription_result, normalize_transcript_text, should_mark_result_final
+from src.main import (
+    format_transcription_result,
+    normalize_transcript_text,
+    print_codex_instruction_only,
+    should_mark_result_final,
+)
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -54,6 +60,13 @@ class SmokeTests(unittest.TestCase):
         result = run_cli("data/sample_audio.mp3", "--model", "notamodel")
         self.assertEqual(result.returncode, 1)
         self.assertIn("Input error: invalid Whisper model name", result.stdout)
+
+    def test_command_only_outputs_instruction_text(self) -> None:
+        """command-only mode should print only the normalized instruction."""
+        result = run_cli("data/sample_audio.mp3", "--language", "ja", "--command-only")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("こんにちは", result.stdout)
+        self.assertNotIn("[command]", result.stdout)
 
     def test_iterations_requires_mic_loop(self) -> None:
         """Iterations should only be accepted with mic-loop."""
@@ -219,6 +232,13 @@ class SmokeTests(unittest.TestCase):
         self.assertIsNotNone(draft)
         assert draft is not None
         self.assertEqual(draft.instruction, "依存関係を 確認して")
+
+    def test_print_codex_instruction_only_handles_blank(self) -> None:
+        """command-only printer should handle blank transcripts."""
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            print_codex_instruction_only("   ")
+        self.assertEqual(buffer.getvalue().strip(), "no instruction draft available")
 
 
 if __name__ == "__main__":

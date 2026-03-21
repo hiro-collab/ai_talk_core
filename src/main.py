@@ -49,6 +49,15 @@ def print_codex_instruction_if_requested(text: str, emit_command: bool) -> None:
     print(f"[command] {draft.instruction}")
 
 
+def print_codex_instruction_only(text: str) -> None:
+    """Print only the Codex-ready instruction draft."""
+    draft = build_codex_instruction(text)
+    if draft is None:
+        print("no instruction draft available")
+        return
+    print(draft.instruction)
+
+
 def should_mark_result_final(
     result: TranscriptionResult,
     previous_text: str | None,
@@ -71,6 +80,7 @@ def run_mic_loop(
     iterations: int | None,
     trim_silence_enabled: bool,
     emit_command: bool,
+    command_only: bool,
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
     pipeline = TranscriptionPipeline(model_name=model_name)
@@ -105,8 +115,11 @@ def run_mic_loop(
                 )
             if should_mark_result_final(result, previous_text, is_last_iteration):
                 result = replace(result, is_final=True)
-            print(format_transcription_result(result))
-            print_codex_instruction_if_requested(result.text, emit_command=emit_command)
+            if command_only:
+                print_codex_instruction_only(result.text)
+            else:
+                print(format_transcription_result(result))
+                print_codex_instruction_if_requested(result.text, emit_command=emit_command)
             normalized_text = normalize_transcript_text(result.text)
             if normalized_text:
                 previous_text = normalized_text
@@ -181,6 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print a Codex-ready instruction draft from the transcript.",
     )
+    parser.add_argument(
+        "--command-only",
+        action="store_true",
+        help="Print only the Codex-ready instruction draft.",
+    )
     return parser
 
 
@@ -193,6 +211,8 @@ def main() -> int:
         ensure_ffmpeg_available()
         if args.mic or args.mic_loop:
             ensure_ffprobe_available()
+        if args.command_only:
+            args.emit_command = True
         if args.mic and args.mic_loop:
             raise AudioInputError("--mic and --mic-loop cannot be used together")
         validate_iterations(args.iterations)
@@ -209,6 +229,7 @@ def main() -> int:
                 iterations=args.iterations,
                 trim_silence_enabled=not args.no_trim_silence,
                 emit_command=args.emit_command,
+                command_only=args.command_only,
             )
         if args.mic:
             if args.audio_file is not None:
@@ -244,8 +265,11 @@ def main() -> int:
         print(f"Transcription error: {exc}")
         return 1
 
-    print(text)
-    print_codex_instruction_if_requested(text, emit_command=args.emit_command)
+    if args.command_only:
+        print_codex_instruction_only(text)
+    else:
+        print(text)
+        print_codex_instruction_if_requested(text, emit_command=args.emit_command)
     return 0
 
 
