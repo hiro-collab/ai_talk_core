@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+import subprocess
 from typing import Any
 
 import whisper
@@ -54,6 +55,29 @@ def validate_model_name(model_name: str) -> None:
     """Validate the Whisper model name before loading."""
     if model_name not in whisper.available_models():
         raise AudioInputError(f"invalid Whisper model name: {model_name}")
+
+
+def normalize_audio_for_transcription(input_path: Path, output_path: Path) -> Path:
+    """Normalize audio into a transcription-friendly wav with ffmpeg."""
+    ensure_ffmpeg_available()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(input_path),
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        str(output_path),
+    ]
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        raise AudioEnvironmentError(f"audio normalization failed: {message}") from exc
+    return output_path
 
 
 def load_transcription_model(model_name: str = "small") -> Any:

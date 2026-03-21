@@ -105,3 +105,6 @@
 - `src/web/app.py` に `Recorder Debug` を追加し、録音 state / chunks / blob size を表示するよう更新
 - `src/web/app.py` から `requestData()` を外し、`stop()` 後の `dataavailable` に寄せるよう変更
 - `README.md` の manual checks に `Recorder Debug` の確認項目を追加
+- `src/web/app.py` の Web UI 言語入力欄を既定で `ja` に変更
+- `src/io/audio.py` に `normalize_audio_for_transcription()` を追加
+- `src/web/app.py` でブラウザ録音の `.webm` を `16kHz mono wav` 相当に正規化してから転写するよう変更

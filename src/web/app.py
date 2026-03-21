@@ -15,6 +15,7 @@ from src.io.audio import (
     AudioInputError,
     AudioTranscriptionError,
     ensure_ffmpeg_available,
+    normalize_audio_for_transcription,
     validate_model_name,
 )
 
@@ -179,7 +180,7 @@ PAGE_TEMPLATE = """<!doctype html>
           </select>
 
           <label for="upload_language">言語コード</label>
-          <input id="upload_language" name="language" type="text" placeholder="ja">
+          <input id="upload_language" name="language" type="text" value="ja" placeholder="ja">
 
           <button type="submit">文字起こしする</button>
         </form>
@@ -200,7 +201,7 @@ PAGE_TEMPLATE = """<!doctype html>
         </select>
 
         <label for="record_language">言語コード</label>
-        <input id="record_language" type="text" placeholder="ja">
+        <input id="record_language" type="text" value="ja" placeholder="ja">
 
         <p class="hint">ブラウザ側でマイク許可が必要です。録音停止後に自動でアップロードします。</p>
         <div id="record-status" class="status" hidden></div>
@@ -488,6 +489,7 @@ def process_transcription_request(
     language = request.form.get("language", "").strip() or None
 
     temp_path = build_temp_upload_path(filename)
+    normalized_path = temp_path.with_suffix(".normalized.wav")
 
     transcript = ""
     error = ""
@@ -497,9 +499,12 @@ def process_transcription_request(
         validate_model_name(model_name)
         ensure_ffmpeg_available()
         temp_path.write_bytes(raw_bytes)
+        audio_path = temp_path
+        if temp_path.suffix.lower() == ".webm":
+            audio_path = normalize_audio_for_transcription(temp_path, normalized_path)
         pipeline = TranscriptionPipeline(model_name=model_name)
         transcript = pipeline.transcribe_chunk(
-            AudioChunk(path=temp_path, source="web"),
+            AudioChunk(path=audio_path, source="web"),
             language=language,
         )
     except AudioInputError as exc:
@@ -514,6 +519,8 @@ def process_transcription_request(
     finally:
         if temp_path.exists():
             temp_path.unlink()
+        if normalized_path.exists():
+            normalized_path.unlink()
 
     payload = {
         "message": "" if error else (message or "文字起こしが完了しました。"),

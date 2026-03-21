@@ -7,7 +7,7 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `34fe6e2 Harden browser recording reset flow`
 - latest applied review status:
-  - reflected in code: browser recorder state debug instrumentation
+  - reflected in code: browser audio normalization before transcription
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, `VAD`, browser recording repeat test
 
@@ -36,6 +36,8 @@
 - Web UI / API のアップロード一時ファイルはリクエストごとに固有名を使うようになった
 - Web UI の fetch 先は `/api/...` ルートへ統一し、転写本体処理は共通関数へ寄せた
 - ブラウザ録音には `Recorder Debug` を追加し、state と blob size を可視化した
+- Web UI の言語入力欄は既定で `ja` にした
+- ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化するようになった
 - Whisper モデルは `models/whisper/small.pt`
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み
