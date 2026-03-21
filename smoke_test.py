@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 from src.core.codex_bridge import (
     build_codex_payload,
@@ -30,9 +31,15 @@ from src.main import (
     should_mark_result_final,
 )
 from src.io.audio import should_retry_model_load_on_cpu
+from src.io.audio import AudioInputError
 from src.io.microphone import validate_vad_aggressiveness
 from src.codex_handoff import render_handoff_output
-from src.codex_runner import build_template_command, normalize_command_args, resolve_runner_command
+from src.codex_runner import (
+    build_template_command,
+    normalize_command_args,
+    resolve_runner_command,
+    validate_runner_command_available,
+)
 from src.core.pipeline import TranscriptionResult
 from src.web.app import create_app
 
@@ -730,6 +737,21 @@ class SmokeTests(unittest.TestCase):
             build_template_command("codex-exec", PROJECT_ROOT),
             ["codex", "exec", "-C", str(PROJECT_ROOT), "-"],
         )
+
+    def test_validate_runner_command_available_accepts_existing_path_command(self) -> None:
+        """Absolute path commands should pass when they exist."""
+        validate_runner_command_available(["/bin/echo", "ok"])
+
+    def test_validate_runner_command_available_rejects_missing_path_command(self) -> None:
+        """Missing absolute path commands should fail early."""
+        with self.assertRaisesRegex(AudioInputError, "runner command not found"):
+            validate_runner_command_available(["/no/such/cmd"])
+
+    def test_validate_runner_command_available_rejects_missing_path_entry(self) -> None:
+        """PATH lookups should fail early for missing commands."""
+        with mock.patch("src.codex_runner.shutil.which", return_value=None):
+            with self.assertRaisesRegex(AudioInputError, "runner command not found in PATH: codex"):
+                validate_runner_command_available(["codex", "exec"])
 
     def test_retry_model_load_on_cpu_matches_busy_cuda_error(self) -> None:
         """CUDA busy errors should trigger a CPU retry."""

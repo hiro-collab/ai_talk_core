@@ -7,7 +7,7 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `dfb0c2c Add Codex handoff runner bridge`
 - latest applied review status:
-  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, configurable VAD aggressiveness, Codex exec template, CUDA busy 時の CPU fallback
+  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
 
@@ -30,7 +30,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 54 件の smoke test 成功
+- `uv run python smoke_test.py` で 57 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -61,6 +61,7 @@
 - 最新 handoff を任意コマンドへ流す `src.codex_runner` を追加した
 - `src.codex_runner` に組み込みテンプレートを追加し、毎回コマンド列を書かずに試せるようにした
 - `src.codex_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
+- `codex-exec` は `codex` コマンドの PATH 存在を実行前に検証するようにした
 - Whisper モデル読み込み時に CUDA が busy / unavailable の場合、CPU fallback を試すようにした
 - `mic-loop` は安定した発話のあとに無音が来た場合、その発話を `final` とみなせるようになった
 - `mic-loop` は `Ctrl+C` 停止時も、未確定の最後の発話を `final` として flush できるようになった
@@ -93,6 +94,7 @@
 - `Ctrl+C` で止めた時も、最後の安定発話を `final` として 1 回だけ出せるようにした
 - 長い発話は 2 回連続、短い発話は 3 回連続を基準に `final` へ寄せる
 - VAD のしきい値は CLI から調整できるようにした
+- `codex-exec` は PATH に `codex` が無い場合、実行前に入力エラーで止まる
 
 ## Review-derived actions
 

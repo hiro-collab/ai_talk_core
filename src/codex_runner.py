@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -75,26 +76,44 @@ def resolve_runner_command(template: str | None, command: list[str], workdir: Pa
     return manual_command
 
 
+def validate_runner_command_available(command: list[str]) -> None:
+    """Validate that the target command is available before execution."""
+    if not command:
+        return
+    executable = command[0]
+    if "/" in executable:
+        if not Path(executable).exists():
+            raise AudioInputError(f"runner command not found: {executable}")
+        return
+    if shutil.which(executable) is None:
+        raise AudioInputError(f"runner command not found in PATH: {executable}")
+
+
 def main() -> int:
     """Run the Codex handoff runner."""
     args = build_parser().parse_args()
     try:
         payload = render_handoff_output(args.source, args.format)
+        command = resolve_runner_command(args.template, args.command, Path.cwd())
+        validate_runner_command_available(command)
     except AudioInputError as exc:
         print(f"Input error: {exc}")
         return 1
 
-    command = resolve_runner_command(args.template, args.command, Path.cwd())
     if args.print_only or not command:
         print(payload)
         return 0
 
-    completed = subprocess.run(
-        command,
-        input=payload,
-        text=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            input=payload,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        print(f"Input error: runner command not found: {exc.filename}")
+        return 1
     return completed.returncode
 
 

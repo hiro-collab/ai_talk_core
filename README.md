@@ -175,6 +175,8 @@ Codex CLI にそのまま渡す:
 uv run python -m src.codex_runner --source web --template codex-exec
 ```
 
+このテンプレートは `codex` コマンドが `PATH` にある前提です。見つからない場合は実行前に入力エラーを返します。
+
 ## Quick start
 
 ```bash
