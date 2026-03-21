@@ -141,17 +141,17 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 
 応答 JSON には `transcript` に加えて `command` が含まれます。
 
-`command_only=true` を送ると、`transcript` を空にして `command` を主に返せます。
+`instruction_only=true` を送ると、`transcript` を空にして `command` を主に返せます。互換のため `command_only=true` も引き続き使えます。
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
   -F "audio_file=@data/sample_audio.mp3" \
   -F "model=small" \
   -F "language=ja" \
-  -F "command_only=true"
+  -F "instruction_only=true"
 ```
 
-`save_command=true` を送ると、プロジェクト内 `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に handoff を保存し、応答 JSON に `command_path` と `command_text_path` を返します。
+`save_handoff=true` を送ると、プロジェクト内 `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に handoff を保存し、応答 JSON に `command_path` と `command_text_path` を返します。互換のため `save_command=true` も引き続き使えます。
 
 保存済み handoff を取得:
 

@@ -210,13 +210,13 @@ PAGE_TEMPLATE = """<!doctype html>
           <label for="upload_language">言語コード</label>
           <input id="upload_language" name="language" type="text" value="ja" placeholder="ja">
 
-          <label class="checkbox" for="upload_command_only">
-            <input id="upload_command_only" name="command_only" type="checkbox" value="true">
+          <label class="checkbox" for="upload_instruction_only">
+            <input id="upload_instruction_only" name="instruction_only" type="checkbox" value="true">
             指示草案を優先して返す
           </label>
 
-          <label class="checkbox" for="upload_save_command">
-            <input id="upload_save_command" name="save_command" type="checkbox" value="true">
+          <label class="checkbox" for="upload_save_handoff">
+            <input id="upload_save_handoff" name="save_handoff" type="checkbox" value="true">
             handoff payload を保存する
           </label>
 
@@ -241,13 +241,13 @@ PAGE_TEMPLATE = """<!doctype html>
         <label for="record_language">言語コード</label>
         <input id="record_language" type="text" value="ja" placeholder="ja">
 
-        <label class="checkbox" for="record_command_only">
-          <input id="record_command_only" type="checkbox" value="true">
+        <label class="checkbox" for="record_instruction_only">
+          <input id="record_instruction_only" type="checkbox" value="true">
           指示草案を優先して返す
         </label>
 
-        <label class="checkbox" for="record_save_command">
-          <input id="record_save_command" type="checkbox" value="true">
+        <label class="checkbox" for="record_save_handoff">
+          <input id="record_save_handoff" type="checkbox" value="true">
           handoff payload を保存する
         </label>
 
@@ -424,11 +424,11 @@ Saved prompt:
           formData.append("audio_blob", blob, "browser_recording.webm");
           formData.append("model", document.getElementById("record_model").value);
           formData.append("language", document.getElementById("record_language").value);
-          if (document.getElementById("record_command_only").checked) {
-            formData.append("command_only", "true");
+          if (document.getElementById("record_instruction_only").checked) {
+            formData.append("instruction_only", "true");
           }
-          if (document.getElementById("record_save_command").checked) {
-            formData.append("save_command", "true");
+          if (document.getElementById("record_save_handoff").checked) {
+            formData.append("save_handoff", "true");
           }
           await submitForTranscription(
             "{{ url_for('api_transcribe_browser_recording') }}",
@@ -585,20 +585,17 @@ def process_transcription_request(
     message: str | None = None,
 ) -> tuple[dict[str, str], int]:
     """Run one transcription request and normalize the response payload."""
+    def read_bool_flag(*names: str) -> bool:
+        for name in names:
+            value = request.form.get(name, "").strip().lower()
+            if value in {"1", "true", "yes", "on"}:
+                return True
+        return False
+
     model_name = request.form.get("model", "small").strip() or "small"
     language = request.form.get("language", "").strip() or None
-    command_only = request.form.get("command_only", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    save_command = request.form.get("save_command", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    command_only = read_bool_flag("instruction_only", "command_only")
+    save_command = read_bool_flag("save_handoff", "save_command")
 
     temp_path = build_temp_upload_path(filename)
     normalized_path = temp_path.with_suffix(".normalized.wav")

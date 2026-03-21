@@ -202,4 +202,5 @@
 - `src.main` に `--emit-instruction`, `--instruction-only`, `--handoff-output` の互換別名を追加した
 - `src.web.app` の「Codex 指示草案」表現を「指示草案」へ寄せた
 - `uv run python -m py_compile src/main.py src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
-- `uv run python smoke_test.py` を実行し、72 件の smoke test が成功することを確認
+- `src.web.app` で `instruction_only` / `save_handoff` の別名を受けるようにし、Web UI も新しい名前で送信するよう変更
+- `uv run python smoke_test.py` を実行し、74 件の smoke test が成功することを確認

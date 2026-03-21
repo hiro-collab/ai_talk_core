@@ -241,10 +241,10 @@ class SmokeTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("ai_core Web UI", response.get_data(as_text=True))
-        self.assertIn("upload_command_only", response.get_data(as_text=True))
-        self.assertIn("record_command_only", response.get_data(as_text=True))
-        self.assertIn("upload_save_command", response.get_data(as_text=True))
-        self.assertIn("record_save_command", response.get_data(as_text=True))
+        self.assertIn("upload_instruction_only", response.get_data(as_text=True))
+        self.assertIn("record_instruction_only", response.get_data(as_text=True))
+        self.assertIn("upload_save_handoff", response.get_data(as_text=True))
+        self.assertIn("record_save_handoff", response.get_data(as_text=True))
 
     def test_webrtcvad_dependency_is_available(self) -> None:
         """webrtcvad should be importable after dependency sync."""
@@ -358,6 +358,27 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(payload_json["transcript"], "")
         self.assertIn("こんにちは", payload_json["command"])
 
+    def test_api_upload_instruction_only_alias_returns_command_without_transcript(self) -> None:
+        """Dedicated API upload route should also accept instruction_only."""
+        sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
+        payload = {
+            "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
+            "model": "small",
+            "language": "ja",
+            "instruction_only": "true",
+        }
+        response = self.client.post(
+            "/api/transcribe-upload",
+            data=payload,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertEqual(payload_json["transcript"], "")
+        self.assertIn("こんにちは", payload_json["command"])
+
     def test_api_upload_can_save_command_payload(self) -> None:
         """API upload route should optionally save the Codex payload."""
         output_path = get_default_codex_output_path(source="web")
@@ -372,6 +393,36 @@ class SmokeTests(unittest.TestCase):
             "model": "small",
             "language": "ja",
             "save_command": "true",
+        }
+        response = self.client.post(
+            "/api/transcribe-upload",
+            data=payload,
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertEqual(payload_json["command_path"], str(output_path))
+        self.assertEqual(payload_json["command_text_path"], str(text_path))
+        self.assertTrue(output_path.exists())
+        self.assertTrue(text_path.exists())
+        output_path.unlink()
+        text_path.unlink()
+
+    def test_api_upload_can_save_handoff_alias(self) -> None:
+        """API upload route should also accept save_handoff."""
+        output_path = get_default_codex_output_path(source="web")
+        text_path = get_default_codex_text_path(source="web")
+        if output_path.exists():
+            output_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
+        sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
+        payload = {
+            "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
+            "model": "small",
+            "language": "ja",
+            "save_handoff": "true",
         }
         response = self.client.post(
             "/api/transcribe-upload",
