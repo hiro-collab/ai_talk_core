@@ -14,6 +14,7 @@ from src.core.codex_bridge import (
     build_codex_payload,
     get_default_codex_output_path,
     get_default_codex_text_path,
+    render_codex_prompt,
     save_codex_handoff_bundle,
     save_codex_payload,
 )
@@ -374,6 +375,14 @@ class SmokeTests(unittest.TestCase):
         """Blank transcripts should not produce Codex payloads."""
         self.assertIsNone(build_codex_payload("   "))
 
+    def test_render_codex_prompt_includes_transcript_and_task(self) -> None:
+        """Prompt text should include both transcript and requested task."""
+        prompt = render_codex_prompt("  依存関係を   確認して ")
+        self.assertEqual(
+            prompt,
+            "Voice transcript:\n依存関係を 確認して\n\nRequested task:\n依存関係を 確認して\n",
+        )
+
     def test_save_codex_payload_writes_json(self) -> None:
         """Codex payload helper should save normalized JSON output."""
         output_path = PROJECT_ROOT / ".cache" / "tests" / "payload_helper.json"
@@ -408,7 +417,10 @@ class SmokeTests(unittest.TestCase):
         assert saved_paths is not None
         self.assertEqual(saved_paths.json_path, json_path)
         self.assertEqual(saved_paths.text_path, text_path)
-        self.assertEqual(text_path.read_text(encoding="utf-8").strip(), "依存関係を 確認して")
+        self.assertEqual(
+            text_path.read_text(encoding="utf-8"),
+            "Voice transcript:\n依存関係を 確認して\n\nRequested task:\n依存関係を 確認して\n",
+        )
         json_path.unlink()
         text_path.unlink()
 

@@ -55,6 +55,7 @@
 - CLI に `--command-output` を追加し、Codex 連携用 JSON を保存できるようにした
 - Web/API からも `save_command` で Codex payload を保存できるようにした
 - Codex handoff として JSON に加えて `.txt` prompt も保存できるようにした
+- `.txt` 側は bare command ではなく、`Voice transcript` / `Requested task` を含む prompt 形式にした
 
 ## Next tasks
 

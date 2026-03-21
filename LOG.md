@@ -148,3 +148,4 @@
 - `src/web/app.py` に `save_command` を追加し、Web/API から `.cache/codex/web_latest.json` へ Codex payload を保存できるよう変更
 - `src/core/codex_bridge.py` に handoff bundle 保存を追加し、JSON に加えて `.txt` prompt も保存するよう変更
 - `src/web/app.py` の応答に `command_text_path` を追加し、Web/UI から保存先を確認できるよう変更
+- `src/core/codex_bridge.py` の `.txt` 出力を bare command から Codex 向け prompt 形式へ変更

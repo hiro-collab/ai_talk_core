@@ -48,6 +48,19 @@ def build_codex_payload(transcript: str) -> CodexPayload | None:
     )
 
 
+def render_codex_prompt(transcript: str) -> str | None:
+    """Render a minimal prompt text that can be handed to Codex."""
+    payload = build_codex_payload(transcript)
+    if payload is None:
+        return None
+    return (
+        "Voice transcript:\n"
+        f"{payload.transcript}\n\n"
+        "Requested task:\n"
+        f"{payload.command}\n"
+    )
+
+
 def save_codex_payload(transcript: str, output_path: Path) -> Path | None:
     """Save a Codex payload as JSON and return the written path."""
     payload = build_codex_payload(transcript)
@@ -62,12 +75,12 @@ def save_codex_payload(transcript: str, output_path: Path) -> Path | None:
 
 
 def save_codex_instruction_text(transcript: str, output_path: Path) -> Path | None:
-    """Save only the normalized instruction text."""
-    payload = build_codex_payload(transcript)
-    if payload is None:
+    """Save a Codex-ready prompt text."""
+    prompt_text = render_codex_prompt(transcript)
+    if prompt_text is None:
         return None
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(payload.command + "\n", encoding="utf-8")
+    output_path.write_text(prompt_text, encoding="utf-8")
     return output_path
 
 

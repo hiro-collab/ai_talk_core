@@ -148,7 +148,7 @@ Codex 連携用 payload を JSON 保存:
 uv run python -m src.main --mic --duration 5 --language ja --command-output .cache/codex/latest.json
 ```
 
-このとき `.txt` 版の prompt も同じ場所に自動生成します。
+このとき `.txt` 版の prompt も同じ場所に自動生成します。中身は `Voice transcript` と `Requested task` を含む、そのまま Codex に渡しやすい形式です。
 
 Web UI でも、アップロード欄とブラウザ録音欄の `Codex 指示草案を優先して返す` を有効にすると `command_only` と同じ挙動になります。
 `Codex payload を保存する` を有効にすると、同じ handoff を `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に保存します。
