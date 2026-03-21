@@ -83,3 +83,5 @@
 - `smoke_test.py` に fetch ベースの Web UI アップロード確認を追加
 - `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を再実行し、9 件の smoke test が成功することを確認
+- `SHARE_NOTE.md` に turn mode / reviewer update scope / latest reviewed commit / changed files を追加
+- `REVIEWER_INSTRUCTIONS.md` にレビュー依頼時の必須情報と推奨テンプレートを追加

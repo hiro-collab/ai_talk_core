@@ -1,5 +1,25 @@
 # Share Note
 
+## Turn contract
+
+- turn mode: `code changes allowed`
+- reviewer may update: `REVIEW.md` only
+- implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
+- latest reviewed commit: `fc0d76b Improve web UI status updates`
+- latest applied review status:
+  - reflected in code: Web UI status update improvement
+  - reflected in records: yes
+  - remaining open items: `buffer -> partial/final`, `VAD`
+
+## Changed files in latest implementation turn
+
+- `src/web/app.py`
+- `smoke_test.py`
+- `README.md`
+- `REVIEW.md`
+- `SHARE_NOTE.md`
+- `LOG.md`
+
 ## Current status
 
 - `uv run python -m src.main data/sample_audio.mp3 --language ja` で文字起こし成功
