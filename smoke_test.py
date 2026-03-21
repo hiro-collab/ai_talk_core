@@ -23,6 +23,7 @@ from src.core.codex_bridge import (
 from src.core.llm import build_codex_instruction
 from src.main import (
     format_transcription_result,
+    has_stable_duration_for_final,
     maybe_finalize_on_interrupt,
     maybe_finalize_on_silence,
     normalize_transcript_text,
@@ -464,7 +465,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertTrue(should_mark_result_final(result, 3, False))
+        self.assertTrue(should_mark_result_final(result, 3, False, 3))
 
     def test_blank_transcript_does_not_mark_result_final(self) -> None:
         """Blank transcripts should not become final unless loop ends."""
@@ -474,7 +475,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, 2, False))
+        self.assertFalse(should_mark_result_final(result, 2, False, 3))
 
     def test_short_transcript_does_not_mark_result_final(self) -> None:
         """Very short repeated transcripts should remain partial."""
@@ -484,7 +485,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, 3, False))
+        self.assertFalse(should_mark_result_final(result, 3, False, 3))
 
     def test_single_repeat_does_not_mark_result_final(self) -> None:
         """Two consecutive matching transcripts should still remain partial."""
@@ -494,7 +495,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertFalse(should_mark_result_final(result, 2, False))
+        self.assertFalse(should_mark_result_final(result, 2, False, 3))
 
     def test_long_transcript_marks_result_final_with_two_repeats(self) -> None:
         """Longer stable transcripts may finalize after two repeats."""
@@ -504,7 +505,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=2,
         )
-        self.assertTrue(should_mark_result_final(result, 2, False))
+        self.assertTrue(should_mark_result_final(result, 2, False, 3))
 
     def test_normalize_transcript_text_collapses_whitespace(self) -> None:
         """Transcript normalization should collapse redundant whitespace."""
@@ -515,6 +516,14 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(required_repeat_count_for_final("依存関係を確認してから進めてください"), 2)
         self.assertEqual(required_repeat_count_for_final("こんにちは"), 3)
 
+    def test_stable_duration_for_final_accepts_medium_text_after_longer_time(self) -> None:
+        """Time stability should help medium-length transcripts become final."""
+        self.assertTrue(has_stable_duration_for_final("依存関係を確認して", 2, 4))
+
+    def test_stable_duration_for_final_ignores_short_text(self) -> None:
+        """Very short text should not finalize only from elapsed time."""
+        self.assertFalse(has_stable_duration_for_final("はい", 4, 3))
+
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""
         result = TranscriptionResult(
@@ -523,7 +532,7 @@ class SmokeTests(unittest.TestCase):
             is_final=False,
             chunk_count=3,
         )
-        self.assertTrue(should_mark_result_final(result, 0, True))
+        self.assertTrue(should_mark_result_final(result, 0, True, 3))
 
     def test_format_transcription_result_marks_silence(self) -> None:
         """Silence results should be labeled explicitly."""

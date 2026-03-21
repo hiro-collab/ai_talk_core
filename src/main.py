@@ -84,10 +84,23 @@ def required_repeat_count_for_final(text: str) -> int:
     return 3
 
 
+def has_stable_duration_for_final(
+    text: str,
+    repeat_count: int,
+    chunk_duration: int,
+) -> bool:
+    """Return whether a transcript stayed stable long enough to finalize."""
+    if len(text) < 6:
+        return False
+    stable_seconds = repeat_count * chunk_duration
+    return stable_seconds >= 8
+
+
 def should_mark_result_final(
     result: TranscriptionResult,
     repeat_count: int,
     is_last_iteration: bool,
+    chunk_duration: int,
 ) -> bool:
     """Decide whether a mic-loop result can be treated as final."""
     if is_last_iteration:
@@ -97,7 +110,9 @@ def should_mark_result_final(
         return False
     if len(current_text) < 3:
         return False
-    return repeat_count >= required_repeat_count_for_final(current_text)
+    if repeat_count >= required_repeat_count_for_final(current_text):
+        return True
+    return has_stable_duration_for_final(current_text, repeat_count, chunk_duration)
 
 
 def maybe_finalize_on_silence(
@@ -211,7 +226,7 @@ def run_mic_loop(
                 last_spoken_result = result
             else:
                 repeat_count = 0
-            if should_mark_result_final(result, repeat_count, is_last_iteration):
+            if should_mark_result_final(result, repeat_count, is_last_iteration, duration):
                 result = replace(result, is_final=True)
             if result.is_final and not result.is_silence and normalized_text:
                 finalized_text = normalized_text

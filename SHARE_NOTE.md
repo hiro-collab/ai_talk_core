@@ -7,7 +7,7 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `dfb0c2c Add Codex handoff runner bridge`
 - latest applied review status:
-  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback
+  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
 
@@ -30,7 +30,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 57 件の smoke test 成功
+- `uv run python smoke_test.py` で 59 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -67,6 +67,7 @@
 - `mic-loop` は `Ctrl+C` 停止時も、未確定の最後の発話を `final` として flush できるようになった
 - `mic-loop` は十分に長い同一発話であれば、2 回連続でも `final` に寄せるようになった
 - `--mic-loop` では `--vad-aggressiveness 0..3` で WebRTC VAD の強さを調整できる
+- 中くらい以上の発話は、安定時間が十分長ければ `final` に寄せるようになった
 - README の Architecture 図を handoff / runner まで含む最新構成に更新した
 
 ## Next tasks
@@ -95,6 +96,7 @@
 - 長い発話は 2 回連続、短い発話は 3 回連続を基準に `final` へ寄せる
 - VAD のしきい値は CLI から調整できるようにした
 - `codex-exec` は PATH に `codex` が無い場合、実行前に入力エラーで止まる
+- `final` 判定には repeat 回数に加えて安定時間も使うようにした
 
 ## Review-derived actions
 

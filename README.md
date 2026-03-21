@@ -194,6 +194,7 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 `Ctrl+C` で停止した場合も、直前の安定した発話は `final` として 1 回だけ flush を試みます。
 また、十分に長い同一発話は 2 回連続でも `final` に寄せます。短い断片は引き続き厳しめです。
 必要なら `--vad-aggressiveness 0..3` で WebRTC VAD のしきい値を調整できます。
+さらに、中くらい以上の発話は安定時間が十分長ければ `final` に寄せます。
 
 転写結果と Codex 用の指示草案を同時に表示:
 

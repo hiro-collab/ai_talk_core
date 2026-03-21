@@ -160,6 +160,7 @@
 - `src/main.py` に `required_repeat_count_for_final()` を追加し、十分に長い発話は 2 回連続でも `final` に寄せるよう変更
 - `src/io/microphone.py` に `validate_vad_aggressiveness()` を追加し、`src/main.py` の `--mic-loop` から `--vad-aggressiveness 0..3` を受けられるよう変更
 - `src/codex_runner.py` に `validate_runner_command_available()` を追加し、`codex-exec` を含む runner 実行前に PATH / 絶対パスの存在を検証するよう変更
+- `src/main.py` に `has_stable_duration_for_final()` を追加し、中くらい以上の発話は安定時間でも `final` に寄せられるよう変更
 - `README.md` の Architecture / Handoff Flow 図を、`codex_bridge` / `codex_handoff` / `codex_runner` を含む構成に更新
 - `uv run python -m py_compile src/codex_runner.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python -m py_compile src/io/audio.py src/codex_runner.py smoke_test.py` を実行し、構文が正しいことを確認
@@ -172,3 +173,5 @@
 - `uv run python smoke_test.py` を実行し、54 件の smoke test が成功することを確認
 - `uv run python -m py_compile src/codex_runner.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、57 件の smoke test が成功することを確認
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、59 件の smoke test が成功することを確認
