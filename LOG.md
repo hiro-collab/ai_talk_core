@@ -134,5 +134,6 @@
 - `src/web/app.py` に `command_only` チェックボックスを追加し、Web UI からも Codex 指示草案優先の応答を選べるよう変更
 - `uv add webrtcvad` を実行し、VAD ライブラリを追加
 - `src/io/microphone.py` の無音検出を `webrtcvad` ベースに置き換え
-- `uv run python -m py_compile src/core/llm.py src/main.py src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
-- `uv run python smoke_test.py` を実行し、21 件の smoke test が成功することを確認
+- `src/main.py` の `partial/final` 判定で、短すぎる断片は `final` に寄せにくくする調整を追加
+- `uv run python -m py_compile src/main.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を実行し、25 件の smoke test が成功することを確認

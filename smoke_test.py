@@ -250,6 +250,16 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertFalse(should_mark_result_final(result, "こんにちは", False))
 
+    def test_short_transcript_does_not_mark_result_final(self) -> None:
+        """Very short repeated transcripts should remain partial."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="はい",
+            is_final=False,
+            chunk_count=2,
+        )
+        self.assertFalse(should_mark_result_final(result, "はい", False))
+
     def test_normalize_transcript_text_collapses_whitespace(self) -> None:
         """Transcript normalization should collapse redundant whitespace."""
         self.assertEqual(normalize_transcript_text("  こんにちは   世界 "), "こんにちは 世界")

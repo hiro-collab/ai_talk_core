@@ -57,15 +57,16 @@
 - VAD の導入方針を決める
 - `partial` を `final` に切り替える条件を高度化する
 - `--mic-loop` は有限ループ最終回に加えて、同一結果の連続でも `final` に寄せるようになった
-- `--mic-loop` は `ffmpeg` の `silencedetect` でほぼ無音のチャンクを軽くスキップするようになった
 - `webrtcvad` ベースの speech detection を追加した
 - 無音チャンクは CLI で `[silence N] silence detected` と表示するようになった
 - CLI に `--emit-command` を追加した
 - CLI に `--command-only` を追加した
+- 短すぎる断片は `partial` のままにして、誤認識を `final` に寄せにくくした
 
 ## Review-derived actions
 
 - 有限ループ最終回以外の `final` 条件として、同一結果の連続を反映済み
+- 短すぎる断片は `final` に寄せにくくする調整を反映済み
 - 無音チャンクを Whisper に渡しにくくする軽い VAD 相当を反映済み
 - VAD は未着手
 - `webrtcvad` ベースの speech detection を反映済み

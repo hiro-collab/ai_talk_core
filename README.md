@@ -235,6 +235,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 - 無音チャンクは CLI では `[silence N] silence detected` と表示します
 - `AudioBuffer` は入っていますが、`buffer -> partial/final` の扱いはまだ未実装です
 - `--mic-loop` では通常チャンクを `partial` として表示し、有限ループの最後または同一結果の連続時に `final` へ寄せます
+- 短すぎる断片は `partial` のままにして、誤認識を `final` に寄せにくくしています
 - 発話区間検出としての VAD は未実装です
 - ブラウザ録音の連続実行は smoke test では拾えないため、実ブラウザでの確認が必要です
 

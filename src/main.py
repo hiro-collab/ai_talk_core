@@ -68,6 +68,8 @@ def should_mark_result_final(
     current_text = normalize_transcript_text(result.text)
     if not current_text:
         return False
+    if len(current_text) < 3:
+        return False
     return current_text == previous_text
 
 
