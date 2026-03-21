@@ -35,5 +35,34 @@
 - `uv run python -m src.main --mic --duration 5 --mic-device plughw:2,0 --language ja` を実行し、固定時間マイク録音から文字起こしまで成功することを確認
 - `src/io/microphone.py` で `arecord -l` から `HD Pro Webcam C920` を優先するデフォルトデバイス選択を追加
 - `uv run python -m src.main --mic --duration 5 --language ja` を実行し、`--mic-device` 省略時でも文字起こし成功を確認
+- `smoke_test.py` を追加
+- `uv run python smoke_test.py` を実行し、3 件の smoke test が成功することを確認
+- `src/main.py` に `--mic-loop` と `--iterations` を追加
+- `uv run python -m src.main --iterations 2 data/sample_audio.mp3` を実行し、`Input error: --iterations can only be used with --mic-loop` を確認
+- `uv run python -m src.main --mic --mic-loop` を実行し、`Input error: --mic and --mic-loop cannot be used together` を確認
+- `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` を実行し、擬似リアルタイムループの 1 回実行成功を確認
 - `sed -n '1,240p' REVIEWER_INSTRUCTIONS.md` を実行し、レビュー記録ルールを確認
 - `sed -n '1,240p' REVIEW.md`, `SHARE_NOTE.md`, `LOG.md`, `MEMORY.md` を実行し、既存記録内容を確認
+- `nl -ba src/main.py | sed -n '1,260p'` を実行し、最新の CLI 実装を確認
+- `nl -ba src/io/audio.py | sed -n '1,340p'` を実行し、最新の音声処理実装を確認
+- `nl -ba src/io/microphone.py | sed -n '1,340p'` を実行し、最新のマイク入力実装を確認
+- `nl -ba README.md | sed -n '1,380p'` を実行し、README の runtime note、smoke test、制約記述を確認
+- `rg --files` を実行し、`smoke_test.py` を含む最新ファイル構成を確認
+- `nl -ba smoke_test.py | sed -n '1,260p'` を実行し、smoke test 実装内容を確認
+- `uv run python smoke_test.py` を実行し、3 件の smoke test が成功することを再確認
+- `rg -n "mic-loop|iterations|capture -> buffer -> transcribe|Realtime|realtime" -S .` を実行し、現行コード・README・ログのリアルタイム関連記述を確認
+- `nl -ba src/main.py | sed -n '1,220p'` を実行し、`--mic-loop` と `run_mic_loop()` の実装を確認
+- `uv run python -m src.main --mic-loop --duration 1 --iterations 0` を実行し、即終了コード 0 になることを確認
+- `uv run python -m src.main` を実行し、`Input error: audio_file is required unless --mic is used` を確認
+- `nl -ba README.md | sed -n '1,420p'` を実行し、初見ユーザー向けのREADMEの分かりやすさを確認
+- `nl -ba src/main.py | sed -n '1,240p'` を実行し、CLI引数とエラーメッセージの分かりやすさを確認
+- `nl -ba smoke_test.py | sed -n '1,260p'` を実行し、READMEで増えた機能説明に対するテスト追従状況を確認
+- `src/main.py` に `validate_iterations()` を追加
+- `uv run python -m src.main` を実行し、`Input error: audio_file is required unless --mic or --mic-loop is used` を確認
+- `uv run python -m src.main --mic-loop --duration 1 --iterations 0` を実行し、`Input error: --iterations must be greater than 0` を確認
+- `smoke_test.py` に `--iterations` と `--no-trim-silence` の確認を追加
+- `uv run python smoke_test.py` を再実行し、6 件の smoke test が成功することを確認
+- `uv add flask` を実行し、Web UI 用依存を追加
+- `src/web/app.py` を追加し、ローカル Web UI を実装
+- `smoke_test.py` に Web UI の index 表示とアップロード経路の確認を追加
+- `uv run python smoke_test.py` を再実行し、8 件の smoke test が成功することを確認

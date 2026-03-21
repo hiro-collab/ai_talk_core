@@ -5,16 +5,18 @@
 - `uv run python -m src.main data/sample_audio.mp3 --language ja` で文字起こし成功
 - `uv run python -m src.main --mic --duration 5 --mic-device plughw:2,0 --language ja` で文字起こし成功
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
+- `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
+- `uv run python -m src.web.app` でローカル Web UI を起動可能
+- `uv run python smoke_test.py` で 8 件の smoke test 成功
 - Whisper モデルは `models/whisper/small.pt`
 - GPU 利用を確認済み (`cuda:0`)
 - `HD Pro Webcam C920` で録音確認済み
 
 ## Next tasks
 
-- README に CUDA / CPU fallback の再現条件を補強する
-- 録音処理の専用モジュール境界をもう一段整理する
-- VAD / silence trim の最小導入方針を決める
-- 成功系と主要失敗系の smoke test を追加する
+- `--mic-loop` の出力確定方針を決める
+- VAD の導入方針を決める
+- `capture -> buffer -> transcribe` の分離方針を決める
 
 ## Review-derived actions
 
@@ -22,9 +24,12 @@
 - 不正モデル名の `Input error` 分類は反映済み
 - 録音処理の分離は反映済み
 - 固定時間マイク録音 CLI は反映済み
-- CUDA / CPU fallback の README 追記は未着手
-- VAD / silence trim は未着手
-- smoke test は未着手
+- `--mic-loop` による擬似リアルタイム処理は反映済み
+- ローカル Web UI は反映済み
+- CUDA / CPU fallback の README 追記は反映済み
+- `silenceremove` による軽い無音トリムは反映済み
+- VAD は未着手
+- smoke test は反映済み
 
 ## Handover notes
 

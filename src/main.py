@@ -18,6 +18,42 @@ from src.io.audio import (
 from src.io.microphone import get_temp_recording_path, record_microphone_audio
 
 
+def run_mic_loop(
+    duration: int,
+    mic_device: str,
+    model_name: str,
+    language: str | None,
+    iterations: int | None,
+    trim_silence_enabled: bool,
+) -> int:
+    """Record and transcribe microphone chunks until interrupted."""
+    model = load_transcription_model(model_name=model_name)
+    completed_iterations = 0
+
+    try:
+        while iterations is None or completed_iterations < iterations:
+            audio_path = record_microphone_audio(
+                output_path=get_temp_recording_path(),
+                duration=duration,
+                device=mic_device,
+                trim_silence_enabled=trim_silence_enabled,
+            )
+            text = transcribe_file(audio_path=audio_path, model=model, language=language)
+            print(text)
+            completed_iterations += 1
+    except KeyboardInterrupt:
+        print("Stopped microphone loop.")
+        return 0
+
+    return 0
+
+
+def validate_iterations(iterations: int | None) -> None:
+    """Validate optional mic-loop iteration count."""
+    if iterations is not None and iterations <= 0:
+        raise AudioInputError("--iterations must be greater than 0")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -34,10 +70,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Record from the microphone for a fixed duration.",
     )
     parser.add_argument(
+        "--mic-loop",
+        action="store_true",
+        help="Repeat fixed-duration microphone recording until interrupted.",
+    )
+    parser.add_argument(
         "--duration",
         type=int,
         default=5,
-        help="Recording duration in seconds for --mic. Default: 5",
+        help="Recording duration in seconds for --mic or --mic-loop. Default: 5",
     )
     parser.add_argument(
         "--mic-device",
@@ -54,6 +95,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional language code such as ja or en.",
     )
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        default=None,
+        help="Optional iteration count for --mic-loop. Default: run until Ctrl+C",
+    )
+    parser.add_argument(
+        "--no-trim-silence",
+        action="store_true",
+        help="Disable ffmpeg-based silence trimming for microphone recordings.",
+    )
     return parser
 
 
@@ -64,6 +116,22 @@ def main() -> int:
     try:
         validate_model_name(args.model)
         ensure_ffmpeg_available()
+        if args.mic and args.mic_loop:
+            raise AudioInputError("--mic and --mic-loop cannot be used together")
+        validate_iterations(args.iterations)
+        if args.iterations is not None and not args.mic_loop:
+            raise AudioInputError("--iterations can only be used with --mic-loop")
+        if args.mic_loop:
+            if args.audio_file is not None:
+                raise AudioInputError("audio_file cannot be used together with --mic-loop")
+            return run_mic_loop(
+                duration=args.duration,
+                mic_device=args.mic_device,
+                model_name=args.model,
+                language=args.language,
+                iterations=args.iterations,
+                trim_silence_enabled=not args.no_trim_silence,
+            )
         if args.mic:
             if args.audio_file is not None:
                 raise AudioInputError("audio_file cannot be used together with --mic")
@@ -71,10 +139,13 @@ def main() -> int:
                 output_path=get_temp_recording_path(),
                 duration=args.duration,
                 device=args.mic_device,
+                trim_silence_enabled=not args.no_trim_silence,
             )
         else:
             if not args.audio_file:
-                raise AudioInputError("audio_file is required unless --mic is used")
+                raise AudioInputError(
+                    "audio_file is required unless --mic or --mic-loop is used"
+                )
             audio_path = Path(args.audio_file).expanduser().resolve()
             validate_audio_file(audio_path)
         model = load_transcription_model(model_name=args.model)

@@ -1,14 +1,19 @@
 # ai_core
 
 Whisper を使ってローカル音声ファイルを文字起こしする最小構成です。
-現在は `file input -> Whisper -> text` と、固定時間の `mic -> Whisper -> text` を対象にしています。
+現在は `file input -> Whisper -> text`、固定時間の `mic -> Whisper -> text`、および簡易ループの `mic-loop -> Whisper -> text` を対象にしています。
 
 ## Overview
 
+- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、軽い無音トリム
+- まだできないこと: 真のリアルタイム streaming、partial/final 出し分け、VAD
 - ローカル音声ファイルを入力し、Whisper で文字起こしします
 - 固定時間のマイク録音から文字起こしする最小 CLI も使えます
+- `--mic-loop` で擬似リアルタイムの反復処理を試せます
+- ローカル Web UI からファイルアップロードやブラウザ録音でも文字起こしできます
 - `HD Pro Webcam C920` で録音自体は確認済みです
-- 常時動作のマイク入力 CLI とノイズ対策は未実装です
+- マイク録音では軽い無音トリムを有効化できます
+- 常時動作のマイク入力 CLI と本格的なノイズ対策は未実装です
 
 ## Requirements
 
@@ -20,12 +25,31 @@ Whisper を使ってローカル音声ファイルを文字起こしする最小
 - GPU は任意です
 - 現在の開発環境では CUDA 利用を確認済みです
 
+## Runtime notes
+
+- 現在の確認環境では `torch 2.10.0+cu128`, `torch.cuda.is_available() == True` でした
+- GPU 利用は PyTorch の CUDA 対応ビルドと NVIDIA ドライバが正しく揃っていることが前提です
+- `pyproject.toml` では Torch の CUDA バリアントを固定していないため、別マシンでは CPU 版 Torch が入る可能性があります
+- CPU 版 Torch が入った場合でも CLI は動作しますが、Whisper は CPU fallback で遅くなります
+
 ## Setup
 
 依存同期:
 
 ```bash
 uv sync
+```
+
+smoke test 実行:
+
+```bash
+uv run python smoke_test.py
+```
+
+Web UI 起動:
+
+```bash
+uv run python -m src.web.app
 ```
 
 ## Quick start
@@ -47,6 +71,20 @@ uv run python -m src.main data/mic_speech_test_c920_retry.wav --language ja
 ```bash
 uv run python -m src.main --mic --duration 5 --language ja
 ```
+
+マイクから 3 秒ごとに繰り返し文字起こし:
+
+```bash
+uv run python -m src.main --mic-loop --duration 3 --language ja
+```
+
+ブラウザ GUI を起動:
+
+```bash
+uv run python -m src.web.app
+```
+
+起動後に `http://127.0.0.1:8000` を開きます。
 
 このマシンでは `--mic-device` を省略した場合、`HD Pro Webcam C920` が見つかれば自動的に優先されます。
 
@@ -76,10 +114,28 @@ uv run python -m src.main /path/to/audio.wav --model base
 uv run python -m src.main --mic --duration 5 --language ja
 ```
 
+マイクループ:
+
+```bash
+uv run python -m src.main --mic-loop --duration 3 --language ja
+```
+
+2 回だけループして確認:
+
+```bash
+uv run python -m src.main --mic-loop --duration 3 --iterations 2 --language ja
+```
+
 マイクデバイス指定:
 
 ```bash
 uv run python -m src.main --mic --duration 5 --mic-device plughw:2,0 --language ja
+```
+
+無音トリムを無効化:
+
+```bash
+uv run python -m src.main --mic --duration 5 --no-trim-silence --language ja
 ```
 
 サンプル音声:
@@ -87,12 +143,6 @@ uv run python -m src.main --mic --duration 5 --mic-device plughw:2,0 --language 
 ```bash
 uv run python -m src.main data/sample_audio.mp3 --language ja
 ```
-
-エラー種別:
-
-- `Input error`: ファイルパス、拡張子、モデル名などの入力不備
-- `Environment error`: `ffmpeg` / `arecord` 不在、モデルロード失敗、CUDA 実行環境不備
-- `Transcription error`: Whisper 実行中の失敗
 
 ## Directory structure
 
@@ -103,6 +153,7 @@ ai_core/
 ├── src/main.py          # CLI エントリポイント
 ├── src/io/audio.py      # 音声文字起こし
 ├── src/io/microphone.py # 固定時間マイク録音
+├── src/web/app.py       # ローカル Web UI
 ├── MEMORY.md            # 長期前提・設計判断
 ├── REVIEW.md            # レビュー結果
 ├── REVIEWER_INSTRUCTIONS.md # レビュアー向け記録ルール
@@ -114,7 +165,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 
 ## 入出力
 
-- 入力: ローカル音声ファイル、または固定時間のマイク録音
+- 入力: ローカル音声ファイル、固定時間のマイク録音、または簡易マイクループ
 - 対応拡張子: `.mp3`, `.wav`, `.m4a`, `.mp4`, `.mpeg`, `.mpga`, `.webm`
 - 出力: 文字起こし結果を標準出力へ表示
 - 既定モデル: `small`
@@ -123,6 +174,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 
 - Whisper のモデルは `models/whisper` に保存されます
 - モデルファイルは容量が大きいため、VCS 管理対象外にします
+- プロジェクトごとにモデルを持つ方針なので、複数プロジェクトで Whisper を使うと保存容量は重複します
 
 ## サンプル結果
 
@@ -143,11 +195,17 @@ Whisper のモデルは `models/whisper` に保存されます。
 - GPU が使える環境では CUDA を利用します
 - GPU が使えない場合は CPU 実行になります
 - `ffmpeg` が無い環境では文字起こしに失敗します
-- 現状はローカル音声ファイルのみ対応しています
-- マイク録音は固定時間のみで、常時ストリーミングは未対応です
-- 録音音声はそのまま投入しており、VAD や無音トリムは未実装です
+- マイク入力は固定時間録音の反復であり、真のストリーミング処理ではありません
+- 録音音声は `ffmpeg` の `silenceremove` で軽く前後トリムできます
+- 発話区間検出としての VAD は未実装です
 
 ## Troubleshooting
+
+エラー種別:
+
+- `Input error`: ファイルパス、拡張子、モデル名、CLI 引数の入力不備
+- `Environment error`: `ffmpeg` / `arecord` 不在、モデルロード失敗、無音トリム失敗、CUDA 実行環境不備
+- `Transcription error`: Whisper 実行中の失敗
 
 - `Input error: audio file not found`
   指定したファイルパスを確認してください
@@ -163,9 +221,15 @@ Whisper のモデルは `models/whisper` に保存されます。
   `arecord -l` が成功するか確認してください
 - `Environment error: microphone recording failed: ...`
   デバイス名やマイク接続状態を確認してください
+- `Environment error: silence trimming failed: ...`
+  `ffmpeg` が利用可能か、入力 wav が壊れていないか確認してください
 - `Environment error: failed to load Whisper model ...`
   モデル取得や CUDA 実行環境を確認してください
+- `Ctrl+C`
+  `--mic-loop` の停止に使用します
 - GPU が使えない環境では CPU fallback で遅くなる場合があります
+- `uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.version.cuda)"`
+  で現在の Torch / CUDA 状態を確認できます
 
 ## Recording files
 
@@ -177,6 +241,7 @@ Whisper のモデルは `models/whisper` に保存されます。
 
 ## 今後の予定
 
-- マイク入力対応
-- VAD / 無音トリム
+- 出力確定方針の整理
+- VAD
 - ノイズ対策
+- 真のリアルタイム処理
