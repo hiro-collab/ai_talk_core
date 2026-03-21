@@ -88,6 +88,33 @@ def should_mark_result_final(
     return repeat_count >= 3
 
 
+def maybe_finalize_on_silence(
+    result: TranscriptionResult,
+    last_spoken_result: TranscriptionResult | None,
+    repeat_count: int,
+    finalized_text: str | None,
+) -> TranscriptionResult:
+    """Convert a silence chunk into a final result when speech just ended."""
+    if not result.is_silence:
+        return result
+    if last_spoken_result is None:
+        return result
+    spoken_text = normalize_transcript_text(last_spoken_result.text)
+    if not spoken_text or len(spoken_text) < 3:
+        return result
+    if spoken_text == finalized_text:
+        return result
+    if repeat_count < 2:
+        return result
+    return TranscriptionResult(
+        source=last_spoken_result.source,
+        text=last_spoken_result.text,
+        is_final=True,
+        chunk_count=result.chunk_count,
+        is_silence=False,
+    )
+
+
 def run_mic_loop(
     duration: int,
     mic_device: str,
@@ -105,6 +132,8 @@ def run_mic_loop(
     completed_iterations = 0
     previous_text: str | None = None
     repeat_count = 0
+    last_spoken_result: TranscriptionResult | None = None
+    finalized_text: str | None = None
 
     try:
         while iterations is None or completed_iterations < iterations:
@@ -131,17 +160,26 @@ def run_mic_loop(
                     chunk_count=len(buffer.chunks),
                     is_silence=True,
                 )
+            result = maybe_finalize_on_silence(
+                result=result,
+                last_spoken_result=last_spoken_result,
+                repeat_count=repeat_count,
+                finalized_text=finalized_text,
+            )
             normalized_text = normalize_transcript_text(result.text)
-            if normalized_text:
+            if normalized_text and not result.is_silence:
                 if normalized_text == previous_text:
                     repeat_count += 1
                 else:
                     repeat_count = 1
                 previous_text = normalized_text
+                last_spoken_result = result
             else:
                 repeat_count = 0
             if should_mark_result_final(result, repeat_count, is_last_iteration):
                 result = replace(result, is_final=True)
+            if result.is_final and not result.is_silence and normalized_text:
+                finalized_text = normalized_text
             if command_only:
                 print_codex_instruction_only(result.text)
             else:

@@ -152,3 +152,4 @@
 - `src/core/codex_bridge.py` に最新 handoff 読み込みを追加し、`/api/codex-handoff-latest` から取得できるよう変更
 - `src/codex_handoff.py` を追加し、ローカル CLI から最新 handoff を読む経路を追加
 - `src/codex_runner.py` を追加し、最新 handoff を任意コマンドの stdin に流せるよう変更
+- `src/main.py` の `mic-loop` で、安定した発話の直後に無音が来た場合は直前発話を `final` とみなす補助ルールを追加

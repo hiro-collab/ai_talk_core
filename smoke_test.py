@@ -22,6 +22,7 @@ from src.core.codex_bridge import (
 from src.core.llm import build_codex_instruction
 from src.main import (
     format_transcription_result,
+    maybe_finalize_on_silence,
     normalize_transcript_text,
     print_codex_instruction_only,
     should_mark_result_final,
@@ -482,6 +483,54 @@ class SmokeTests(unittest.TestCase):
             is_silence=True,
         )
         self.assertEqual(format_transcription_result(result), "[silence 4] silence detected")
+
+    def test_maybe_finalize_on_silence_returns_final_result(self) -> None:
+        """A silence chunk after repeated speech should finalize the last speech."""
+        silence_result = TranscriptionResult(
+            source="microphone",
+            text="",
+            is_final=False,
+            chunk_count=5,
+            is_silence=True,
+        )
+        last_spoken_result = TranscriptionResult(
+            source="microphone",
+            text="依存関係を確認して",
+            is_final=False,
+            chunk_count=4,
+        )
+        final_result = maybe_finalize_on_silence(
+            result=silence_result,
+            last_spoken_result=last_spoken_result,
+            repeat_count=2,
+            finalized_text=None,
+        )
+        self.assertTrue(final_result.is_final)
+        self.assertFalse(final_result.is_silence)
+        self.assertEqual(final_result.text, "依存関係を確認して")
+
+    def test_maybe_finalize_on_silence_keeps_silence_without_repeat(self) -> None:
+        """Silence should remain silence when speech was not yet stable."""
+        silence_result = TranscriptionResult(
+            source="microphone",
+            text="",
+            is_final=False,
+            chunk_count=5,
+            is_silence=True,
+        )
+        last_spoken_result = TranscriptionResult(
+            source="microphone",
+            text="依存関係を確認して",
+            is_final=False,
+            chunk_count=4,
+        )
+        final_result = maybe_finalize_on_silence(
+            result=silence_result,
+            last_spoken_result=last_spoken_result,
+            repeat_count=1,
+            finalized_text=None,
+        )
+        self.assertTrue(final_result.is_silence)
 
     def test_build_codex_instruction_returns_none_for_blank(self) -> None:
         """Blank transcripts should not produce instruction drafts."""

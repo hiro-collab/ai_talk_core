@@ -79,6 +79,7 @@
 - 他プロセスが最新 handoff を取りに来る API 境界を追加した
 - Web を経由せずローカル handoff を読む CLI 境界も追加した
 - ローカルの Codex 実行プロセスへ handoff を渡す bridge を追加した
+- 無音チャンク直後に直前発話を `final` とみなす補助ルールを追加した
 
 ## Review-derived actions
 
