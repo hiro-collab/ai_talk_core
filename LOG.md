@@ -149,3 +149,4 @@
 - `src/core/codex_bridge.py` に handoff bundle 保存を追加し、JSON に加えて `.txt` prompt も保存するよう変更
 - `src/web/app.py` の応答に `command_text_path` を追加し、Web/UI から保存先を確認できるよう変更
 - `src/core/codex_bridge.py` の `.txt` 出力を bare command から Codex 向け prompt 形式へ変更
+- `src/core/codex_bridge.py` に最新 handoff 読み込みを追加し、`/api/codex-handoff-latest` から取得できるよう変更

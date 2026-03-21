@@ -14,6 +14,7 @@ from src.core.codex_bridge import (
     build_codex_payload,
     get_default_codex_output_path,
     get_default_codex_text_path,
+    load_codex_handoff_bundle,
     render_codex_prompt,
     save_codex_handoff_bundle,
     save_codex_payload,
@@ -266,6 +267,35 @@ class SmokeTests(unittest.TestCase):
         output_path.unlink()
         text_path.unlink()
 
+    def test_api_codex_handoff_latest_returns_saved_bundle(self) -> None:
+        """Latest handoff API should return saved prompt bundle contents."""
+        output_path = get_default_codex_output_path(source="web")
+        text_path = get_default_codex_text_path(source="web")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=output_path,
+            text_path=text_path,
+        )
+        response = self.client.get("/api/codex-handoff-latest?source=web")
+        self.assertEqual(response.status_code, 200)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertEqual(payload_json["command"], "依存関係を確認して")
+        self.assertIn("Voice transcript:", payload_json["prompt_text"])
+        output_path.unlink()
+        text_path.unlink()
+
+    def test_api_codex_handoff_latest_returns_404_without_bundle(self) -> None:
+        """Latest handoff API should return 404 when no bundle exists."""
+        output_path = get_default_codex_output_path(source="missing")
+        text_path = get_default_codex_text_path(source="missing")
+        if output_path.exists():
+            output_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
+        response = self.client.get("/api/codex-handoff-latest?source=missing")
+        self.assertEqual(response.status_code, 404)
+
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
         response = self.client.post("/api/transcribe-upload", data={}, content_type="multipart/form-data")
@@ -421,6 +451,23 @@ class SmokeTests(unittest.TestCase):
             text_path.read_text(encoding="utf-8"),
             "Voice transcript:\n依存関係を 確認して\n\nRequested task:\n依存関係を 確認して\n",
         )
+        json_path.unlink()
+        text_path.unlink()
+
+    def test_load_codex_handoff_bundle_returns_saved_contents(self) -> None:
+        """Handoff loader should return saved JSON and prompt text."""
+        json_path = get_default_codex_output_path(source="loader_test")
+        text_path = get_default_codex_text_path(source="loader_test")
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        handoff = load_codex_handoff_bundle(source="loader_test")
+        self.assertIsNotNone(handoff)
+        assert handoff is not None
+        self.assertEqual(handoff.command, "依存関係を確認して")
+        self.assertIn("Requested task:", handoff.prompt_text)
         json_path.unlink()
         text_path.unlink()
 

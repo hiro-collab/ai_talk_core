@@ -116,6 +116,12 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 
 `save_command=true` を送ると、プロジェクト内 `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に handoff を保存し、応答 JSON に `command_path` と `command_text_path` を返します。
 
+保存済み handoff を取得:
+
+```bash
+curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
+```
+
 ## Quick start
 
 ```bash

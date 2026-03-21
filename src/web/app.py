@@ -13,6 +13,7 @@ from src.core.codex_bridge import (
     build_codex_payload,
     get_default_codex_output_path,
     get_default_codex_text_path,
+    load_codex_handoff_bundle,
     save_codex_handoff_bundle,
 )
 from src.core.pipeline import AudioChunk, TranscriptionPipeline
@@ -529,6 +530,23 @@ def create_app() -> Flask:
             file_storage.filename,
             message="ブラウザ録音を処理しました。",
         )
+
+    @app.get("/api/codex-handoff-latest")
+    def api_codex_handoff_latest() -> tuple[object, int]:
+        source = request.args.get("source", "web").strip() or "web"
+        handoff = load_codex_handoff_bundle(source=source)
+        if handoff is None:
+            return jsonify({"error": f"Codex handoff not found for source: {source}"}), 404
+        return jsonify(
+            {
+                "transcript": handoff.transcript,
+                "command": handoff.command,
+                "prompt_text": handoff.prompt_text,
+                "command_path": str(handoff.json_path),
+                "command_text_path": str(handoff.text_path),
+                "source": source,
+            }
+        ), 200
 
     return app
 

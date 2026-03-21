@@ -25,6 +25,17 @@ class CodexSavedPaths:
     text_path: Path
 
 
+@dataclass(frozen=True)
+class CodexHandoff:
+    """Loaded Codex handoff bundle contents."""
+
+    transcript: str
+    command: str
+    prompt_text: str
+    json_path: Path
+    text_path: Path
+
+
 def get_default_codex_output_path(source: str = "manual") -> Path:
     """Return a project-local default path for saved Codex payloads."""
     project_root = Path(__file__).resolve().parents[2]
@@ -97,4 +108,21 @@ def save_codex_handoff_bundle(
     return CodexSavedPaths(
         json_path=saved_json_path,
         text_path=saved_text_path,
+    )
+
+
+def load_codex_handoff_bundle(source: str = "manual") -> CodexHandoff | None:
+    """Load the latest saved Codex handoff bundle for a source."""
+    json_path = get_default_codex_output_path(source=source)
+    text_path = get_default_codex_text_path(source=source)
+    if not json_path.exists() or not text_path.exists():
+        return None
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    prompt_text = text_path.read_text(encoding="utf-8")
+    return CodexHandoff(
+        transcript=payload["transcript"],
+        command=payload["command"],
+        prompt_text=prompt_text,
+        json_path=json_path,
+        text_path=text_path,
     )
