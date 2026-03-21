@@ -59,6 +59,7 @@ Status: partially adopted
 - `src/main.py` で入力ファイル検証、モデル名検証、`ffmpeg` 確認をモデルロード前に実施
 - `src/io/audio.py` で不正モデル名を `Input error` に分類するよう修正
 - `src/io/microphone.py` を追加し、録音処理を音声文字起こし処理から分離
+- `src/core/pipeline.py` を追加し、CLI と Web UI で共通の capture -> transcribe 経路を共有
 - `--mic --duration` による固定時間マイク録音 CLI を追加
 - `--mic-loop` と `--iterations` による擬似リアルタイムの反復 CLI を追加
 - `--no-trim-silence` による軽い無音トリムの ON/OFF 切替を追加
@@ -74,5 +75,5 @@ Status: partially adopted
 
 #### Open
 
-- リアルタイム用の API 境界は未実装
+- `buffer -> partial/final` のリアルタイム用 API 境界は未実装
 - VAD は未実装

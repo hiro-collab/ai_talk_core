@@ -5,13 +5,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from src.core.pipeline import AudioChunk, TranscriptionPipeline
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
     AudioTranscriptionError,
     ensure_ffmpeg_available,
-    load_transcription_model,
-    transcribe_file,
     validate_audio_file,
     validate_model_name,
 )
@@ -27,7 +26,7 @@ def run_mic_loop(
     trim_silence_enabled: bool,
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
-    model = load_transcription_model(model_name=model_name)
+    pipeline = TranscriptionPipeline(model_name=model_name)
     completed_iterations = 0
 
     try:
@@ -38,7 +37,10 @@ def run_mic_loop(
                 device=mic_device,
                 trim_silence_enabled=trim_silence_enabled,
             )
-            text = transcribe_file(audio_path=audio_path, model=model, language=language)
+            text = pipeline.transcribe_chunk(
+                AudioChunk(path=audio_path, source="microphone"),
+                language=language,
+            )
             print(text)
             completed_iterations += 1
     except KeyboardInterrupt:
@@ -148,8 +150,14 @@ def main() -> int:
                 )
             audio_path = Path(args.audio_file).expanduser().resolve()
             validate_audio_file(audio_path)
-        model = load_transcription_model(model_name=args.model)
-        text = transcribe_file(audio_path=audio_path, model=model, language=args.language)
+        pipeline = TranscriptionPipeline(model_name=args.model)
+        text = pipeline.transcribe_chunk(
+            AudioChunk(
+                path=audio_path,
+                source="microphone" if args.mic else "file",
+            ),
+            language=args.language,
+        )
     except AudioInputError as exc:
         print(f"Input error: {exc}")
         return 1

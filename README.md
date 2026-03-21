@@ -150,6 +150,7 @@ uv run python -m src.main data/sample_audio.mp3 --language ja
 ai_core/
 ├── data/                # 入力音声サンプル
 ├── models/whisper/      # Whisper モデル保存先
+├── src/core/pipeline.py # capture -> transcribe の共通経路
 ├── src/main.py          # CLI エントリポイント
 ├── src/io/audio.py      # 音声文字起こし
 ├── src/io/microphone.py # 固定時間マイク録音

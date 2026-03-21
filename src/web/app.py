@@ -8,13 +8,12 @@ from pathlib import Path
 from flask import Flask, render_template_string, request
 from werkzeug.utils import secure_filename
 
+from src.core.pipeline import AudioChunk, TranscriptionPipeline
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
     AudioTranscriptionError,
     ensure_ffmpeg_available,
-    load_transcription_model,
-    transcribe_file,
     validate_model_name,
 )
 
@@ -325,8 +324,11 @@ def handle_transcription(
         validate_model_name(model_name)
         ensure_ffmpeg_available()
         temp_path.write_bytes(raw_bytes)
-        model = load_transcription_model(model_name)
-        transcript = transcribe_file(temp_path, model=model, language=language)
+        pipeline = TranscriptionPipeline(model_name=model_name)
+        transcript = pipeline.transcribe_chunk(
+            AudioChunk(path=temp_path, source="web"),
+            language=language,
+        )
     except AudioInputError as exc:
         return render_page(error=f"Input error: {escape(str(exc))}")
     except AudioEnvironmentError as exc:

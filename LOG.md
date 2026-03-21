@@ -66,3 +66,4 @@
 - `src/web/app.py` を追加し、ローカル Web UI を実装
 - `smoke_test.py` に Web UI の index 表示とアップロード経路の確認を追加
 - `uv run python smoke_test.py` を再実行し、8 件の smoke test が成功することを確認
+- `src/core/pipeline.py` を追加し、CLI と Web UI の共通文字起こし経路を実装
