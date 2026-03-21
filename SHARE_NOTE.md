@@ -7,7 +7,7 @@
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
 - latest reviewed commit: `8cdbfae Group runner implementations under src/runners`
 - latest applied review status:
-  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始, `final` ヒューリスティクスの `src/core/finalization.py` 切り出し, `agent_*` handoff / runner 互換入口の追加
+  - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始, `final` ヒューリスティクスの `src/core/finalization.py` 切り出し, `agent_*` handoff / runner 互換入口の追加, `src/core/handoff_bridge.py` で汎用 handoff 境界の導入開始
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, VAD の実用化, Codex 実行テンプレート
 
@@ -72,6 +72,7 @@
 - `--final-stable-seconds` で `final` に寄せる安定時間を調整できる
 - `partial/final` のヒューリスティクスは `src/main.py` から `src/core/finalization.py` に切り出した
 - `src.agent_handoff` / `src.agent_runner` と `/api/agent-handoff-latest` を追加し、`codex_*` 名に依存しない handoff 取得口も持てるようにした
+- `src/core/handoff_bridge.py` を追加し、Web/API と handoff reader は汎用 handoff 境界を参照し始めた
 - README の Architecture 図を handoff / runner まで含む最新構成に更新した
 
 ## Next tasks

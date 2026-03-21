@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from src.core.codex_bridge import load_codex_handoff_bundle
+from src.core.handoff_bridge import load_handoff_bundle
 from src.io.audio import AudioInputError
 
 
@@ -30,9 +30,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def render_handoff_output(source: str, output_format: str) -> str:
     """Render one view of the latest handoff bundle."""
-    handoff = load_codex_handoff_bundle(source=source)
+    handoff = load_handoff_bundle(source=source)
     if handoff is None:
-        raise AudioInputError(f"Codex handoff not found for source: {source}")
+        raise AudioInputError(f"handoff not found for source: {source}")
     if output_format == "prompt":
         return handoff.prompt_text.rstrip("\n")
     if output_format == "command":

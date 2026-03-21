@@ -22,8 +22,8 @@ flowchart LR
     MIC["Microphone I/O\nsrc/io/microphone.py"]
     AUDIO["Audio I/O\nsrc/io/audio.py"]
     DRAFT["Command Draft\nsrc/core/llm.py"]
-    BRIDGE["Codex Bridge\nsrc/core/codex_bridge.py"]
-    HANDOFF["Handoff Reader\nsrc/codex_handoff.py"]
+    BRIDGE["Handoff Bridge\nsrc/core/handoff_bridge.py"]
+    HANDOFF["Handoff Reader\nsrc.agent_handoff / src.codex_handoff"]
     RUNNER["Runner\nsrc/codex_runner.py"]
     RUNNER_IMPL["Runner impls\nsrc/runners/*"]
     WHISPER["Whisper"]
@@ -68,8 +68,8 @@ flowchart LR
     TRANSCRIBE["transcription result"]
     DRAFT["command draft"]
     SAVE["handoff save\njson + txt"]
-    API["/api/codex-handoff-latest"]
-    CLI["src.codex_handoff"]
+    API["/api/agent-handoff-latest\n/api/codex-handoff-latest"]
+    CLI["src.agent_handoff\nsrc.codex_handoff"]
     RUNNER["src.codex_runner"]
     TARGET["target command / Codex-side process"]
 
@@ -165,7 +165,7 @@ curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
 uv run python -m src.codex_handoff --source web --format prompt
 ```
 
-互換性を保ったまま、より汎用的な入口も使えます:
+互換性を保ったまま、より汎用的な入口も使えます。内部では `src/core/handoff_bridge.py` を参照し始めていますが、既存の `src/core/codex_bridge.py` は互換のため残しています。
 
 ```bash
 curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web

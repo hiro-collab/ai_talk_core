@@ -190,3 +190,5 @@
 - `uv run python smoke_test.py` を実行し、65 件の smoke test が成功することを確認
 - `src/agent_handoff.py` と `src/agent_runner.py` を追加し、既存 `codex_*` wrapper を壊さずに汎用 handoff 入口を追加
 - `src/web/app.py` に `/api/agent-handoff-latest` を追加し、既存 `/api/codex-handoff-latest` の互換別名として同じ handoff を返すよう変更
+- `src/core/handoff_bridge.py` を追加し、`src/web/app.py` と `src/runners/handoff.py` は `codex_bridge` ではなく汎用 handoff 境界を参照し始めた
+- `smoke_test.py` の handoff 保存・読込テストは `src.core.handoff_bridge` を起点に参照するよう更新

@@ -9,12 +9,12 @@ from uuid import uuid4
 from flask import Flask, jsonify, render_template_string, request
 from werkzeug.utils import secure_filename
 
-from src.core.codex_bridge import (
-    build_codex_payload,
-    get_default_codex_output_path,
-    get_default_codex_text_path,
-    load_codex_handoff_bundle,
-    save_codex_handoff_bundle,
+from src.core.handoff_bridge import (
+    build_handoff_payload,
+    get_default_handoff_output_path,
+    get_default_handoff_text_path,
+    load_handoff_bundle,
+    save_handoff_bundle,
 )
 from src.core.pipeline import AudioChunk, TranscriptionPipeline
 from src.io.audio import (
@@ -534,7 +534,7 @@ def create_app() -> Flask:
     def build_handoff_response() -> tuple[object, int]:
         """Return the latest saved handoff bundle as JSON."""
         source = request.args.get("source", "web").strip() or "web"
-        handoff = load_codex_handoff_bundle(source=source)
+        handoff = load_handoff_bundle(source=source)
         if handoff is None:
             return jsonify({"error": f"Codex handoff not found for source: {source}"}), 404
         return jsonify(
@@ -622,13 +622,13 @@ def process_transcription_request(
             AudioChunk(path=audio_path, source="web"),
             language=language,
         )
-        payload = build_codex_payload(transcript)
+        payload = build_handoff_payload(transcript)
         command = "" if payload is None else payload.command
         if save_command:
-            saved_paths = save_codex_handoff_bundle(
+            saved_paths = save_handoff_bundle(
                 transcript,
-                json_path=get_default_codex_output_path(source="web"),
-                text_path=get_default_codex_text_path(source="web"),
+                json_path=get_default_handoff_output_path(source="web"),
+                text_path=get_default_handoff_text_path(source="web"),
             )
             if saved_paths is not None:
                 command_path = str(saved_paths.json_path)

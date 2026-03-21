@@ -11,14 +11,14 @@ import sys
 import unittest
 from unittest import mock
 
-from src.core.codex_bridge import (
-    build_codex_payload,
-    get_default_codex_output_path,
-    get_default_codex_text_path,
-    load_codex_handoff_bundle,
-    render_codex_prompt,
-    save_codex_handoff_bundle,
-    save_codex_payload,
+from src.core.handoff_bridge import (
+    build_handoff_payload,
+    get_default_handoff_output_path,
+    get_default_handoff_text_path,
+    load_handoff_bundle,
+    render_handoff_prompt,
+    save_handoff_bundle,
+    save_handoff_payload,
 )
 from src.core.finalization import (
     has_stable_duration_for_final,
@@ -50,6 +50,14 @@ from src.web.app import create_app
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+
+build_codex_payload = build_handoff_payload
+get_default_codex_output_path = get_default_handoff_output_path
+get_default_codex_text_path = get_default_handoff_text_path
+load_codex_handoff_bundle = load_handoff_bundle
+render_codex_prompt = render_handoff_prompt
+save_codex_handoff_bundle = save_handoff_bundle
+save_codex_payload = save_handoff_payload
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
