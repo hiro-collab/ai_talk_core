@@ -92,6 +92,26 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("こんにちは", response.get_data(as_text=True))
 
+    def test_web_upload_fetch_returns_json(self) -> None:
+        """Fetch-style upload should return JSON for partial page updates."""
+        sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
+        payload = {
+            "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
+            "model": "small",
+            "language": "ja",
+        }
+        response = self.client.post(
+            "/transcribe-upload",
+            data=payload,
+            content_type="multipart/form-data",
+            headers={"X-Requested-With": "fetch"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertIn("こんにちは", payload_json["transcript"])
+
 
 if __name__ == "__main__":
     unittest.main()

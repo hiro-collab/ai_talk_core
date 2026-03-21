@@ -23,7 +23,6 @@ Status: adopted with open follow-ups
 #### Findings
 
 - Low: `src/io/microphone.py:42-50` のデフォルトマイク選択は `HD Pro Webcam C920` という機種名文字列に依存しており、この PC では妥当でも汎用実装ではない。README には記載済みだが、PC 固有ロジックとして扱う必要がある。
-- Low: `src/web/app.py` のブラウザ録音 UI は保守画面としては動作するが、録音中・処理中の状態可視化が弱い。重い処理時に固まって見えやすい。
 
 #### Open questions / assumptions
 
@@ -34,9 +33,8 @@ Status: adopted with open follow-ups
 
 #### Recommended next actions
 
-- 1. Web UI の状態表示を改善し、録音中・処理中を結果領域の更新で見せる
-- 2. リアルタイム化の次段階として、`buffer -> partial/final` の API 境界を作る
-- 3. ノイズ対策は denoise より先に VAD から入る
+- 1. リアルタイム化の次段階として、`buffer -> partial/final` の API 境界を作る
+- 2. ノイズ対策は denoise より先に VAD から入る
 
 #### Realtime direction
 
@@ -68,7 +66,6 @@ Status: adopted with open follow-ups
 
 #### Open
 
-- Web UI は保守画面としては動作するが、状態可視化の改善余地が残る
 - `buffer -> partial/final` のリアルタイム用 API 境界は未実装
 - VAD は未実装
 
@@ -80,11 +77,11 @@ Status: adopted with open follow-ups
 - `--iterations` の 0 以下バリデーションを追加した
 - `smoke_test.py` を拡張し、`--iterations` と `--no-trim-silence` の確認を追加した
 - `capture -> buffer -> transcribe` の最初の分離として `AudioBuffer` を追加した
+- Web UI を `document.write()` ベースの全画面差し替えから、結果領域だけを更新する fetch ベースに改善した
 
 #### Side review
 
 - `src/core/pipeline.py` を介して CLI と Web UI が共通経路へ寄った点は妥当。連携用システムを中心に据える方向として筋が良い。
-- 一方で `src/web/app.py` のブラウザ録音 UI は、録音中と処理中の可視化がまだ弱い。`録音中...` と `アップロード中...` の文言だけでは、重い処理時に固まって見えやすい。
-- Web UI の応答はまだ `document.write()` ベースで画面全体差し替えになっており、保守 GUI としての連続性は弱い。将来の GUI 改善や API 化を考えると、結果部分だけ更新する方式の方が自然。
+- `src/web/app.py` のブラウザ録音 UI は、結果領域だけ更新する fetch ベースに変わり、録音中・処理中の状態が見やすくなった。
 - README は初見ユーザー向けにかなり改善されており、`今できること / まだできないこと` と `capture -> buffer -> transcribe` の説明は有効。現状理解の補助として十分機能している。
 - 全体評価としては、`保守 GUI としては妥当、他システム連携の本命としては次に API 境界が必要` という段階。

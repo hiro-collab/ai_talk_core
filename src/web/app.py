@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 from pathlib import Path
 
-from flask import Flask, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request
 from werkzeug.utils import secure_filename
 
 from src.core.pipeline import AudioChunk, TranscriptionPipeline
@@ -111,6 +111,9 @@ PAGE_TEMPLATE = """<!doctype html>
       border-radius: 14px;
       white-space: pre-wrap;
     }
+    .status[hidden], .result[hidden], .error[hidden] {
+      display: none;
+    }
     .status {
       background: #eef5f5;
       border: 1px solid #bfd5d6;
@@ -145,7 +148,7 @@ PAGE_TEMPLATE = """<!doctype html>
     <div class="grid">
       <section class="panel">
         <h2>ファイルアップロード</h2>
-        <form action="{{ url_for('transcribe_upload') }}" method="post" enctype="multipart/form-data">
+        <form id="upload-form" action="{{ url_for('transcribe_upload') }}" method="post" enctype="multipart/form-data">
           <label for="audio_file">音声ファイル</label>
           <input id="audio_file" name="audio_file" type="file" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" required>
 
@@ -185,21 +188,19 @@ PAGE_TEMPLATE = """<!doctype html>
       </section>
     </div>
 
-    {% if message %}
-      <div class="status">{{ message }}</div>
-    {% endif %}
-    {% if transcript %}
-      <div class="result">{{ transcript }}</div>
-    {% endif %}
-    {% if error %}
-      <div class="error">{{ error }}</div>
-    {% endif %}
+    <div id="page-status" class="status" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
+    <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
+    <div id="page-error" class="error" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
   </main>
 
   <script>
+    const uploadForm = document.getElementById("upload-form");
     const startButton = document.getElementById("start-record");
     const stopButton = document.getElementById("stop-record");
     const statusBox = document.getElementById("record-status");
+    const pageStatus = document.getElementById("page-status");
+    const pageResult = document.getElementById("page-result");
+    const pageError = document.getElementById("page-error");
     let mediaRecorder = null;
     let chunks = [];
 
@@ -207,6 +208,44 @@ PAGE_TEMPLATE = """<!doctype html>
       statusBox.hidden = false;
       statusBox.textContent = text;
     };
+
+    const updateOutput = ({ message = "", transcript = "", error = "" }) => {
+      pageStatus.hidden = !message;
+      pageStatus.textContent = message;
+      pageResult.hidden = !transcript;
+      pageResult.textContent = transcript;
+      pageError.hidden = !error;
+      pageError.textContent = error;
+    };
+
+    const submitForTranscription = async (url, formData, processingText) => {
+      setStatus(processingText);
+      updateOutput({ message: processingText, transcript: "", error: "" });
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          body: formData,
+          headers: { "X-Requested-With": "fetch" },
+        });
+        const payload = await response.json();
+        updateOutput(payload);
+        setStatus(payload.error ? "処理に失敗しました。" : "処理完了");
+      } catch (error) {
+        const message = "通信に失敗しました: " + error;
+        updateOutput({ error: message });
+        setStatus(message);
+      }
+    };
+
+    uploadForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(uploadForm);
+      await submitForTranscription(
+        "{{ url_for('transcribe_upload') }}",
+        formData,
+        "アップロードした音声を処理中..."
+      );
+    });
 
     startButton?.addEventListener("click", async () => {
       chunks = [];
@@ -219,21 +258,16 @@ PAGE_TEMPLATE = """<!doctype html>
           }
         };
         mediaRecorder.onstop = async () => {
-          setStatus("アップロード中...");
           const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
           const formData = new FormData();
           formData.append("audio_blob", blob, "browser_recording.webm");
           formData.append("model", document.getElementById("record_model").value);
           formData.append("language", document.getElementById("record_language").value);
-
-          const response = await fetch("{{ url_for('transcribe_browser_recording') }}", {
-            method: "POST",
-            body: formData,
-          });
-          const html = await response.text();
-          document.open();
-          document.write(html);
-          document.close();
+          await submitForTranscription(
+            "{{ url_for('transcribe_browser_recording') }}",
+            formData,
+            "録音データをアップロードして処理中..."
+          );
         };
         mediaRecorder.start();
         startButton.disabled = true;
@@ -320,6 +354,9 @@ def handle_transcription(
     safe_name = secure_filename(filename) or "upload.wav"
     temp_path = upload_dir / safe_name
 
+    transcript: str | None = None
+    error: str | None = None
+
     try:
         validate_model_name(model_name)
         ensure_ffmpeg_available()
@@ -330,16 +367,27 @@ def handle_transcription(
             language=language,
         )
     except AudioInputError as exc:
-        return render_page(error=f"Input error: {escape(str(exc))}")
+        error = f"Input error: {escape(str(exc))}"
     except AudioEnvironmentError as exc:
-        return render_page(error=f"Environment error: {escape(str(exc))}")
+        error = f"Environment error: {escape(str(exc))}"
     except AudioTranscriptionError as exc:
-        return render_page(error=f"Transcription error: {escape(str(exc))}")
+        error = f"Transcription error: {escape(str(exc))}"
     finally:
         if temp_path.exists():
             temp_path.unlink()
 
-    return render_page(transcript=transcript, message=message or "文字起こしが完了しました。")
+    resolved_message = message or "文字起こしが完了しました。"
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify(
+            {
+                "message": "" if error else resolved_message,
+                "transcript": transcript or "",
+                "error": error or "",
+            }
+        )
+    if error:
+        return render_page(error=error)
+    return render_page(transcript=transcript, message=resolved_message)
 
 
 def main() -> int:

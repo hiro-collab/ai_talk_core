@@ -79,3 +79,7 @@
 - `nl -ba REVIEW.md | sed -n '1,260p'`, `nl -ba README.md | sed -n '1,260p'`, `nl -ba src/main.py | sed -n '1,240p'`, `nl -ba smoke_test.py | sed -n '1,260p'` を実行し、レビュー記録と実装状態の不整合を再確認
 - `REVIEW.md` の解消済み Findings を `Resolved findings` に移し、open 項目を Web UI 状態表示 / `buffer -> partial/final` / VAD に整理
 - `SHARE_NOTE.md` の review-derived actions を未着手項目だけに整理
+- `src/web/app.py` を更新し、Web UI を `document.write()` ベースの全画面差し替えから fetch ベースの部分更新へ変更
+- `smoke_test.py` に fetch ベースの Web UI アップロード確認を追加
+- `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文が正しいことを確認
+- `uv run python smoke_test.py` を再実行し、9 件の smoke test が成功することを確認
