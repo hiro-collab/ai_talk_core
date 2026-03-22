@@ -65,7 +65,7 @@ from src.ollama_runner import build_ollama_command
 from src.core.pipeline import AudioChunk, TranscriptionResult
 from src.core.session import MicLoopSession, MicLoopTuning
 from src.drivers.base import DriverRequest, dispatch_driver_request
-from src.web.app import create_app
+from src.web.app import create_app, render_page
 from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
 
 
@@ -373,6 +373,13 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("待機中", page)
         self.assertIn("文字起こし中", page)
         self.assertIn("開発者向けデバッグ情報", page)
+
+    def test_render_page_with_prompt_only_omits_empty_handoff_label(self) -> None:
+        """Prompt-only results should not render an empty handoff label."""
+        with self.app.test_request_context("/"):
+            page = render_page(command_text_path="/tmp/web_latest.txt")
+        self.assertIn("保存済みプロンプト:\n/tmp/web_latest.txt", page)
+        self.assertNotIn("保存済み handoff:\n\n保存済みプロンプト", page)
 
     def test_webrtcvad_dependency_is_available(self) -> None:
         """webrtcvad should be importable after dependency sync."""

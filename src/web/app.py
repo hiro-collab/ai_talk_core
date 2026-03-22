@@ -430,21 +430,21 @@ PAGE_TEMPLATE = """<!doctype html>
     <section class="hero">
       <div class="hero-copy">
         <h1>ai_core maintenance UI</h1>
-        <p class="lead">音声ファイルかブラウザ録音を受け取り、Whisper で transcript を作り、必要なら handoff 保存まで進めます。通常操作は `Quick`、運用時の切り替えは `Advanced` に分離しています。</p>
+        <p class="lead">音声を受け取り、文字起こしと handoff 確認までを 1 画面で進めます。通常操作は `かんたん`、詳細設定は `詳細` に分離しています。</p>
       </div>
       <div class="hero-strip">
         <div class="hero-card">
-          <p class="eyebrow">Primary Flow</p>
-          <strong>Capture -> Transcript -> Handoff</strong>
-          <span>maintenance 用の入口として、確認したい流れを最短で辿れる構成です。</span>
+          <p class="eyebrow">主導線</p>
+          <strong>録音して handoff を確認</strong>
+          <span>入力から結果確認まで、保守用の導線を最短で辿れる構成です。</span>
         </div>
         <div class="hero-card">
-          <p class="eyebrow">Default</p>
-          <strong>Language = ja / Model = small</strong>
-          <span>既定値は Quick 側に固定し、詳細調整だけ Advanced に寄せています。</span>
+          <p class="eyebrow">既定値</p>
+          <strong>既定値は ja / small</strong>
+          <span>通常操作に必要な設定だけを前面に出し、詳細調整は切り離しています。</span>
         </div>
         <div class="hero-card">
-          <p class="eyebrow">Debug</p>
+          <p class="eyebrow">デバッグ</p>
           <strong>通常導線から分離</strong>
           <span>録音デバッグは折りたたみのまま維持し、普段の操作面から切り離しています。</span>
         </div>
@@ -454,15 +454,15 @@ PAGE_TEMPLATE = """<!doctype html>
     <section class="panel">
       <div class="panel-header">
         <div>
-          <h2>Maintenance Status</h2>
-          <p>現在の進行状況と、次に何をすべきかを上段で把握できます。録音状態と処理結果の概要だけを通常導線に残します。</p>
+          <h2>操作状況</h2>
+          <p>今どの入口を使っているかと、結果の次アクションだけを簡潔に表示します。</p>
         </div>
-        <span class="mode-badge">Operator View</span>
+        <span class="mode-badge">概要</span>
       </div>
       <div class="maintenance-grid">
         <div class="maintenance-card">
-          <strong>現在の入力モード</strong>
-          <p>最後に操作した入口</p>
+          <strong>現在の入口</strong>
+          <p>最後に触った操作です</p>
           <span id="ui-active-lane" class="maintenance-value">未選択</span>
         </div>
         <div class="maintenance-card">
@@ -471,14 +471,14 @@ PAGE_TEMPLATE = """<!doctype html>
           <span id="ui-recorder-state" class="maintenance-value">待機中</span>
         </div>
         <div class="maintenance-card">
-          <strong>最新の結果</strong>
-          <p>成功 / エラーの要約</p>
+          <strong>結果の要約</strong>
+          <p>直近の処理結果です</p>
           <span id="ui-last-outcome" class="maintenance-value">{% if error %}エラー{% elif transcript or command %}結果あり{% elif message %}進行中{% else %}未実行{% endif %}</span>
         </div>
         <div class="maintenance-card">
           <strong>次アクション</strong>
-          <p>結果直下にも同じ導線を出します</p>
-          <span id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}内容をコピーまたは handoff を確認{% else %}Quick から開始{% endif %}</span>
+          <p>完了後に何をするかを示します</p>
+          <span id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}内容をコピーまたは保存先を確認{% else %}かんたん から開始{% endif %}</span>
         </div>
       </div>
     </section>
@@ -488,19 +488,19 @@ PAGE_TEMPLATE = """<!doctype html>
         <div class="panel-header">
           <div>
             <h2>ファイルアップロード</h2>
-            <p>最短導線は Quick にまとめ、モデルや保存オプションは Advanced に分離しています。</p>
+            <p>通常は かんたん から始め、必要な時だけ 詳細 を開きます。</p>
           </div>
-          <span class="mode-badge">Upload Lane</span>
+          <span class="mode-badge">アップロード</span>
         </div>
         <div class="mode-switch" role="tablist" aria-label="アップロード設定モード">
-          <button type="button" class="tab-toggle active" data-target="upload-quick">Quick</button>
-          <button type="button" class="tab-toggle" data-target="upload-advanced">Advanced</button>
+          <button type="button" class="tab-toggle active" data-target="upload-quick">かんたん</button>
+          <button type="button" class="tab-toggle" data-target="upload-advanced">詳細</button>
         </div>
         <form id="upload-form" action="{{ url_for('transcribe_upload') }}" method="post" enctype="multipart/form-data">
           <div id="upload-quick" class="mode-panel quick-stack">
             <div class="quick-card">
               <strong>1. 音声ファイルを選ぶ</strong>
-              <p>通常はここだけで十分です。既定値は `small` / `ja` です。</p>
+              <p>通常はここだけで十分です。</p>
               <div class="label-row">
                 <label for="audio_file">音声ファイル</label>
                 <span class="microcopy">mp3 / wav / m4a / mp4 / webm</span>
@@ -509,7 +509,7 @@ PAGE_TEMPLATE = """<!doctype html>
             </div>
             <div class="quick-card">
               <strong>2. 実行する</strong>
-              <p>結果は下の Result Center に集約されます。</p>
+              <p>結果は下の結果ビューに集約されます。</p>
               <button type="submit">文字起こしする</button>
             </div>
           </div>
@@ -552,18 +552,18 @@ PAGE_TEMPLATE = """<!doctype html>
         <div class="panel-header">
           <div>
             <h2>ブラウザ録音</h2>
-            <p>Quick では録音開始と停止だけに絞り、録音後の保存方針や出力形式は Advanced に退避しています。</p>
+            <p>かんたん では録音開始と停止だけを出し、詳細設定は 詳細 に退避しています。</p>
           </div>
-          <span class="mode-badge">Record Lane</span>
+          <span class="mode-badge">録音</span>
         </div>
         <div class="mode-switch" role="tablist" aria-label="録音設定モード">
-          <button type="button" class="tab-toggle active" data-target="record-quick">Quick</button>
-          <button type="button" class="tab-toggle" data-target="record-advanced">Advanced</button>
+          <button type="button" class="tab-toggle active" data-target="record-quick">かんたん</button>
+          <button type="button" class="tab-toggle" data-target="record-advanced">詳細</button>
         </div>
 
         <div id="record-quick" class="mode-panel quick-stack">
           <div class="quick-card">
-            <strong>1. マイク許可を与える</strong>
+            <strong>1. 録音する</strong>
             <p>停止後に自動でアップロードして処理します。</p>
             <div class="row">
               <button id="start-record" class="secondary" type="button">録音開始</button>
@@ -572,7 +572,7 @@ PAGE_TEMPLATE = """<!doctype html>
           </div>
           <div class="quick-card">
             <strong>2. 進行を見る</strong>
-            <p>録音から文字起こし完了までの流れを maintenance 用に可視化します。</p>
+            <p>録音から完了までの状態を表示します。</p>
             <div class="status-flow" aria-label="録音状態">
               <span id="step-idle" class="status-step active">待機中</span>
               <span id="step-recording" class="status-step">録音中</span>
@@ -621,7 +621,7 @@ PAGE_TEMPLATE = """<!doctype html>
         <details class="debug-shell">
           <summary>開発者向けデバッグ情報</summary>
           <div class="debug">
-            <strong>Recorder Debug</strong>
+            <strong>録音デバッグ</strong>
             <pre id="record-debug">state=idle</pre>
           </div>
         </details>
@@ -631,24 +631,24 @@ PAGE_TEMPLATE = """<!doctype html>
     <section class="result-shell">
       <div class="result-shell-header">
         <div>
-          <h2>Result Center</h2>
-          <p>文字起こし結果、指示草案、保存先、次アクションを 1 箇所に集約しています。通常操作はここを見れば足ります。</p>
+          <h2>結果ビュー</h2>
+          <p>文字起こし結果、指示草案、保存先、次に使う操作をここに集約します。</p>
         </div>
-        <span class="mode-badge">After Action</span>
+        <span class="mode-badge">活用</span>
       </div>
       <div id="page-status" class="status-box" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
       <div id="page-result" class="result-box" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
-      <div id="page-command" class="command-box" {% if not command %}hidden{% endif %}>Instruction draft:
+      <div id="page-command" class="command-box" {% if not command %}hidden{% endif %}>指示草案:
 {{ command or "" }}</div>
-      <div id="page-meta" class="meta-box" {% if not command_path and not command_text_path %}hidden{% endif %}>Saved payload:
-{{ command_path or "" }}{% if command_text_path %}
-Saved prompt:
+      <div id="page-meta" class="meta-box" {% if not command_path and not command_text_path %}hidden{% endif %}>{% if command_path %}保存済み handoff:
+{{ command_path }}{% endif %}{% if command_text_path %}{% if command_path %}
+{% endif %}保存済みプロンプト:
 {{ command_text_path }}{% endif %}</div>
       <div id="page-error" class="error-box" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
       <div id="result-actions" class="action-row" {% if not transcript and not command and not command_path and not command_text_path %}hidden{% endif %}>
-        <button id="copy-transcript" class="inline-action ghost" type="button">transcript をコピー</button>
-        <button id="copy-command" class="inline-action ghost" type="button">instruction をコピー</button>
-        <button id="refresh-handoff" class="inline-action secondary" type="button">最新 handoff を再確認</button>
+        <button id="copy-transcript" class="inline-action ghost" type="button">文字起こし結果をコピー</button>
+        <button id="copy-command" class="inline-action ghost" type="button">指示草案をコピー</button>
+        <button id="refresh-handoff" class="inline-action secondary" type="button">保存済み handoff を見る</button>
       </div>
       <div id="action-feedback" class="action-feedback"></div>
     </section>
@@ -700,6 +700,11 @@ Saved prompt:
       recorderStateLabel.textContent = text;
     };
 
+    const extractSavedPaths = (text = "") => ({
+      command_path: (text.match(/保存済み handoff:\\n([^\\n]+)/) || [null, ""])[1],
+      command_text_path: (text.match(/保存済みプロンプト:\\n([^\\n]+)/) || [null, ""])[1],
+    });
+
     const syncMaintenanceSummary = ({ message = "", transcript = "", command = "", command_path = "", command_text_path = "", error = "" }) => {
       if (error) {
         lastOutcome.textContent = "エラー";
@@ -708,7 +713,7 @@ Saved prompt:
       }
       if (transcript || command) {
         lastOutcome.textContent = "結果あり";
-        nextAction.textContent = command_path || command_text_path ? "内容を確認して必要なら handoff を使う" : "内容を確認して必要ならコピーする";
+        nextAction.textContent = command_path || command_text_path ? "保存済み handoff を見る" : "内容を確認して必要ならコピーする";
         return;
       }
       if (message) {
@@ -717,7 +722,7 @@ Saved prompt:
         return;
       }
       lastOutcome.textContent = "未実行";
-      nextAction.textContent = "Quick から開始";
+      nextAction.textContent = "かんたん から開始";
     };
 
     const renderDebug = (note = "") => {
@@ -778,11 +783,11 @@ Saved prompt:
       pageResult.hidden = !transcript;
       pageResult.textContent = transcript;
       pageCommand.hidden = !command;
-      pageCommand.textContent = command ? `Instruction draft:\\n${command}` : "";
+      pageCommand.textContent = command ? `指示草案:\\n${command}` : "";
       pageMeta.hidden = !command_path && !command_text_path;
       pageMeta.textContent = [
-        command_path ? `Saved payload:\\n${command_path}` : "",
-        command_text_path ? `Saved prompt:\\n${command_text_path}` : "",
+        command_path ? `保存済み handoff:\\n${command_path}` : "",
+        command_text_path ? `保存済みプロンプト:\\n${command_text_path}` : "",
       ].filter(Boolean).join("\\n");
       pageError.hidden = !error;
       pageError.textContent = error;
@@ -969,12 +974,12 @@ Saved prompt:
     };
 
     copyTranscriptButton?.addEventListener("click", async () => {
-      await copyText(pageResult.textContent, "transcript");
+      await copyText(pageResult.textContent, "文字起こし結果");
     });
 
     copyCommandButton?.addEventListener("click", async () => {
-      const commandText = pageCommand.textContent.replace(/^Instruction draft:\\n/, "");
-      await copyText(commandText, "instruction");
+      const commandText = pageCommand.textContent.replace(/^指示草案:\\n/, "");
+      await copyText(commandText, "指示草案");
     });
 
     refreshHandoffButton?.addEventListener("click", async () => {
@@ -982,20 +987,20 @@ Saved prompt:
         const response = await fetch("{{ url_for('api_agent_handoff_latest') }}?source=web");
         const payload = await response.json();
         if (!response.ok) {
-          showActionFeedback(payload.error || "最新 handoff を取得できませんでした。");
+          showActionFeedback(payload.error || "保存済み handoff を取得できませんでした。");
           return;
         }
         updateOutput({
           message: pageStatus.textContent,
           transcript: payload.transcript || pageResult.textContent,
-          command: payload.command || pageCommand.textContent.replace(/^Instruction draft:\\n/, ""),
+          command: payload.command || pageCommand.textContent.replace(/^指示草案:\\n/, ""),
           command_path: payload.command_path || "",
           command_text_path: payload.command_text_path || "",
           error: "",
         });
-        showActionFeedback("最新 handoff の保存先を更新しました。");
+        showActionFeedback("保存済み handoff の表示を更新しました。");
       } catch (error) {
-        showActionFeedback("最新 handoff の確認に失敗しました: " + error);
+        showActionFeedback("保存済み handoff の確認に失敗しました: " + error);
       }
     });
 
@@ -1003,12 +1008,13 @@ Saved prompt:
     setRecorderStateLabel("待機中");
     setActiveStatusStep("idle");
     setRecorderButtons();
+    const initialSavedPaths = extractSavedPaths(pageMeta.textContent);
     syncMaintenanceSummary({
       message: pageStatus.textContent,
       transcript: pageResult.textContent,
-      command: pageCommand.textContent.replace(/^Instruction draft:\\n/, ""),
-      command_path: pageMeta.textContent.includes("Saved payload:") ? pageMeta.textContent : "",
-      command_text_path: "",
+      command: pageCommand.textContent.replace(/^指示草案:\n/, ""),
+      command_path: initialSavedPaths.command_path,
+      command_text_path: initialSavedPaths.command_text_path,
       error: pageError.textContent,
     });
     copyTranscriptButton.disabled = !pageResult.textContent;

@@ -271,3 +271,16 @@
   - code: `worker/drivers-handoff` は branch 全体をそのまま採用せず、`DriverResult` metadata と runner 追従だけに縮めて統合した
   - design: `worker/web-ui` は `Quick / Advanced / Debug` 分離と結果導線整理に留め、service や handoff 契約へ広げなかった
   - not adopted: worker 未提出メモのような一時状態は `SHARE_NOTE.md` へ残さない
+- 統合担当確認: `670c835 Unify driver command validation ownership` と `c9887dc Sync review and operations records` が main 直上に存在することを確認した
+- 統合担当判断: 上記 2 コミットは内容ではなく手順に誤りがあり、worker 役割のまま main でコミットした運用逸脱として扱う
+- 統合担当判断: ただし巻き戻しは行わず、履歴は維持したまま以後の main 直接コミット禁止を再確認する
+- 統合担当確認: 現在は main worktree に `smoke_test.py`, `src/web/app.py` の未コミット差分があり、`worker/web-ui` にも `src/web/app.py` の未コミット差分がある
+- 統合担当判断: `src/web/app.py` が main と worker の両方で同時に dirty な状態は ownership 衝突であり、このままの進行は避ける
+- 実装担当として `SHARE_NOTE.md` を archive 方針で整理し、最新有効な指示・統合済み事実・open item のみを残し、詳細な履歴は `LOG.md` / `REVIEW.md` 参照へ寄せた
+- worker/web-ui: `src/web/app.py` と `smoke_test.py` に Web UI の表示整理を反映。status 圧縮、Result 周辺ラベル整理、Quick 文言短縮、英日混在の軽減を実施し、API / handoff 契約は未変更のまま維持した
+- worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `uv run python smoke_test.py` を実行し、108 tests / OK を確認
+- worker/web-ui: `src/web/app.py` の表示整理を継続し、Hero / status / mode badge / result action 周辺の英日混在を追加で軽減した。変更範囲は UI 表示に留め、API / handoff 契約の意味は維持した
+- worker/web-ui: 表示文言の一括置換で Python 側の response key を誤って触り、一時的に `/transcribe-upload` が 500 になる回帰を確認したため、`transcript` key を即時修正した
+- worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を再実行し、構文確認成功
+- worker/web-ui: `uv run python smoke_test.py` を再実行し、108 tests / OK を確認
