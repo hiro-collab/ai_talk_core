@@ -327,3 +327,5 @@
 - worker/web-ui: `src/web/app.py` の `ファイルアップロード` かんたん面調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
 - worker/web-ui: `src/web/app.py` の `ファイルアップロード` かんたん面調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
 - worker/web-ui: `src/web/app.py` の `ブラウザ録音` かんたん面だけを調整し、説明文を短くして録音から進行確認までの 2 ステップを読みやすくした
+- worker/web-ui: `src/web/app.py` の `ブラウザ録音` かんたん面調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `src/web/app.py` の `ブラウザ録音` かんたん面調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
