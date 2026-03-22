@@ -332,3 +332,4 @@
 - worker/web-ui: `src/web/app.py` の `ファイルアップロード` 詳細面だけを調整し、出力オプション文言を短くして読みやすさをそろえた
 - worker/web-ui: `src/web/app.py` の `ファイルアップロード` 詳細面調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
 - worker/web-ui: `src/web/app.py` の `ファイルアップロード` 詳細面調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- worker/web-ui: `src/web/app.py` の `ブラウザ録音` 詳細面だけを調整し、出力オプションと補助ヒントの文言を短くそろえた

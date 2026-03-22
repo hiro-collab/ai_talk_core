@@ -629,13 +629,13 @@ PAGE_TEMPLATE = """<!doctype html>
             <strong>出力オプション</strong>
             <label class="checkbox" for="record_instruction_only">
               <input id="record_instruction_only" type="checkbox" value="true">
-              文字起こし結果より指示草案を優先して確認する
+              指示草案を先に確認する
             </label>
             <label class="checkbox" for="record_save_handoff">
               <input id="record_save_handoff" type="checkbox" value="true">
-              handoff 保存先を残して、あとで呼び出せるようにする
+              handoff 保存先を残す
             </label>
-            <p class="hint">録音デバッグは通常導線から外し、下の開発者向けセクションに隔離しています。</p>
+            <p class="hint">録音デバッグは下の開発者向けセクションにまとめています。</p>
           </div>
         </div>
 
