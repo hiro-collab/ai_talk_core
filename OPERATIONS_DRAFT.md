@@ -184,6 +184,42 @@ git branch -D worker/web-ui
 - 補足:
   - こちらも基本は `担当観点` で分ける
 
+## Escalation draft
+
+- 全担当が意見を上に通せるようにする
+- ただし、`提案中`, `採用済み`, `実施済み` を同じ場所へ混ぜない
+
+### Proposal status draft
+
+- `提案中`
+  - `REVIEW.md`
+  - `DESIGN_REVIEW.md`
+  - `MODULE_REQUIREMENTS.md`
+  - `OPERATIONS_DRAFT.md`
+- `採用済み`
+  - `SHARE_NOTE.md`
+- `実施済み`
+  - `LOG.md`
+
+### Proposal routing draft
+
+- 実装 Worker:
+  - モジュール境界や担当範囲の提案は `MODULE_REQUIREMENTS.md` または `OPERATIONS_DRAFT.md` に上げる
+  - 実行した事実は `LOG.md` に残す
+- 統合担当:
+  - 各担当から上がった提案を拾い、採用したものだけ `SHARE_NOTE.md` に反映する
+  - 統合と確認の事実は `LOG.md` に残す
+- コードレビュアー:
+  - 所見と懸念は `REVIEW.md` に書く
+- デザインレビュアー:
+  - 所見と懸念は `DESIGN_REVIEW.md` に書く
+
+### Share note rule draft
+
+- `SHARE_NOTE.md` は採用済みの現在地だけを書く
+- レビュアーや Worker は、未合意の提案を直接 `SHARE_NOTE.md` に書かない
+- 統合担当または実装責任者が、採用した内容だけを `SHARE_NOTE.md` に昇格させる
+
 ## Reviewer handling draft
 
 - レビュアーは Worker と別系統で扱う
@@ -259,6 +295,251 @@ git branch -D worker/web-ui
 - 全体 smoke test は統合担当が main worktree で行う
 - 手動確認も原則として統合担当が行う
 
+## Communication draft
+
+- 基本の連絡経路は `統合担当経由` にする
+- Worker 同士が直接仕様調整を始めない
+- 境界を越える判断は、統合担当が中継して決める
+
+### Direction flow draft
+
+- 統合担当 -> Worker:
+  - 作業指示
+  - 担当範囲
+  - 触ってよいファイル
+  - 確認方法
+- Worker -> 統合担当:
+  - 実装結果
+  - 未解決事項
+  - 他担当へ影響する懸念
+- 統合担当 -> レビュアー:
+  - 見てほしい差分
+  - 観点
+  - 前提条件
+- レビュアー -> 統合担当:
+  - `REVIEW.md` または `DESIGN_REVIEW.md` に記録した所見
+- 統合担当 -> `SHARE_NOTE.md` / `LOG.md`:
+  - 採用結果
+  - 実行事実
+
+### Worker report template draft
+
+Worker は統合担当へ、少なくとも次を短く返す。
+
+```text
+変更:
+- ...
+
+変更ファイル:
+- ...
+
+確認:
+- ...
+
+未解決:
+- ...
+
+他担当への影響:
+- なし / あり: ...
+```
+
+### Integrator message template draft
+
+統合担当が各担当へ最初に渡す指示は、少なくとも次を含める。
+
+```text
+役割:
+- ...
+
+今回の目的:
+- ...
+
+触ってよいファイル:
+- ...
+
+触らないファイル:
+- ...
+
+確認:
+- ...
+
+返答形式:
+- 変更 / 変更ファイル / 確認 / 未解決 / 他担当への影響
+```
+
+## Worker-led execution draft
+
+- Worker は `相談してから着手` より `担当範囲で実装まで進めてから報告` を基本にする
+- 進みを速くするため、Worker の現場判断を許容する
+- ただし、`main に入れるかどうか` の判断は統合担当が持つ
+- 実装担当は、中長期の設計方針と標準パターンを握る
+
+### Worker-led principles draft
+
+- Worker は自分の担当境界内なら、提案だけで止まらず実装まで進めてよい
+- Worker は小さい統合単位を意識し、区切りごとに報告する
+- Worker は迷った場合、`A案で進めたが B案もある` という形で報告してよい
+- Worker は他担当領域へ広げない
+- Worker は `README.md` と `smoke_test.py` の大整理を勝手に始めない
+- Worker は `SHARE_NOTE.md` を確定事項として更新しない
+
+### Integrator gate draft
+
+- 統合担当は Worker の成果を受けて、`採用 / 保留 / 差し戻し` を決める
+- 統合担当は main に入れる順番と単位を決める
+- 統合担当は `1 本ずつ統合 -> 全体確認 -> 次へ` を守る
+- main に直接入る前に止めるのが統合担当の役割であり、Worker を細かく止めすぎない
+
+### Integrator autonomy draft
+
+- 統合担当は、毎回実装担当へ確認を取りに行かず、まず自分で一次判断する
+- 実装担当への確認は、境界越え、複数層同時変更、main test failure のような例外時に絞る
+- Worker は `相談待ち` ではなく `実装まで進めてから提出` を前提に扱う
+- 統合担当は `main に入れるかどうか` の関門としてふるまう
+
+### Integrator decision rules draft
+
+- 採用寄りに判断してよい条件:
+  - `1 Worker = 1責務 = 1統合単位` を守れている
+  - 担当境界内で閉じている
+  - 局所確認が通っている
+- 保留寄りに判断すべき条件:
+  - 変更が `7 ファイル` を超える
+  - `2 層以上` をまたぐ
+  - `UI と core` を同時に大きく触る
+  - `README.md` と `smoke_test.py` の大整理を同時に含む
+  - review で medium 以上の懸念が出ている
+- 実装担当へ上げるべき条件:
+  - Worker の変更が担当境界を越えている
+  - `2 Worker` を同時に統合しないと成立しない
+  - `src/main.py`, `src/web/app.py`, `smoke_test.py`, `README.md` を同時に大きく触る必要がある
+  - main で `uv run python smoke_test.py` が落ちる
+
+### Integrator priorities draft
+
+1. main を壊さない
+2. 担当境界を守る
+3. `1 本ずつ統合` を守る
+4. 採用済みと draft を混ぜない
+5. 実装担当への確認は例外時だけに絞る
+
+### Review reflection draft
+
+- 統合担当は、各統合のたびに `どのレビュー所見を反映したか` を短く残す
+- 目的は、レビューが読まれたかを見えるようにすること
+- 長文でなく、差分単位で `反映したこと / 入れなかったこと` を書く
+
+#### LOG format draft
+
+`LOG.md` には、各統合ごとに次の固定フォーマットを追記する。
+
+```text
+- review reflection:
+  - code: ...
+  - design: ...
+  - not adopted: ...
+```
+
+例:
+
+```text
+- review reflection:
+  - code: `Worker_drivers_handoff` は `src/drivers/base.py` と runner 追従だけに留め、CLI / Web / docs へ広げなかった
+  - design: `Worker_web_ui` で `Quick / Advanced / Debug` 分離を維持し、結果周辺の文言整理を進めた
+  - not adopted: `README.md` と `smoke_test.py` の整理は今回の統合には含めなかった
+```
+
+#### SHARE_NOTE format draft
+
+- 採用済みだけを共有する必要がある場合は、`SHARE_NOTE.md` に短く残す
+
+```text
+- Latest integration reflection:
+  - code review: ...
+  - design review: ...
+```
+
+### Implementation lead draft
+
+- 実装担当は各 Worker の逐次判断を細かく止めない
+- 実装担当は、統合後に標準パターンと設計方針へ寄せる
+- 実装担当は、境界の逸脱と中長期の複雑化だけを強く監視する
+
+### Fast reporting draft
+
+- Worker の報告は短く固定する
+- 統合担当は最初から全文を読まず、次だけで一次判断する
+  - `変更`
+  - `変更ファイル`
+  - `確認`
+  - `未解決`
+  - `他担当への影響`
+
+### Allowed worker updates draft
+
+- Worker が更新してよいもの:
+  - 自分の担当コード
+  - 必要最小限の `MODULE_REQUIREMENTS.md`
+  - 必要最小限の `OPERATIONS_DRAFT.md`
+  - 実行事実としての `LOG.md`
+- Worker が更新してはいけないもの:
+  - 採用済み事項としての `SHARE_NOTE.md`
+  - 他担当の主記録ファイル
+  - main 統合判断を前提にした説明
+
+### Message opening draft
+
+- 連絡文の冒頭で、`誰から誰へ` と `今回の目的` を明示する
+- 例:
+  - `実装担当より統合担当への連絡です。`
+  - `実装担当より実装 Worker への連絡です。`
+  - `実装担当よりコードレビュー担当への連絡です。`
+  - `実装担当よりデザインレビュー担当への連絡です。`
+  - `統合担当より Worker_web_ui への連絡です。`
+  - `統合担当より Worker_drivers_handoff への連絡です。`
+
+### Role-specific opening draft
+
+実装担当から統合担当への連絡例:
+
+```text
+実装担当より統合担当への連絡です。
+今回の目的は、各担当の提案と差分を安全に集約し、main を常に動く状態に保つことです。
+```
+
+実装担当から実装 Worker への連絡例:
+
+```text
+実装担当より実装 Worker への連絡です。
+今回の目的は、担当範囲を小さく保ち、責務を越えずに実装を進めることです。
+```
+
+実装担当からコードレビュー担当への連絡例:
+
+```text
+実装担当よりコードレビュー担当への連絡です。
+今回の目的は、実装の正しさに加えて、責務境界と分担運用の安全性を確認してもらうことです。
+```
+
+実装担当からデザインレビュー担当への連絡例:
+
+```text
+実装担当よりデザインレビュー担当への連絡です。
+今回の目的は、maintenance UI としての使いやすさと、voice-to-agent 導線の見せ方を確認してもらうことです。
+```
+
+統合担当から Worker への連絡例:
+
+```text
+統合担当より Worker_web_ui への連絡です。
+今回の目的は、Web UI の見せ方と操作導線だけを改善することです。
+```
+
+```text
+統合担当より Worker_drivers_handoff への連絡です。
+今回の目的は、driver 契約と handoff / runner 境界だけを改善することです。
+```
+
 ### Local verification examples
 
 - `Worker_core_session`
@@ -295,3 +576,27 @@ git branch -D worker/web-ui
 - 長期ルールになったものだけ `MEMORY.md`
 - モジュール境界は `MODULE_REQUIREMENTS.md`
 - このファイルは、その手前の運用ドラフト置き場として使う
+
+## Review request draft
+
+- レビュー依頼時は、対象の特定だけを最小限で明示する
+- 目的は、レビュアーが `main しか見えない` 状態を避けること
+- 毎回長文にせず、次の 5 項目だけでよい
+
+```text
+対象 branch: ...
+base commit: ...
+review target: ...
+状態: main 統合前 / main 統合後
+見てほしい観点: ...
+```
+
+例:
+
+```text
+対象 branch: worker/web-ui
+base commit: a010cd8
+review target: ea6f037
+状態: main 統合後
+見てほしい観点: web/ui の責務逸脱がないか
+```

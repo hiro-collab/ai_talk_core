@@ -28,6 +28,12 @@
 - `SHARE_NOTE.md` の `Turn contract` は最上段で維持し、レビュー運用の基準点とする
 - `AGENTS.md` や `/init` 相当の運用ファイルは重複作成しない。既存ファイルの有無を先に確認し、必要時は追加前に提案する
 
+## Codex startup
+
+- Web UI を使う場合: `uv run python -m src.web.app` を起動し、`http://127.0.0.1:8000` を開く
+- 保存済み handoff を Codex CLI に渡す場合: `uv run python -m src.agent_runner --source web --template codex-exec`
+- `codex-exec` は `codex` コマンドが `PATH` にある前提
+
 ## Future direction
 
 - マイク入力対応
