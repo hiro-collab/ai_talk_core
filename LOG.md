@@ -234,3 +234,16 @@
 - `src.main` の `[mic-tuning] ...` と `Stopped microphone loop.` は stderr に出すよう変更し、`--instruction-only` や handoff 用の stdout を汚さないようにした
 - `uv run python -m py_compile src/main.py src/io/audio.py smoke_test.py` を実行し、構文が正しいことを確認
 - `uv run python smoke_test.py` を実行し、90 件の smoke test が成功することを確認
+
+## 2026-03-22
+
+- `git status --short`, `git log --oneline -5`, `rg --files` を実行し、作業継続前のリポジトリ状態を確認
+- `MEMORY.md`, `REVIEW.md`, `DESIGN_REVIEW.md`, `SHARE_NOTE.md`, `LOG.md` を確認し、運用メモと未同期の記録を棚卸し
+- `sed -n '1,320p' src/io/microphone.py` と `sed -n '520,700p' src/main.py` を実行し、`--mic-loop` の依存チェックと出力経路を再確認
+- `uv run python smoke_test.py` を実行し、102 件の smoke test が成功することを確認
+- `SHARE_NOTE.md` の `latest reviewed commit` を `293de29` に更新
+- `SHARE_NOTE.md` の smoke test 件数を `102 件` に更新
+- `SHARE_NOTE.md` の `Changed files in latest implementation turn` を今回の記録更新内容へ合わせて整理
+- `AGENTS.md`, `REVIEWER_INSTRUCTIONS.md`, `SHARE_NOTE.md`, `DESIGN_REVIEW.md` を確認し、担当ごとの更新範囲と運用ルールを再確認
+- `src/core/pipeline.py`, `src/core/handoff_bridge.py`, `src/core/agent_instruction.py`, `src/runners/agent.py`, `src/runners/handoff.py`, `src/web/app.py`, `README.md` を確認し、再編案のたたき台を整理
+- `SHARE_NOTE.md` に、再編案に対するコードレビュー担当・デザインレビュー担当向けの確認観点を追記

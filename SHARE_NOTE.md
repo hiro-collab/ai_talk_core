@@ -6,7 +6,7 @@
 - reviewer may update: `REVIEW.md` only
 - design reviewer may update: `DESIGN_REVIEW.md` only
 - implementer may update: `code`, `README.md`, `SHARE_NOTE.md`, `LOG.md`
-- latest reviewed commit: `fd7e728 Accept generic instruction and handoff API aliases`
+- latest reviewed commit: `293de29 Add explicit Torch pin guidance details`
 - latest applied review status:
   - reflected in code: runner CLI, mic-loop finalization on silence, interrupt-time final flush, longer-transcript repeat relaxation, time-based finalization, configurable VAD aggressiveness, Codex exec template with PATH validation, CUDA busy 時の CPU fallback, runner 実装の `src/runners/` 集約開始, `final` ヒューリスティクスの `src/core/finalization.py` 切り出し, `agent_*` handoff / runner 互換入口の追加, `src/core/handoff_bridge.py` で汎用 handoff 境界の導入開始, `src/core/agent_instruction.py` で指示草案生成の実体化, `src/runners/agent.py` で runner 実体の汎用化
   - reflected in records: yes
@@ -14,15 +14,6 @@
 
 ## Changed files in latest implementation turn
 
-- `src/io/audio.py`
-- `src/core/pipeline.py`
-- `src/main.py`
-- `src/core/handoff_bridge.py`
-- `src/core/agent_instruction.py`
-- `src/runners/agent.py`
-- `src/web/app.py`
-- `smoke_test.py`
-- `README.md`
 - `SHARE_NOTE.md`
 - `LOG.md`
 
@@ -33,7 +24,7 @@
 - `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 90 件の smoke test 成功
+- `uv run python smoke_test.py` で 102 件の smoke test 成功
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -127,6 +118,15 @@
 - VAD のしきい値は CLI から調整できるようにした
 - `codex-exec` は PATH に `codex` が無い場合、実行前に入力エラーで止まる
 - `final` 判定には repeat 回数に加えて安定時間も使うようにした
+
+## Collaboration request
+
+- 今回の再編案は「リポジトリ分割は保留しつつ、同一リポジトリ内で `transcription core`, `session/state`, `driver`, `maintenance UI` の境界を明確化する」方針を前提にする
+- 実装担当は、まず `session/state` 層を追加し、`src/main.py` と `src/web/app.py` から状態遷移と実行制御を薄く切り出す方針で作業する
+- コードレビュー担当は、この再編案に対して `責務分離`, `将来の常時待受への拡張性`, `Codex/Ollama driver の差し替えやすさ`, `既存互換 CLI/API を壊しにくいか` を主に見て `REVIEW.md` に記録する
+- デザインレビュー担当は、この再編案に対して `maintenance UI` としての使いやすさ, `状態表示の自然さ`, `Quick / Advanced の切り分け`, `常時待受 UI に育てる前提での情報設計` を主に見て `DESIGN_REVIEW.md` に記録する
+- レビュー担当は `SHARE_NOTE.md` を更新せず、所見はそれぞれの主記録先にだけ追記する
+- 実装担当はレビュー反映後に、合意済みの次アクションだけを `SHARE_NOTE.md` に反映する
 - 時間ベースの `final` 条件は CLI からしきい値を調整できる
 - `ollama_runner` はシステム未導入前提で、コマンド組み立てと失敗モードまでを先に整える
 
