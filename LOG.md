@@ -312,3 +312,8 @@
 - worker/web-ui: `src/web/app.py` の詳細設定文言から `transcript` / `payload` / `runner` などの内部語を減らし、利用者視点の説明へ寄せた
 - worker/web-ui: `src/web/app.py` の詳細設定文言更新後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
 - worker/web-ui: `src/web/app.py` の詳細設定文言更新後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- worker/web-ui: 提出コミットは `7e2a8dd` (`Polish advanced web UI copy`)。対象は `src/web/app.py` と `LOG.md` のみで、詳細設定文言から `transcript` / `payload` / `runner` などの内部語を減らし、利用者向け表現へ整理した。API / handoff 契約は未変更。局所確認は `uv run python -m py_compile src/web/app.py smoke_test.py` と `uv run python smoke_test.py` を実施し、109 tests / OK を確認
+- worker/web-ui: 各担当の最新連絡を再確認した。正本は `SHARE_NOTE.md` の `## Integrator messages` とし、現時点でも `src/web/app.py` 中心の UI 表示整理を継続し、API / handoff 契約は変更しない。事実ベースの返答先は `LOG.md`、境界相談のみ `OPERATIONS_DRAFT.md` または `MODULE_REQUIREMENTS.md` とする運用に変更はない
+- worker/web-ui: `src/web/app.py` の結果ビュー 1 面だけを調整し、説明文とアクション名を短くそろえて、結果確認から保存先確認までの読み順をそろえた
+- worker/web-ui: `src/web/app.py` の結果ビュー調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `src/web/app.py` の結果ビュー調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認

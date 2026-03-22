@@ -653,7 +653,7 @@ PAGE_TEMPLATE = """<!doctype html>
       <div class="result-shell-header">
         <div>
           <h2>結果ビュー</h2>
-          <p>文字起こし結果、指示草案、保存先、次に使う操作をここで確認できます。</p>
+          <p>結果、指示草案、保存先、次の操作をここでまとめて確認できます。</p>
         </div>
         <span class="mode-badge">活用</span>
       </div>
@@ -667,9 +667,9 @@ PAGE_TEMPLATE = """<!doctype html>
 {{ command_text_path }}{% endif %}</div>
       <div id="page-error" class="error-box" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
       <div id="result-actions" class="action-row" {% if not transcript and not command and not command_path and not command_text_path %}hidden{% endif %}>
-        <button id="copy-transcript" class="inline-action ghost" type="button">文字起こし結果をコピー</button>
+        <button id="copy-transcript" class="inline-action ghost" type="button">文字起こしをコピー</button>
         <button id="copy-command" class="inline-action ghost" type="button">指示草案をコピー</button>
-        <button id="refresh-handoff" class="inline-action secondary" type="button">handoff 保存先を確認</button>
+        <button id="refresh-handoff" class="inline-action secondary" type="button">保存先を確認</button>
       </div>
       <div id="action-feedback" class="action-feedback"></div>
     </section>
@@ -734,7 +734,7 @@ PAGE_TEMPLATE = """<!doctype html>
       }
       if (transcript || command) {
         lastOutcome.textContent = "結果あり";
-        nextAction.textContent = command_path || command_text_path ? "handoff 保存先を確認" : "内容を確認して必要ならコピーする";
+        nextAction.textContent = command_path || command_text_path ? "保存先を確認" : "内容を確認して必要ならコピーする";
         return;
       }
       if (message) {
