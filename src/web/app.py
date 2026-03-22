@@ -497,7 +497,7 @@ PAGE_TEMPLATE = """<!doctype html>
             </div>
             <div class="maintenance-item">
               <span>次にすること</span>
-              <strong id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}内容をコピーまたは保存先を確認{% else %}かんたん から開始{% endif %}</strong>
+              <strong id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}保存先を確認またはコピー{% else %}かんたん から開始{% endif %}</strong>
             </div>
           </div>
         </div>

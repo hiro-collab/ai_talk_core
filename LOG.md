@@ -335,3 +335,4 @@
 - worker/web-ui: `src/web/app.py` の `ブラウザ録音` 詳細面だけを調整し、出力オプションと補助ヒントの文言を短くそろえた
 - worker/web-ui: `src/web/app.py` の `ブラウザ録音` 詳細面調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
 - worker/web-ui: `src/web/app.py` の `ブラウザ録音` 詳細面調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- worker/web-ui: `src/web/app.py` の maintenance `次にすること` 表現を 1 箇所だけ調整し、結果ビュー側の文言と揃えた
