@@ -558,11 +558,11 @@ PAGE_TEMPLATE = """<!doctype html>
               <strong>出力オプション</strong>
               <label class="checkbox" for="upload_instruction_only">
                 <input id="upload_instruction_only" name="instruction_only" type="checkbox" value="true">
-                文字起こし結果より指示草案を優先して確認する
+                指示草案を先に確認する
               </label>
               <label class="checkbox" for="upload_save_handoff">
                 <input id="upload_save_handoff" name="save_handoff" type="checkbox" value="true">
-                handoff 保存先を残して、あとで再利用できるようにする
+                handoff 保存先を残す
               </label>
             </div>
           </div>
@@ -1033,7 +1033,7 @@ PAGE_TEMPLATE = """<!doctype html>
     syncMaintenanceSummary({
       message: pageStatus.textContent,
       transcript: pageResult.textContent,
-      command: pageCommand.textContent.replace(/^指示草案:\n/, ""),
+      command: pageCommand.textContent.replace(/^指示草案:\\n/, ""),
       command_path: initialSavedPaths.command_path,
       command_text_path: initialSavedPaths.command_text_path,
       error: pageError.textContent,
