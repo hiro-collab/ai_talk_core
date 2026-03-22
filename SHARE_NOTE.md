@@ -19,6 +19,7 @@
 - `src/drivers/__init__.py`
 - `src/drivers/base.py`
 - `src/runners/agent.py`
+- `src/runners/common.py`
 - `src/runners/ollama.py`
 - `src/web/app.py`
 - `smoke_test.py`
@@ -70,6 +71,7 @@
 - `src.agent_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
 - `codex-exec` は `codex` コマンドの PATH 存在を実行前に検証するようにした
 - `src/drivers/base.py` を追加し、`DriverRequest` / `DriverResult` による backend 実行契約を導入した
+- command availability check は `src.drivers.base` を正本とし、`src.runners.common.validate_runner_command_available` は互換 alias として保った
 - `src/runners/agent.py` と `src/runners/ollama.py` は driver 契約経由で subprocess 実行するよう整理した
 - runner 実装を `src/runners/` へ寄せ始め、トップレベル CLI は互換ラッパーとして残す方針にした
 - Whisper モデル読み込み時に CUDA が busy / unavailable の場合、CPU fallback を試すようにした
@@ -174,3 +176,9 @@
 - 出力は標準出力のみ
 - `MEMORY.md`, `REVIEW.md`, `SHARE_NOTE.md`, `LOG.md` を用途別に使い分ける
 - デザインレビューは `DESIGN_REVIEW.md` を主記録先にし、コードレビューとは混ぜない
+- 統合担当確認: main で `uv run python smoke_test.py` を実行し、108 件の smoke test 成功を再確認
+- 統合担当採用: `src/web/app.py` に Quick / Advanced 分離、上段 maintenance status、Result Center、copy / latest handoff 再確認アクションを反映した
+- 統合担当確認: `worker/web-ui` の採用後も main で `uv run python smoke_test.py` 108 件成功を確認した
+- 統合担当採用: `src/web/app.py` に Quick / Advanced / Debug 分離、maintenance status、Result Center、copy / latest handoff 再確認アクションを反映した
+- 統合担当採用: `src/drivers/base.py`, `src/runners/agent.py`, `src/runners/common.py`, `src/runners/ollama.py` に driver result metadata と runner 出力共通化を反映した
+- 統合担当確認: 上記 2 件の統合後も main で `uv run python smoke_test.py` 108 件成功を確認した

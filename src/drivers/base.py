@@ -62,7 +62,7 @@ def validate_runner_command_available(command: list[str]) -> None:
 
 def dispatch_driver_request(request: DriverRequest) -> DriverResult:
     """Validate and execute one backend request via subprocess."""
-    validate_runner_command_available(request.command)
+    validate_driver_command_available(request.command)
     try:
         completed = subprocess.run(
             request.command,

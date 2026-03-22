@@ -255,3 +255,19 @@
 - `OPERATIONS_DRAFT.md` に、Worker 統合手順、rollback 単位、checkpoint tag 案、2 Worker までの試行案を追記
 - `OPERATIONS_DRAFT.md` に、実装 Worker / 統合担当 / コードレビュアー / デザインレビュアーの 4 者分担案を追記
 - `OPERATIONS_DRAFT.md` に、`.worktrees/` 配下を使う最初の 2 Worker 向け `git worktree add/remove` コマンド案を追記
+- 統合担当として `git branch --all --verbose --no-abbrev`, `git worktree list --porcelain`, 各 Worker worktree の `git status --short --branch` と `git diff --stat` を確認し、`worker/drivers-handoff`, `worker/web-ui` とも基準点 `a010cd8` から差分なしで、取り込み対象が未提出であることを確認
+- `uv run python smoke_test.py` を main で実行し、108 件の smoke test が成功することを確認
+- 統合担当として `worker/web-ui` の `src/web/app.py` 差分を main に適用し、Quick / Advanced 分離、上段 maintenance status、Result Center、copy / latest handoff 再確認アクション、debug 情報の通常導線分離を採用した
+- `worker/web-ui` worktree で `uv run python smoke_test.py` を実行し、108 件の smoke test が成功することを確認
+- `worker/drivers-handoff` worktree で `uv run python smoke_test.py` を実行し、`1 fail / 3 errors` により未採用と判断した
+- `worker/drivers-handoff` は branch そのままでは採用せず、main 側で `DriverResult` metadata 追加と runner 追従だけに絞って再構成してから取り込む方針に切り替えた
+- main へ `worker/web-ui` 差分を適用後、`uv run python smoke_test.py` を実行し、108 件の smoke test が成功することを確認
+- 統合担当として `worker/web-ui` を `Refine maintenance web UI flow` で統合し、main で `uv run python smoke_test.py` 108 件成功を確認した
+- 統合担当として `worker/drivers-handoff` を `Extend driver result metadata` で統合し、main で `uv run python smoke_test.py` 108 件成功を確認した
+- `src/drivers/base.py` では `DriverResult.command_name` と `succeeded` / `has_output` を追加しつつ、既存 `validate_runner_command_available` 契約を互換維持した
+- `src.drivers.base.validate_driver_command_available()` を command availability check の正本にし、`src.runners.common.validate_runner_command_available()` は互換 re-export に整理した
+- `uv run python smoke_test.py` を実行し、108 件の smoke test が成功することを確認
+- review reflection:
+  - code: `worker/drivers-handoff` は branch 全体をそのまま採用せず、`DriverResult` metadata と runner 追従だけに縮めて統合した
+  - design: `worker/web-ui` は `Quick / Advanced / Debug` 分離と結果導線整理に留め、service や handoff 契約へ広げなかった
+  - not adopted: worker 未提出メモのような一時状態は `SHARE_NOTE.md` へ残さない

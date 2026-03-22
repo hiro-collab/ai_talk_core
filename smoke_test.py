@@ -1437,14 +1437,14 @@ class SmokeTests(unittest.TestCase):
 
     def test_validate_runner_command_available_rejects_missing_path_entry(self) -> None:
         """PATH lookups should fail early for missing commands."""
-        with mock.patch("src.runners.common.shutil.which", return_value=None):
+        with mock.patch("src.drivers.base.shutil.which", return_value=None):
             with self.assertRaisesRegex(AudioInputError, "runner command not found in PATH: codex"):
                 validate_runner_command_available(["codex", "exec"])
 
     def test_dispatch_driver_request_returns_normalized_result(self) -> None:
         """Driver dispatch should return backend metadata and subprocess output."""
         with mock.patch(
-            "src.drivers.base.validate_runner_command_available"
+            "src.drivers.base.validate_driver_command_available"
         ), mock.patch(
             "src.drivers.base.subprocess.run"
         ) as subprocess_run:
@@ -1470,7 +1470,7 @@ class SmokeTests(unittest.TestCase):
     def test_dispatch_driver_request_wraps_missing_command(self) -> None:
         """Driver dispatch should surface missing commands as input errors."""
         with mock.patch(
-            "src.drivers.base.validate_runner_command_available"
+            "src.drivers.base.validate_driver_command_available"
         ), mock.patch(
             "src.drivers.base.subprocess.run",
             side_effect=FileNotFoundError(2, "No such file or directory", "codex"),
