@@ -5,22 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import replace
 from pathlib import Path
 
 from src.core.dependency_status import format_dependency_status, get_dependency_status
 from src.core.torch_pin_plan import format_torch_pin_plan, get_torch_pin_plan
 from src.core.agent_instruction import build_agent_instruction
-from src.core.finalization import (
-    has_stable_duration_for_final,
-    maybe_finalize_on_interrupt,
-    maybe_finalize_on_silence,
-    normalize_transcript_text,
-    required_repeat_count_for_final,
-    should_mark_result_final,
-)
 from src.core.handoff_bridge import save_handoff_bundle
-from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
+from src.core.pipeline import AudioChunk, TranscriptionPipeline, TranscriptionResult
+from src.core.session import MicLoopSession, MicLoopTuning
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
@@ -46,15 +38,15 @@ MIC_LOOP_PROFILES: dict[str, tuple[int, int, str]] = {
 }
 
 
-def format_transcription_result(result: object) -> str:
+def format_transcription_result(result: TranscriptionResult) -> str:
     """Format a realtime transcription result for terminal output."""
-    if getattr(result, "is_silence", False):
-        chunk_count = getattr(result, "chunk_count", "?")
-        result_type = "final" if getattr(result, "is_final", False) else "silence"
+    if result.is_silence:
+        chunk_count = result.chunk_count
+        result_type = "final" if result.is_final else "silence"
         return f"[{result_type} {chunk_count}] silence detected"
-    result_type = "final" if getattr(result, "is_final", False) else "partial"
-    chunk_count = getattr(result, "chunk_count", "?")
-    text = getattr(result, "text", "")
+    result_type = "final" if result.is_final else "partial"
+    chunk_count = result.chunk_count
+    text = result.text
     return f"[{result_type} {chunk_count}] {text}"
 
 
@@ -126,13 +118,14 @@ def run_mic_loop(
     final_stable_seconds: int,
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
-    pipeline = TranscriptionPipeline(model_name=model_name)
-    buffer = AudioBuffer(source="microphone")
+    session = MicLoopSession(
+        pipeline=TranscriptionPipeline(model_name=model_name),
+        tuning=MicLoopTuning(
+            vad_aggressiveness=vad_aggressiveness,
+            final_stable_seconds=final_stable_seconds,
+        ),
+    )
     completed_iterations = 0
-    previous_text: str | None = None
-    repeat_count = 0
-    last_spoken_result: TranscriptionResult | None = None
-    finalized_text: str | None = None
 
     print_runtime_note(
         format_mic_loop_tuning(
@@ -150,49 +143,18 @@ def run_mic_loop(
                 device=mic_device,
                 trim_silence_enabled=trim_silence_enabled,
             )
-            buffer.append(chunk)
             next_iteration = completed_iterations + 1
             is_last_iteration = iterations is not None and next_iteration == iterations
-            if has_detectable_speech(chunk.path, aggressiveness=vad_aggressiveness):
-                result = pipeline.transcribe_buffer_result(
-                    buffer,
-                    language=language,
-                    is_final=False,
-                )
-            else:
-                result = TranscriptionResult(
-                    source=buffer.source,
-                    text="",
-                    is_final=False,
-                    chunk_count=len(buffer.chunks),
-                    is_silence=True,
-                )
-            result = maybe_finalize_on_silence(
-                result=result,
-                last_spoken_result=last_spoken_result,
-                repeat_count=repeat_count,
-                finalized_text=finalized_text,
+            result = session.process_chunk(
+                chunk,
+                has_speech=has_detectable_speech(
+                    chunk.path,
+                    aggressiveness=vad_aggressiveness,
+                ),
+                language=language,
+                chunk_duration=duration,
+                is_last_iteration=is_last_iteration,
             )
-            normalized_text = normalize_transcript_text(result.text)
-            if normalized_text and not result.is_silence:
-                if normalized_text == previous_text:
-                    repeat_count += 1
-                else:
-                    repeat_count = 1
-                previous_text = normalized_text
-                last_spoken_result = result
-            else:
-                repeat_count = 0
-            if should_mark_result_final(
-                result,
-                repeat_count,
-                is_last_iteration,
-                duration,
-                final_stable_seconds,
-            ):
-                result = replace(result, is_final=True)
-            if result.is_final and not result.is_silence and normalized_text:
-                finalized_text = normalized_text
             if command_only:
                 print_agent_instruction_only(result.text)
             else:
@@ -201,11 +163,7 @@ def run_mic_loop(
             save_handoff_if_requested(result.text, command_output)
             completed_iterations += 1
     except KeyboardInterrupt:
-        final_result = maybe_finalize_on_interrupt(
-            last_spoken_result=last_spoken_result,
-            finalized_text=finalized_text,
-            chunk_count=len(buffer.chunks),
-        )
+        final_result = session.finalize_on_interrupt()
         if final_result is not None:
             if command_only:
                 print_agent_instruction_only(final_result.text)

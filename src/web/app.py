@@ -2,29 +2,10 @@
 
 from __future__ import annotations
 
-from html import escape
-from pathlib import Path
-from uuid import uuid4
-
 from flask import Flask, jsonify, render_template_string, request
-from werkzeug.utils import secure_filename
 
-from src.core.handoff_bridge import (
-    build_handoff_payload,
-    get_default_handoff_output_path,
-    get_default_handoff_text_path,
-    load_handoff_bundle,
-    save_handoff_bundle,
-)
-from src.core.pipeline import AudioChunk, TranscriptionPipeline
-from src.io.audio import (
-    AudioEnvironmentError,
-    AudioInputError,
-    AudioTranscriptionError,
-    ensure_ffmpeg_available,
-    normalize_audio_for_transcription,
-    validate_model_name,
-)
+from src.core.handoff_bridge import load_handoff_bundle
+from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
 
 
 PAGE_TEMPLATE = """<!doctype html>
@@ -474,23 +455,6 @@ Saved prompt:
 """
 
 
-def get_upload_dir() -> Path:
-    """Return the upload directory for the web UI."""
-    project_root = Path(__file__).resolve().parents[2]
-    upload_dir = project_root / ".cache" / "web_uploads"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    return upload_dir
-
-
-def build_temp_upload_path(filename: str) -> Path:
-    """Return a unique temporary path for an uploaded audio file."""
-    upload_dir = get_upload_dir()
-    safe_name = secure_filename(filename) or "upload.wav"
-    stem = Path(safe_name).stem or "upload"
-    suffix = Path(safe_name).suffix or ".wav"
-    return upload_dir / f"{stem}_{uuid4().hex}{suffix}"
-
-
 def create_app() -> Flask:
     """Create the local Flask application."""
     app = Flask(__name__)
@@ -592,76 +556,19 @@ def process_transcription_request(
                 return True
         return False
 
-    model_name = request.form.get("model", "small").strip() or "small"
-    language = request.form.get("language", "").strip() or None
-    command_only = read_bool_flag("instruction_only", "command_only")
-    save_command = read_bool_flag("save_handoff", "save_command")
-
-    temp_path = build_temp_upload_path(filename)
-    normalized_path = temp_path.with_suffix(".normalized.wav")
-
-    transcript = ""
-    command = ""
-    command_path = ""
-    command_text_path = ""
-    error = ""
-    status_code = 200
-
-    try:
-        validate_model_name(model_name)
-        ensure_ffmpeg_available()
-        temp_path.write_bytes(raw_bytes)
-        audio_path = temp_path
-        if temp_path.suffix.lower() == ".webm":
-            audio_path = normalize_audio_for_transcription(temp_path, normalized_path)
-        pipeline = TranscriptionPipeline(model_name=model_name)
-        transcript = pipeline.transcribe_chunk(
-            AudioChunk(path=audio_path, source="web"),
-            language=language,
+    response = process_web_transcription(
+        WebTranscriptionRequest(
+            raw_bytes=raw_bytes,
+            filename=filename,
+            model_name=request.form.get("model", "small").strip() or "small",
+            language=request.form.get("language", "").strip() or None,
+            command_only=read_bool_flag("instruction_only", "command_only"),
+            save_handoff=read_bool_flag("save_handoff", "save_command"),
+            source="web",
+            success_message=message,
         )
-        payload = build_handoff_payload(transcript)
-        command = "" if payload is None else payload.command
-        if save_command:
-            saved_paths = save_handoff_bundle(
-                transcript,
-                json_path=get_default_handoff_output_path(source="web"),
-                text_path=get_default_handoff_text_path(source="web"),
-            )
-            if saved_paths is not None:
-                command_path = str(saved_paths.json_path)
-                command_text_path = str(saved_paths.text_path)
-    except AudioInputError as exc:
-        error = f"Input error: {escape(str(exc))}"
-        status_code = 400
-    except AudioEnvironmentError as exc:
-        error = f"Environment error: {escape(str(exc))}"
-        status_code = 500
-    except AudioTranscriptionError as exc:
-        error = f"Transcription error: {escape(str(exc))}"
-        status_code = 500
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
-        if normalized_path.exists():
-            normalized_path.unlink()
-
-    payload = {
-        "message": (
-            ""
-            if error
-            else (
-                "音声を認識できませんでした。"
-                if not transcript
-                else (message or "文字起こしが完了しました。")
-            )
-        ),
-        "transcript": "" if command_only else transcript,
-        "command": command,
-        "command_path": command_path,
-        "command_text_path": command_text_path,
-        "error": error,
-    }
-    return payload, status_code
+    )
+    return response.to_payload(), response.status_code
 
 
 def handle_transcription(

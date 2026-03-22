@@ -62,8 +62,10 @@ from src.codex_runner import (
     validate_runner_command_available,
 )
 from src.ollama_runner import build_ollama_command
-from src.core.pipeline import TranscriptionResult
+from src.core.pipeline import AudioChunk, TranscriptionResult
+from src.core.session import MicLoopSession, MicLoopTuning
 from src.web.app import create_app
+from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -1181,6 +1183,123 @@ class SmokeTests(unittest.TestCase):
             chunk_count=5,
         )
         self.assertIsNone(final_result)
+
+    def test_mic_loop_session_tracks_repeat_state_and_finalizes(self) -> None:
+        """Mic-loop session should promote repeated speech to final."""
+        pipeline = mock.Mock()
+        pipeline.transcribe_buffer_result.side_effect = [
+            TranscriptionResult(
+                source="microphone",
+                text="依存関係を確認して",
+                is_final=False,
+                chunk_count=1,
+            ),
+            TranscriptionResult(
+                source="microphone",
+                text="依存関係を確認して",
+                is_final=False,
+                chunk_count=2,
+            ),
+        ]
+        session = MicLoopSession(
+            pipeline=pipeline,
+            tuning=MicLoopTuning(vad_aggressiveness=2, final_stable_seconds=8),
+        )
+        first = session.process_chunk(
+            AudioChunk(path=Path("chunk1.wav"), source="microphone"),
+            has_speech=True,
+            language="ja",
+            chunk_duration=4,
+            is_last_iteration=False,
+        )
+        second = session.process_chunk(
+            AudioChunk(path=Path("chunk2.wav"), source="microphone"),
+            has_speech=True,
+            language="ja",
+            chunk_duration=4,
+            is_last_iteration=False,
+        )
+        self.assertFalse(first.is_final)
+        self.assertTrue(second.is_final)
+        self.assertEqual(session.state.repeat_count, 2)
+        self.assertEqual(session.state.finalized_text, "依存関係を確認して")
+
+    def test_mic_loop_session_finalize_on_interrupt_uses_internal_state(self) -> None:
+        """Interrupt finalization should use the session's tracked last speech."""
+        pipeline = mock.Mock()
+        pipeline.transcribe_buffer_result.return_value = TranscriptionResult(
+            source="microphone",
+            text="依存関係を確認して",
+            is_final=False,
+            chunk_count=1,
+        )
+        session = MicLoopSession(
+            pipeline=pipeline,
+            tuning=MicLoopTuning(vad_aggressiveness=2, final_stable_seconds=8),
+        )
+        session.process_chunk(
+            AudioChunk(path=Path("chunk1.wav"), source="microphone"),
+            has_speech=True,
+            language="ja",
+            chunk_duration=3,
+            is_last_iteration=False,
+        )
+        final_result = session.finalize_on_interrupt()
+        self.assertIsNotNone(final_result)
+        assert final_result is not None
+        self.assertTrue(final_result.is_final)
+        self.assertEqual(final_result.chunk_count, 1)
+
+    def test_process_web_transcription_supports_command_only(self) -> None:
+        """Web transcription service should hide transcript in command-only mode."""
+        with mock.patch(
+            "src.web.transcription_service.TranscriptionPipeline"
+        ) as pipeline_cls, mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ):
+            pipeline_cls.return_value.transcribe_chunk.return_value = "依存関係を確認して"
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-audio",
+                    filename="sample.wav",
+                    model_name="small",
+                    language="ja",
+                    command_only=True,
+                )
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.transcript, "")
+        self.assertEqual(response.command, "依存関係を確認して")
+
+    def test_process_web_transcription_can_save_handoff_paths(self) -> None:
+        """Web transcription service should return saved handoff paths."""
+        saved_paths = mock.Mock(
+            json_path=Path("/tmp/web_latest.json"),
+            text_path=Path("/tmp/web_latest.txt"),
+        )
+        with mock.patch(
+            "src.web.transcription_service.TranscriptionPipeline"
+        ) as pipeline_cls, mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.save_handoff_bundle",
+            return_value=saved_paths,
+        ):
+            pipeline_cls.return_value.transcribe_chunk.return_value = "依存関係を確認して"
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-audio",
+                    filename="sample.wav",
+                    model_name="small",
+                    save_handoff=True,
+                )
+            )
+        self.assertEqual(response.command_path, "/tmp/web_latest.json")
+        self.assertEqual(response.command_text_path, "/tmp/web_latest.txt")
 
     def test_build_codex_instruction_returns_none_for_blank(self) -> None:
         """Blank transcripts should not produce instruction drafts."""

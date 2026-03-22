@@ -247,3 +247,4 @@
 - `AGENTS.md`, `REVIEWER_INSTRUCTIONS.md`, `SHARE_NOTE.md`, `DESIGN_REVIEW.md` を確認し、担当ごとの更新範囲と運用ルールを再確認
 - `src/core/pipeline.py`, `src/core/handoff_bridge.py`, `src/core/agent_instruction.py`, `src/runners/agent.py`, `src/runners/handoff.py`, `src/web/app.py`, `README.md` を確認し、再編案のたたき台を整理
 - `SHARE_NOTE.md` に、再編案に対するコードレビュー担当・デザインレビュー担当向けの確認観点を追記
+- `MODULE_REQUIREMENTS.md` を追加し、実装担当とコードレビュー担当が共有するモジュール要求仕様の基準点を作成
