@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 from src.drivers.base import DriverRequest, dispatch_driver_request
 from src.io.audio import AudioInputError
-from src.runners.common import normalize_command_args, validate_runner_command_available
+from src.runners.common import (
+    emit_driver_result,
+    normalize_command_args,
+    validate_runner_command_available,
+)
 from src.runners.handoff import render_handoff_output
 
 
@@ -91,8 +94,4 @@ def main() -> int:
     except AudioInputError as exc:
         print(f"Input error: {exc}")
         return 1
-    if result.stdout:
-        print(result.stdout, end="")
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr)
-    return result.returncode
+    return emit_driver_result(result)

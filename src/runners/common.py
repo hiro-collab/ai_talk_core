@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 import shutil
 from pathlib import Path
 
+from src.drivers.base import DriverResult
 from src.io.audio import AudioInputError
 
 
@@ -26,3 +28,12 @@ def validate_runner_command_available(command: list[str]) -> None:
         return
     if shutil.which(executable) is None:
         raise AudioInputError(f"runner command not found in PATH: {executable}")
+
+
+def emit_driver_result(result: DriverResult) -> int:
+    """Print normalized backend output and return the process exit code."""
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    return result.returncode
