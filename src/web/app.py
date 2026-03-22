@@ -334,13 +334,31 @@ PAGE_TEMPLATE = """<!doctype html>
     }
     .maintenance-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 12px;
       margin-top: 14px;
     }
+    .maintenance-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+    .maintenance-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .maintenance-item {
+      display: grid;
+      gap: 4px;
+    }
+    .maintenance-item span {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
     .maintenance-value {
       display: block;
-      margin-top: 8px;
       font-size: 1rem;
       color: var(--text);
     }
@@ -462,23 +480,31 @@ PAGE_TEMPLATE = """<!doctype html>
       <div class="maintenance-grid">
         <div class="maintenance-card">
           <strong>現在の入口</strong>
-          <p>最後に触った操作です</p>
-          <span id="ui-active-lane" class="maintenance-value">未選択</span>
+          <p class="maintenance-copy">最後に触った操作と録音状態をまとめています。</p>
+          <div class="maintenance-list">
+            <div class="maintenance-item">
+              <span>入力モード</span>
+              <strong id="ui-active-lane" class="maintenance-value">未選択</strong>
+            </div>
+            <div class="maintenance-item">
+              <span>録音ステータス</span>
+              <strong id="ui-recorder-state" class="maintenance-value">待機中</strong>
+            </div>
+          </div>
         </div>
         <div class="maintenance-card">
-          <strong>録音ステータス</strong>
-          <p>ブラウザ録音の進行</p>
-          <span id="ui-recorder-state" class="maintenance-value">待機中</span>
-        </div>
-        <div class="maintenance-card">
-          <strong>結果の要約</strong>
-          <p>直近の処理結果です</p>
-          <span id="ui-last-outcome" class="maintenance-value">{% if error %}エラー{% elif transcript or command %}結果あり{% elif message %}進行中{% else %}未実行{% endif %}</span>
-        </div>
-        <div class="maintenance-card">
-          <strong>次アクション</strong>
-          <p>完了後に何をするかを示します</p>
-          <span id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}内容をコピーまたは保存先を確認{% else %}かんたん から開始{% endif %}</span>
+          <strong>結果と次アクション</strong>
+          <p class="maintenance-copy">直近の処理結果と次に見る場所を示します。</p>
+          <div class="maintenance-list">
+            <div class="maintenance-item">
+              <span>最新の結果</span>
+              <strong id="ui-last-outcome" class="maintenance-value">{% if error %}エラー{% elif transcript or command %}結果あり{% elif message %}進行中{% else %}未実行{% endif %}</strong>
+            </div>
+            <div class="maintenance-item">
+              <span>次にすること</span>
+              <strong id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}内容をコピーまたは保存先を確認{% else %}かんたん から開始{% endif %}</strong>
+            </div>
+          </div>
         </div>
       </div>
     </section>

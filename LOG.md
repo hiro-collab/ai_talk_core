@@ -284,3 +284,6 @@
 - worker/web-ui: 表示文言の一括置換で Python 側の response key を誤って触り、一時的に `/transcribe-upload` が 500 になる回帰を確認したため、`transcript` key を即時修正した
 - worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を再実行し、構文確認成功
 - worker/web-ui: `uv run python smoke_test.py` を再実行し、108 tests / OK を確認
+- worker/web-ui: `src/web/app.py` の `操作状況` を 4 カードから 2 カード相当に圧縮し、上段 status 面の圧を下げて入力レーンを先に見やすくした
+- worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `uv run python smoke_test.py` を実行し、109 tests / OK を確認
