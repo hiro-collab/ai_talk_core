@@ -287,3 +287,28 @@
 - worker/web-ui: `src/web/app.py` の `操作状況` を 4 カードから 2 カード相当に圧縮し、上段 status 面の圧を下げて入力レーンを先に見やすくした
 - worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
 - worker/web-ui: `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- 実装担当として `SHARE_NOTE.md` に各担当向けの現行連絡を追記し、統合担当、`worker/web-ui`、`worker/drivers-handoff`、コードレビュー担当への指示と、本日のデザインレビュー担当休みを明記した
+- worker/web-ui: `src/web/app.py` の Hero を 3 カード相当から 2 カード相当に整理し、先頭の説明文も短くして主導線を見やすくした
+- worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- worker/web-ui: `src/web/app.py` の結果ビュー文言を整理し、`保存済み handoff を見る` を `handoff 保存先を確認` へ寄せるなど、次アクションの意味が読み取りやすい表現へ調整した
+- worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- 実装担当として各担当からの返答状況を確認し、`worker/web-ui` の進捗受領、`worker/drivers-handoff` とコードレビュー担当は未返答として follow-up を `SHARE_NOTE.md` に反映した
+- worker/web-ui: `SHARE_NOTE.md` の `## Integrator messages` と `## Implementer messages`、あわせて `MEMORY.md` と `OPERATIONS_DRAFT.md` の連絡ルールを確認した。現時点の有効指示は `src/web/app.py` 中心の UI 表示整理に留め、API / handoff 契約は変更せず、事実ベースの返答は `LOG.md`、境界相談のみ `OPERATIONS_DRAFT.md` に上げる運用で一致している
+- 実装担当として追加返答を再確認し、`worker/web-ui` からは連絡ルール理解まで含めた返答を受領済み、`worker/drivers-handoff` とコードレビュー担当は引き続き未返答として `SHARE_NOTE.md` の連絡内容を更新した
+- worker/web-ui: 各担当の最新連絡を再確認した。統合担当の正本は `SHARE_NOTE.md` の `## Integrator messages`、実装担当の作業方針は同ファイルの `## Implementer messages` を参照する。現時点では `src/web/app.py` 中心の UI 表示整理のみを継続し、API / handoff 契約は変更しない。各担当への返答先は、事実ベースの進捗と局所確認を `LOG.md`、境界相談のみ `OPERATIONS_DRAFT.md` とする運用で維持する
+- 実装担当として各担当の最新連絡を再確認し、コードレビュー担当の最新所見受領を `SHARE_NOTE.md` に反映し、`worker/drivers-handoff` は引き続き返答待ちとして整理した
+- 実装担当として各担当からの追加返答有無を再確認し、新規返答は増えていないことを確認したため、`worker/web-ui` とコードレビュー担当は受領済み、`worker/drivers-handoff` は返答待ちのまま現行連絡を維持する形で `SHARE_NOTE.md` を更新した
+- worker/web-ui: 各担当の最新連絡を確認した。統合担当の正本は `SHARE_NOTE.md` の `## Integrator messages`、実装担当の作業方針は同ファイルの `## Implementer messages` を参照する。現時点の返答先は、事実ベースの進捗と局所確認を `LOG.md`、境界相談のみ `OPERATIONS_DRAFT.md` とする。`worker/web-ui` の継続範囲は `src/web/app.py` 中心の UI 表示整理に留め、API / handoff 契約は変更しない
+- 実装担当として必要機能を `今すぐ必要 / 近いうちに必要 / 後でよい` で整理し、`SHARE_NOTE.md` に feature priority を追加した。あわせて各担当メッセージへ `mic-loop final`, `VAD`, `handoff -> agent bridge`, `backend status 表現`, `結果再利用導線` の優先順を反映し、`MODULE_REQUIREMENTS.md` にも near-term product priorities を追記した
+- 実装担当として各担当からの追加返答有無を再確認し、新規返答は増えていないため、`worker/web-ui` は現行方針継続、`worker/drivers-handoff` は返答待ち継続、コードレビュー担当は追加依頼なしとして `SHARE_NOTE.md` の連絡を最小更新した
+- worker/web-ui: 各担当の最新連絡を再確認した。統合担当の正本は `SHARE_NOTE.md` の `## Integrator messages`、実装担当の作業方針は同ファイルの `## Implementer messages` を参照する。返答先は事実ベースの進捗と局所確認を `LOG.md`、境界相談のみ `OPERATIONS_DRAFT.md` とする。引き続き `src/web/app.py` 中心の UI 表示整理に留め、API / handoff 契約は変更しない
+- 実装担当として各担当からの追加返答有無を再確認したが、新規返答は増えていない。`worker/web-ui` は継続中、コードレビュー担当は最新所見受領済み、`worker/drivers-handoff` は引き続き返答待ちとして現行連絡を維持した
+- worker/web-ui: `src/web/app.py` の保存先ラベルを `handoff 保存先` / `プロンプト保存先` に統一し、結果ビューと次アクションの表現をそろえた
+- worker/web-ui: `smoke_test.py` の prompt-only 表示テスト期待値を新しい保存先ラベルへ追従させた
+- worker/web-ui: `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- worker/web-ui: `src/web/app.py` の詳細設定文言から `transcript` / `payload` / `runner` などの内部語を減らし、利用者視点の説明へ寄せた
+- worker/web-ui: `src/web/app.py` の詳細設定文言更新後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `src/web/app.py` の詳細設定文言更新後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認

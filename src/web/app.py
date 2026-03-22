@@ -448,7 +448,7 @@ PAGE_TEMPLATE = """<!doctype html>
     <section class="hero">
       <div class="hero-copy">
         <h1>ai_core maintenance UI</h1>
-        <p class="lead">音声を受け取り、文字起こしと handoff 確認までを 1 画面で進めます。通常操作は `かんたん`、詳細設定は `詳細` に分離しています。</p>
+        <p class="lead">音声を受け取り、文字起こしと handoff 確認までを 1 画面で進めます。通常は `かんたん` から始めます。</p>
       </div>
       <div class="hero-strip">
         <div class="hero-card">
@@ -458,13 +458,8 @@ PAGE_TEMPLATE = """<!doctype html>
         </div>
         <div class="hero-card">
           <p class="eyebrow">既定値</p>
-          <strong>既定値は ja / small</strong>
-          <span>通常操作に必要な設定だけを前面に出し、詳細調整は切り離しています。</span>
-        </div>
-        <div class="hero-card">
-          <p class="eyebrow">デバッグ</p>
-          <strong>通常導線から分離</strong>
-          <span>録音デバッグは折りたたみのまま維持し、普段の操作面から切り離しています。</span>
+          <strong>ja / small で開始</strong>
+          <span>詳細設定と録音デバッグは下段へ分離し、通常操作を先に見せています。</span>
         </div>
       </div>
     </section>
@@ -563,11 +558,11 @@ PAGE_TEMPLATE = """<!doctype html>
               <strong>出力オプション</strong>
               <label class="checkbox" for="upload_instruction_only">
                 <input id="upload_instruction_only" name="instruction_only" type="checkbox" value="true">
-                transcript より指示草案を優先して確認する
+                文字起こし結果より指示草案を優先して確認する
               </label>
               <label class="checkbox" for="upload_save_handoff">
                 <input id="upload_save_handoff" name="save_handoff" type="checkbox" value="true">
-                handoff payload を保存して、後続 runner から再利用できるようにする
+                handoff 保存先を残して、あとで再利用できるようにする
               </label>
             </div>
           </div>
@@ -634,11 +629,11 @@ PAGE_TEMPLATE = """<!doctype html>
             <strong>出力オプション</strong>
             <label class="checkbox" for="record_instruction_only">
               <input id="record_instruction_only" type="checkbox" value="true">
-              transcript より指示草案を優先して確認する
+              文字起こし結果より指示草案を優先して確認する
             </label>
             <label class="checkbox" for="record_save_handoff">
               <input id="record_save_handoff" type="checkbox" value="true">
-              handoff payload を保存して後続コマンドから読み出せるようにする
+              handoff 保存先を残して、あとで呼び出せるようにする
             </label>
             <p class="hint">録音デバッグは通常導線から外し、下の開発者向けセクションに隔離しています。</p>
           </div>
@@ -658,7 +653,7 @@ PAGE_TEMPLATE = """<!doctype html>
       <div class="result-shell-header">
         <div>
           <h2>結果ビュー</h2>
-          <p>文字起こし結果、指示草案、保存先、次に使う操作をここに集約します。</p>
+          <p>文字起こし結果、指示草案、保存先、次に使う操作をここで確認できます。</p>
         </div>
         <span class="mode-badge">活用</span>
       </div>
@@ -666,15 +661,15 @@ PAGE_TEMPLATE = """<!doctype html>
       <div id="page-result" class="result-box" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
       <div id="page-command" class="command-box" {% if not command %}hidden{% endif %}>指示草案:
 {{ command or "" }}</div>
-      <div id="page-meta" class="meta-box" {% if not command_path and not command_text_path %}hidden{% endif %}>{% if command_path %}保存済み handoff:
+      <div id="page-meta" class="meta-box" {% if not command_path and not command_text_path %}hidden{% endif %}>{% if command_path %}handoff 保存先:
 {{ command_path }}{% endif %}{% if command_text_path %}{% if command_path %}
-{% endif %}保存済みプロンプト:
+{% endif %}プロンプト保存先:
 {{ command_text_path }}{% endif %}</div>
       <div id="page-error" class="error-box" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
       <div id="result-actions" class="action-row" {% if not transcript and not command and not command_path and not command_text_path %}hidden{% endif %}>
         <button id="copy-transcript" class="inline-action ghost" type="button">文字起こし結果をコピー</button>
         <button id="copy-command" class="inline-action ghost" type="button">指示草案をコピー</button>
-        <button id="refresh-handoff" class="inline-action secondary" type="button">保存済み handoff を見る</button>
+        <button id="refresh-handoff" class="inline-action secondary" type="button">handoff 保存先を確認</button>
       </div>
       <div id="action-feedback" class="action-feedback"></div>
     </section>
@@ -727,8 +722,8 @@ PAGE_TEMPLATE = """<!doctype html>
     };
 
     const extractSavedPaths = (text = "") => ({
-      command_path: (text.match(/保存済み handoff:\\n([^\\n]+)/) || [null, ""])[1],
-      command_text_path: (text.match(/保存済みプロンプト:\\n([^\\n]+)/) || [null, ""])[1],
+      command_path: (text.match(/handoff 保存先:\\n([^\\n]+)/) || [null, ""])[1],
+      command_text_path: (text.match(/プロンプト保存先:\\n([^\\n]+)/) || [null, ""])[1],
     });
 
     const syncMaintenanceSummary = ({ message = "", transcript = "", command = "", command_path = "", command_text_path = "", error = "" }) => {
@@ -739,7 +734,7 @@ PAGE_TEMPLATE = """<!doctype html>
       }
       if (transcript || command) {
         lastOutcome.textContent = "結果あり";
-        nextAction.textContent = command_path || command_text_path ? "保存済み handoff を見る" : "内容を確認して必要ならコピーする";
+        nextAction.textContent = command_path || command_text_path ? "handoff 保存先を確認" : "内容を確認して必要ならコピーする";
         return;
       }
       if (message) {
@@ -812,8 +807,8 @@ PAGE_TEMPLATE = """<!doctype html>
       pageCommand.textContent = command ? `指示草案:\\n${command}` : "";
       pageMeta.hidden = !command_path && !command_text_path;
       pageMeta.textContent = [
-        command_path ? `保存済み handoff:\\n${command_path}` : "",
-        command_text_path ? `保存済みプロンプト:\\n${command_text_path}` : "",
+        command_path ? `handoff 保存先:\\n${command_path}` : "",
+        command_text_path ? `プロンプト保存先:\\n${command_text_path}` : "",
       ].filter(Boolean).join("\\n");
       pageError.hidden = !error;
       pageError.textContent = error;
@@ -1013,7 +1008,7 @@ PAGE_TEMPLATE = """<!doctype html>
         const response = await fetch("{{ url_for('api_agent_handoff_latest') }}?source=web");
         const payload = await response.json();
         if (!response.ok) {
-          showActionFeedback(payload.error || "保存済み handoff を取得できませんでした。");
+          showActionFeedback(payload.error || "handoff 保存先を取得できませんでした。");
           return;
         }
         updateOutput({
@@ -1024,9 +1019,9 @@ PAGE_TEMPLATE = """<!doctype html>
           command_text_path: payload.command_text_path || "",
           error: "",
         });
-        showActionFeedback("保存済み handoff の表示を更新しました。");
+        showActionFeedback("handoff 保存先の表示を更新しました。");
       } catch (error) {
-        showActionFeedback("保存済み handoff の確認に失敗しました: " + error);
+        showActionFeedback("handoff 保存先の確認に失敗しました: " + error);
       }
     });
 
