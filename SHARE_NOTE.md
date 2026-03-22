@@ -14,6 +14,16 @@
 
 ## Changed files in latest implementation turn
 
+- `README.md`
+- `src/core/status_report.py`
+- `src/drivers/__init__.py`
+- `src/drivers/base.py`
+- `src/runners/agent.py`
+- `src/runners/ollama.py`
+- `src/web/app.py`
+- `smoke_test.py`
+- `MODULE_REQUIREMENTS.md`
+- `OPERATIONS_DRAFT.md`
 - `SHARE_NOTE.md`
 - `LOG.md`
 
@@ -25,6 +35,7 @@
 - `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
 - `uv run python -m src.web.app` でローカル Web UI を起動可能
 - `uv run python smoke_test.py` で 102 件の smoke test 成功
+- `uv run python smoke_test.py` を再実行し、108 件の smoke test 成功を確認
 - `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
 - `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
 - `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
@@ -58,6 +69,8 @@
 - `src.agent_runner` を正面の runner CLI とし、毎回コマンド列を書かずに試せるようにした
 - `src.agent_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
 - `codex-exec` は `codex` コマンドの PATH 存在を実行前に検証するようにした
+- `src/drivers/base.py` を追加し、`DriverRequest` / `DriverResult` による backend 実行契約を導入した
+- `src/runners/agent.py` と `src/runners/ollama.py` は driver 契約経由で subprocess 実行するよう整理した
 - runner 実装を `src/runners/` へ寄せ始め、トップレベル CLI は互換ラッパーとして残す方針にした
 - Whisper モデル読み込み時に CUDA が busy / unavailable の場合、CPU fallback を試すようにした
 - `mic-loop` は安定した発話のあとに無音が来た場合、その発話を `final` とみなせるようになった
@@ -67,6 +80,9 @@
 - 中くらい以上の発話は、安定時間が十分長ければ `final` に寄せるようになった
 - `--final-stable-seconds` で `final` に寄せる安定時間を調整できる
 - `partial/final` のヒューリスティクスは `src/main.py` から `src/core/finalization.py` に切り出した
+- `src/core/session.py` を追加し、`mic-loop` の buffer / repeat / final flush 状態を CLI 本体から分離した
+- `src/web/transcription_service.py` を追加し、Web/API の転写本体処理を Flask route から分離した
+- `src/core/status_report.py` を追加し、runtime / dependency / doctor / torch-pin の診断 helper を `src.main` から分離した
 - `src.agent_handoff` / `src.agent_runner` と `/api/agent-handoff-latest` を追加し、`agent_*` 名を正面の handoff 取得口として使えるようにした
 - `src/core/handoff_bridge.py` を追加し、Web/API と handoff reader は汎用 handoff 境界を参照し始めた
 - README の Architecture 図を handoff / runner まで含む最新構成に更新した
@@ -90,6 +106,10 @@
 - Torch version に `+cu128` などの build suffix がある場合は、version-only pin ではなく build/source 選択も必要になり得ることを plan で示すようにした
 - Torch pin plan には `pyproject_dependency_entry` と `uv_add_command` も含め、次に何を `pyproject.toml` へ足すかの叩き台を CLI から確認できるようにした
 - `--mic-loop` の `[mic-tuning] ...` と停止メッセージは stderr に出し、`--instruction-only` や handoff 用の stdout を汚さないようにした
+- README 冒頭を `agent handoff` 主体へ再構成し、`agent_*` を主導線、`codex_*` を互換導線へ下げた
+- Web UI に `待機中 / 録音中 / アップロード中 / 文字起こし中 / 完了 / エラー` の状態表示を追加した
+- Web UI の `Recorder Debug` は `開発者向けデバッグ情報` の折りたたみ内へ退避した
+- API upload, handoff 保存, `src.agent_handoff`, `src.agent_runner --template cat`, Web UI アップロード, ブラウザ録音 1 回, 状態表示, debug 折りたたみをユーザー実機で確認済み
 
 ## Next tasks
 
@@ -112,6 +132,7 @@
 - ローカルの agent 実行プロセスへ handoff を渡す bridge を追加した
 - `agent_runner` は template 指定でも handoff を流せるようにした
 - `agent_runner` は `codex-exec` テンプレートで Codex CLI にそのまま handoff を流せる
+- driver contract は導入済みだが、backend ごとの状態表示や response モデルの統一は未完了
 - 無音チャンク直後に直前発話を `final` とみなす補助ルールを追加した
 - `Ctrl+C` で止めた時も、最後の安定発話を `final` として 1 回だけ出せるようにした
 - 長い発話は 2 回連続、短い発話は 3 回連続を基準に `final` へ寄せる
@@ -144,6 +165,7 @@
 - ブラウザ録音の 2 回連続実行は実機確認済み
 - ブラウザ録音の精度改善として `webm` の正規化を反映済み
 - README への位置づけ反映は対応済み
+- Web UI の基本状態表示改善は対応済み
 
 ## Handover notes
 

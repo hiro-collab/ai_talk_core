@@ -167,6 +167,31 @@ PAGE_TEMPLATE = """<!doctype html>
       word-break: break-word;
       color: var(--muted);
     }
+    details.debug-shell {
+      margin-top: 16px;
+    }
+    details.debug-shell summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .status-flow {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .status-step {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #efe5d6;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .status-step.active {
+      background: var(--accent-2);
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -233,11 +258,22 @@ PAGE_TEMPLATE = """<!doctype html>
         </label>
 
         <p class="hint">ブラウザ側でマイク許可が必要です。録音停止後に自動でアップロードします。</p>
-        <div id="record-status" class="status" hidden></div>
-        <div class="debug">
-          <strong>Recorder Debug</strong>
-          <pre id="record-debug">state=idle</pre>
+        <div class="status-flow" aria-label="録音状態">
+          <span id="step-idle" class="status-step active">待機中</span>
+          <span id="step-recording" class="status-step">録音中</span>
+          <span id="step-uploading" class="status-step">アップロード中</span>
+          <span id="step-processing" class="status-step">文字起こし中</span>
+          <span id="step-done" class="status-step">完了</span>
+          <span id="step-error" class="status-step">エラー</span>
         </div>
+        <div id="record-status" class="status" hidden></div>
+        <details class="debug-shell">
+          <summary>開発者向けデバッグ情報</summary>
+          <div class="debug">
+            <strong>Recorder Debug</strong>
+            <pre id="record-debug">state=idle</pre>
+          </div>
+        </details>
       </section>
     </div>
 
@@ -263,6 +299,14 @@ Saved prompt:
     const pageCommand = document.getElementById("page-command");
     const pageMeta = document.getElementById("page-meta");
     const pageError = document.getElementById("page-error");
+    const statusSteps = {
+      idle: document.getElementById("step-idle"),
+      recording: document.getElementById("step-recording"),
+      uploading: document.getElementById("step-uploading"),
+      processing: document.getElementById("step-processing"),
+      done: document.getElementById("step-done"),
+      error: document.getElementById("step-error"),
+    };
     let mediaRecorder = null;
     let activeStream = null;
     let recorderState = "idle";
@@ -285,6 +329,11 @@ Saved prompt:
     const setStatus = (text) => {
       statusBox.hidden = false;
       statusBox.textContent = text;
+    };
+
+    const setActiveStatusStep = (stepName) => {
+      Object.values(statusSteps).forEach((element) => element?.classList.remove("active"));
+      statusSteps[stepName]?.classList.add("active");
     };
 
     const setRecorderButtons = () => {
@@ -311,6 +360,7 @@ Saved prompt:
       mediaRecorder = null;
       chunks = [];
       recorderState = "idle";
+      setActiveStatusStep("idle");
       setRecorderButtons();
     };
 
@@ -323,20 +373,22 @@ Saved prompt:
       pageCommand.textContent = command;
       pageMeta.hidden = !command_path && !command_text_path;
       pageMeta.textContent = [
-        command_path ? `Saved payload:\n${command_path}` : "",
-        command_text_path ? `Saved prompt:\n${command_text_path}` : "",
-      ].filter(Boolean).join("\n");
+        command_path ? `Saved payload:\\n${command_path}` : "",
+        command_text_path ? `Saved prompt:\\n${command_text_path}` : "",
+      ].filter(Boolean).join("\\n");
       pageError.hidden = !error;
       pageError.textContent = error;
     };
 
     const submitForTranscription = async (url, formData, processingText) => {
       recorderState = "uploading";
+      setActiveStatusStep("uploading");
       setRecorderButtons();
       setStatus(processingText);
       updateOutput({ message: processingText, transcript: "", command: "", command_path: "", command_text_path: "", error: "" });
       renderDebug(`upload start -> ${url}`);
       try {
+        setActiveStatusStep("processing");
         const response = await fetch(url, {
           method: "POST",
           body: formData,
@@ -344,12 +396,19 @@ Saved prompt:
         });
         const payload = await response.json();
         updateOutput(payload);
-        setStatus(payload.error ? "処理に失敗しました。" : "処理完了");
+        if (payload.error) {
+          setStatus("処理に失敗しました。");
+          setActiveStatusStep("error");
+        } else {
+          setStatus("処理完了");
+          setActiveStatusStep("done");
+        }
         renderDebug(`upload done status=${response.status}`);
       } catch (error) {
         const message = "通信に失敗しました: " + error;
         updateOutput({ error: message });
         setStatus(message);
+        setActiveStatusStep("error");
         renderDebug(`upload failed: ${error}`);
       } finally {
         recorderState = "idle";
@@ -420,16 +479,19 @@ Saved prompt:
         recorder.onerror = () => {
           resetRecorderState();
           setStatus("録音中にエラーが発生しました。");
+          setActiveStatusStep("error");
           renderDebug("recorder error");
         };
         recorder.start();
         recorderState = "recording";
+        setActiveStatusStep("recording");
         setRecorderButtons();
-        setStatus("録音中...");
+        setStatus("録音中です。停止後にアップロードして文字起こしします。");
         renderDebug("recording started");
       } catch (error) {
         resetRecorderState();
         setStatus("録音開始に失敗しました: " + error);
+        setActiveStatusStep("error");
         renderDebug(`start failed: ${error}`);
       }
     });
@@ -443,10 +505,12 @@ Saved prompt:
       setRecorderButtons();
       mediaRecorder.stop();
       stopButton.disabled = true;
-      setStatus("録音停止。処理中...");
+      setStatus("録音停止。アップロードの準備中です。");
+      setActiveStatusStep("uploading");
       renderDebug("stop requested");
     });
 
+    setActiveStatusStep("idle");
     setRecorderButtons();
     renderDebug("ready");
   </script>

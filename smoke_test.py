@@ -64,6 +64,7 @@ from src.codex_runner import (
 from src.ollama_runner import build_ollama_command
 from src.core.pipeline import AudioChunk, TranscriptionResult
 from src.core.session import MicLoopSession, MicLoopTuning
+from src.drivers.base import DriverRequest, dispatch_driver_request
 from src.web.app import create_app
 from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
 
@@ -363,11 +364,15 @@ class SmokeTests(unittest.TestCase):
         """Web UI index page should load."""
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("ai_core Web UI", response.get_data(as_text=True))
-        self.assertIn("upload_instruction_only", response.get_data(as_text=True))
-        self.assertIn("record_instruction_only", response.get_data(as_text=True))
-        self.assertIn("upload_save_handoff", response.get_data(as_text=True))
-        self.assertIn("record_save_handoff", response.get_data(as_text=True))
+        page = response.get_data(as_text=True)
+        self.assertIn("ai_core Web UI", page)
+        self.assertIn("upload_instruction_only", page)
+        self.assertIn("record_instruction_only", page)
+        self.assertIn("upload_save_handoff", page)
+        self.assertIn("record_save_handoff", page)
+        self.assertIn("待機中", page)
+        self.assertIn("文字起こし中", page)
+        self.assertIn("開発者向けデバッグ情報", page)
 
     def test_webrtcvad_dependency_is_available(self) -> None:
         """webrtcvad should be importable after dependency sync."""
@@ -1435,6 +1440,49 @@ class SmokeTests(unittest.TestCase):
         with mock.patch("src.runners.common.shutil.which", return_value=None):
             with self.assertRaisesRegex(AudioInputError, "runner command not found in PATH: codex"):
                 validate_runner_command_available(["codex", "exec"])
+
+    def test_dispatch_driver_request_returns_normalized_result(self) -> None:
+        """Driver dispatch should return backend metadata and subprocess output."""
+        with mock.patch(
+            "src.drivers.base.validate_runner_command_available"
+        ), mock.patch(
+            "src.drivers.base.subprocess.run"
+        ) as subprocess_run:
+            subprocess_run.return_value = subprocess.CompletedProcess(
+                args=["cat"],
+                returncode=0,
+                stdout="ok\n",
+                stderr="",
+            )
+            result = dispatch_driver_request(
+                DriverRequest(
+                    backend_name="agent",
+                    command=["cat"],
+                    payload="hello",
+                )
+            )
+        self.assertEqual(result.backend_name, "agent")
+        self.assertEqual(result.command, ["cat"])
+        self.assertEqual(result.payload, "hello")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "ok\n")
+
+    def test_dispatch_driver_request_wraps_missing_command(self) -> None:
+        """Driver dispatch should surface missing commands as input errors."""
+        with mock.patch(
+            "src.drivers.base.validate_runner_command_available"
+        ), mock.patch(
+            "src.drivers.base.subprocess.run",
+            side_effect=FileNotFoundError(2, "No such file or directory", "codex"),
+        ):
+            with self.assertRaisesRegex(AudioInputError, "runner command not found: codex"):
+                dispatch_driver_request(
+                    DriverRequest(
+                        backend_name="agent",
+                        command=["codex", "exec"],
+                        payload="hello",
+                    )
+                )
 
     def test_build_ollama_command_normalizes_model_name(self) -> None:
         """Ollama runner should trim the model name."""

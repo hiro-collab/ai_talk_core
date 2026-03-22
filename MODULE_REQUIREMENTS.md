@@ -91,7 +91,7 @@
 ### `src/runners/agent.py`
 
 - handoff を外部コマンドへ流す runner CLI を担当する
-- command 解決と subprocess 実行の薄い橋渡しに留める
+- command 解決と driver request 作成の薄い橋渡しに留める
 - backend 状態管理は持たない
 
 ### `src/runners/ollama.py`
@@ -99,6 +99,13 @@
 - Ollama 向けの runner / driver bridge を担当する
 - Ollama 固有のコマンド組み立てを閉じ込める
 - transcript 生成や handoff 保存は担当しない
+
+### `src/drivers/base.py`
+
+- backend 実行の共通契約を担当する
+- 少なくとも `DriverRequest`, `DriverResult`, `dispatch_driver_request()` を提供する
+- runner CLI から subprocess 実行の詳細を分離する
+- transcript 生成や handoff 読込は担当しない
 
 ### `src/main.py`
 
@@ -118,7 +125,9 @@
 - 第1段階: `src/core/session.py` を導入し、`src/main.py` の mic-loop 状態管理を移す
 - 第2段階: `src/web/transcription_service.py` を導入し、`src/web/app.py` から転写本体処理を移す
 - 第3段階: driver contract を整理し、`codex`, `ollama` などを共通境界で扱えるようにする
+- 第3段階は最小導入済みで、runner から driver request/result 契約を経由する形になった
 - 第4段階: maintenance UI に session 状態表示を導入する
+- 第4段階の最初として、Web UI に基本状態表示を追加した
 
 ## Review focus
 

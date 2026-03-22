@@ -7,18 +7,22 @@ import json
 import sys
 from pathlib import Path
 
-from src.core.dependency_status import format_dependency_status, get_dependency_status
-from src.core.torch_pin_plan import format_torch_pin_plan, get_torch_pin_plan
 from src.core.agent_instruction import build_agent_instruction
 from src.core.handoff_bridge import save_handoff_bundle
 from src.core.pipeline import AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.core.session import MicLoopSession, MicLoopTuning
+from src.core.status_report import (
+    build_doctor_status,
+    build_torch_pin_status,
+    format_doctor_status,
+    format_runtime_status,
+    print_status_command,
+)
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
     AudioTranscriptionError,
     ensure_ffmpeg_available,
-    get_runtime_status,
     validate_audio_file,
     validate_model_name,
 )
@@ -258,42 +262,6 @@ def build_mic_tuning_data(
     }
 
 
-def format_runtime_status(status: dict[str, str | bool | None]) -> str:
-    """Format the local runtime status for terminal output."""
-    lines = ["Runtime status:"]
-    for key, value in status.items():
-        lines.append(f"- {key}: {value}")
-    return "\n".join(lines)
-
-
-def build_doctor_status() -> dict[str, object]:
-    """Return a combined diagnosis view for runtime and dependency state."""
-    return {
-        "runtime": get_runtime_status(),
-        "dependencies": get_dependency_status(),
-    }
-
-
-def format_doctor_status(status: dict[str, object]) -> str:
-    """Format the combined diagnosis view for terminal output."""
-    runtime = status["runtime"]
-    dependencies = status["dependencies"]
-    assert isinstance(runtime, dict)
-    assert isinstance(dependencies, dict)
-    return "\n\n".join(
-        [
-            "Doctor summary:",
-            format_runtime_status(runtime),
-            format_dependency_status(dependencies),
-        ]
-    )
-
-
-def build_torch_pin_status() -> dict[str, object]:
-    """Return a project-local Torch pin plan."""
-    return get_torch_pin_plan()
-
-
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -490,33 +458,7 @@ def main() -> int:
                     )
                 )
             return 0
-        if args.show_runtime_status:
-            status = get_runtime_status()
-            if args.runtime_status_format == "json":
-                print(json.dumps(status, ensure_ascii=False, indent=2))
-            else:
-                print(format_runtime_status(status))
-            return 0
-        if args.show_dependency_status:
-            status = get_dependency_status()
-            if args.dependency_status_format == "json":
-                print(json.dumps(status, ensure_ascii=False, indent=2))
-            else:
-                print(format_dependency_status(status))
-            return 0
-        if args.doctor:
-            status = build_doctor_status()
-            if args.doctor_format == "json":
-                print(json.dumps(status, ensure_ascii=False, indent=2))
-            else:
-                print(format_doctor_status(status))
-            return 0
-        if args.show_torch_pin_plan:
-            status = build_torch_pin_status()
-            if args.torch_pin_plan_format == "json":
-                print(json.dumps(status, ensure_ascii=False, indent=2))
-            else:
-                print(format_torch_pin_plan(status))
+        if print_status_command(args):
             return 0
         validate_model_name(args.model)
         ensure_ffmpeg_available()

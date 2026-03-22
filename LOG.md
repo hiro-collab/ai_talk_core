@@ -248,3 +248,10 @@
 - `src/core/pipeline.py`, `src/core/handoff_bridge.py`, `src/core/agent_instruction.py`, `src/runners/agent.py`, `src/runners/handoff.py`, `src/web/app.py`, `README.md` を確認し、再編案のたたき台を整理
 - `SHARE_NOTE.md` に、再編案に対するコードレビュー担当・デザインレビュー担当向けの確認観点を追記
 - `MODULE_REQUIREMENTS.md` を追加し、実装担当とコードレビュー担当が共有するモジュール要求仕様の基準点を作成
+- `OPERATIONS_DRAFT.md` を追加し、worktree / Worker 分担 / 動作確認の今後の運用方針案を整理
+- `uv run python -m src.web.app` 起動下で、`curl -X POST /api/transcribe-upload`, `save_handoff=true`, `uv run python -m src.agent_handoff --source web --format prompt`, `uv run python -m src.agent_runner --source web --template cat` を実行し、handoff 主導線が成立していることを確認
+- Web UI でファイルアップロード、ブラウザ録音 1 回、状態表示、debug 折りたたみをユーザー実機で確認済みとして反映
+- `SHARE_NOTE.md`, `MODULE_REQUIREMENTS.md`, `OPERATIONS_DRAFT.md` に現在地を同期
+- `OPERATIONS_DRAFT.md` に、Worker 統合手順、rollback 単位、checkpoint tag 案、2 Worker までの試行案を追記
+- `OPERATIONS_DRAFT.md` に、実装 Worker / 統合担当 / コードレビュアー / デザインレビュアーの 4 者分担案を追記
+- `OPERATIONS_DRAFT.md` に、`.worktrees/` 配下を使う最初の 2 Worker 向け `git worktree add/remove` コマンド案を追記

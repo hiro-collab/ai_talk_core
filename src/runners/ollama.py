@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
+import sys
 
+from src.drivers.base import DriverRequest, dispatch_driver_request
 from src.io.audio import AudioInputError
-from src.runners.common import validate_runner_command_available
 from src.runners.handoff import render_handoff_output
 
 
@@ -52,19 +52,23 @@ def main() -> int:
         if args.print_only:
             print(payload)
             return 0
-        validate_runner_command_available(command)
     except AudioInputError as exc:
         print(f"Input error: {exc}")
         return 1
 
     try:
-        completed = subprocess.run(
-            command,
-            input=payload,
-            text=True,
-            check=False,
+        result = dispatch_driver_request(
+            DriverRequest(
+                backend_name="ollama",
+                command=command,
+                payload=payload,
+            )
         )
-    except FileNotFoundError as exc:
-        print(f"Input error: runner command not found: {exc.filename}")
+    except AudioInputError as exc:
+        print(f"Input error: {exc}")
         return 1
-    return completed.returncode
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    return result.returncode
