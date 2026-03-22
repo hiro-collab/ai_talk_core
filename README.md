@@ -1,85 +1,51 @@
 # ai_core
 
-Whisper を使ってローカル音声ファイルを文字起こしする最小構成です。
-現在は `file input -> Whisper -> text`、固定時間の `mic -> Whisper -> text`、および簡易ループの `mic-loop -> Whisper -> text` を対象にしています。内部の共通経路は `capture -> buffer -> transcribe` へ寄せ始めています。
+音声で拾った内容を transcript にし、instruction / handoff を生成して外部 agent へつなぐためのローカル基盤です。
+Whisper を使った転写は中核の手段であり、主目的は `voice capture -> transcript -> handoff -> agent backend` の流れを育てることです。
+現在は `file input`, `mic`, `mic-loop`, `Web UI`, `JSON API`, `agent handoff` を扱えます。
 
-## Overview
+## What This Is
 
-- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽い無音トリム、指示草案出力
-- まだできないこと: 真のリアルタイム streaming、`partial/final` の本格運用、VAD
+- 主目的: 音声入力を agent 向け handoff に変換すること
+- 主導線: `agent_*` CLI / API / handoff
+- Web UI: maintenance UI。保守用だが、使いやすく状態が分かることを重視する
+- 現在の共通経路: `capture -> buffer -> transcribe`
+
+## Start Here
+
+最短で試す:
+
+```bash
+uv sync
+uv run python -m src.main data/sample_audio.mp3 --language ja
+```
+
+Web UI を起動する:
+
+```bash
+uv run python -m src.web.app
+```
+
+保存済み handoff を agent 向けに読む:
+
+```bash
+uv run python -m src.agent_handoff --source web --format prompt
+```
+
+保存済み handoff をそのまま外部コマンドへ渡す:
+
+```bash
+uv run python -m src.agent_runner --source web --template cat
+```
+
+## Current Status
+
+- 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽量 VAD、軽い無音トリム、instruction draft、handoff 保存
+- まだできないこと: 真のリアルタイム streaming、本格的な常時待受 UI、`partial/final` の本格運用
 - 位置づけ: GUI 主体ではなく、音声入力フロントエンド兼サービス境界を優先
 - ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化してから転写
 - Web UI の言語入力欄は既定で `ja`
 - `HD Pro Webcam C920` で録音確認済み
-
-### Architecture
-
-```mermaid
-flowchart LR
-    CLI["CLI\nsrc/main.py"]
-    WEB["Web UI / JSON API\nsrc/web/app.py"]
-    PIPE["Pipeline\nsrc/core/pipeline.py"]
-    MIC["Microphone I/O\nsrc/io/microphone.py"]
-    AUDIO["Audio I/O\nsrc/io/audio.py"]
-    DRAFT["Command Draft\nsrc/core/agent_instruction.py"]
-    BRIDGE["Handoff Bridge\nsrc/core/handoff_bridge.py"]
-    HANDOFF["Handoff Reader\nsrc.agent_handoff / src.codex_handoff"]
-    RUNNER["Runner\nsrc.agent_runner / src.codex_runner.py"]
-    RUNNER_IMPL["Runner impls\nsrc/runners/*"]
-    WHISPER["Whisper"]
-
-    CLI --> PIPE
-    WEB --> PIPE
-    CLI --> MIC
-    WEB --> AUDIO
-    PIPE --> AUDIO
-    PIPE --> WHISPER
-    CLI --> DRAFT
-    WEB --> DRAFT
-    DRAFT --> BRIDGE
-    CLI --> BRIDGE
-    WEB --> BRIDGE
-    BRIDGE --> HANDOFF
-    HANDOFF --> RUNNER
-    RUNNER --> RUNNER_IMPL
-```
-
-### Mic-loop Flow
-
-```mermaid
-flowchart LR
-    CAPTURE["capture chunk"]
-    VAD["webrtcvad speech detection"]
-    TRANSCRIBE["Whisper transcribe"]
-    RESULT["partial / final heuristic"]
-    COMMAND["instruction draft"]
-
-    CAPTURE --> VAD
-    VAD -->|speech| TRANSCRIBE
-    VAD -->|silence| RESULT
-    TRANSCRIBE --> RESULT
-    RESULT --> COMMAND
-```
-
-### Agent Handoff Flow
-
-```mermaid
-flowchart LR
-    TRANSCRIBE["transcription result"]
-    DRAFT["command draft"]
-    SAVE["handoff save\njson + txt"]
-    API["/api/agent-handoff-latest\n/api/codex-handoff-latest"]
-    CLI["src.agent_handoff\nsrc.codex_handoff"]
-    RUNNER["src.agent_runner / src.codex_runner"]
-    TARGET["target command / agent-side process"]
-
-    TRANSCRIBE --> DRAFT
-    DRAFT --> SAVE
-    SAVE --> API
-    SAVE --> CLI
-    CLI --> RUNNER
-    RUNNER --> TARGET
-```
 
 ## Requirements
 
@@ -105,7 +71,22 @@ flowchart LR
 - CPU 版 Torch が入った場合でも CLI は動作しますが、Whisper は CPU fallback で遅くなります
 - CUDA デバイスが一時的に busy / unavailable の場合も、モデル読み込み時は CPU fallback を試みます
 
-## Setup
+## Web UI
+
+ブラウザ GUI を起動:
+
+```bash
+uv run python -m src.web.app
+```
+
+起動後に `http://127.0.0.1:8000` を開きます。
+
+- maintenance UI として、ファイルアップロードとブラウザ録音を扱えます
+- `指示草案を優先して返す` で transcript ではなく instruction を主に返せます
+- `handoff payload を保存する` で `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に保存します
+- 現状は保守用 UI であり、今後は状態表示を強化していく方針です
+
+## API / CLI Setup
 
 依存同期:
 
@@ -123,12 +104,6 @@ uv run python smoke_test.py
 
 - `smoke_test.py` は CLI / Web UI / JSON API のサーバー側動作を確認します
 - ブラウザ録音の 2 回連続実行は実ブラウザ依存なので、別途手動確認が必要です
-
-Web UI 起動:
-
-```bash
-uv run python -m src.web.app
-```
 
 JSON API 例:
 
@@ -165,14 +140,6 @@ curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web
 uv run python -m src.agent_handoff --source web --format prompt
 ```
 
-互換性を保ったまま、より汎用的な入口も使えます。内部では `src/core/handoff_bridge.py`, `src/core/agent_instruction.py`, `src/runners/agent.py` を参照し始めていますが、既存の `src/core/codex_bridge.py`, `src/core/llm.py`, `src/runners/codex.py` は互換のため残しています。
-
-```bash
-uv run python -m src.agent_runner --source web --template cat
-curl http://127.0.0.1:8000/api/codex-handoff-latest?source=web
-uv run python -m src.codex_handoff --source web --format prompt
-```
-
 任意コマンドの stdin に最新 handoff を渡す:
 
 ```bash
@@ -193,7 +160,7 @@ uv run python -m src.agent_runner --source web --template codex-exec
 
 このテンプレートは `codex` コマンドが `PATH` にある前提です。見つからない場合は実行前に入力エラーを返します。
 
-## Quick start
+## Quick Start
 
 ```bash
 uv run python -m src.main data/sample_audio.mp3 --language ja
@@ -239,14 +206,6 @@ uv run python -m src.main --mic --duration 5 --language ja --handoff-output .cac
 
 Web UI でも、アップロード欄とブラウザ録音欄の `指示草案を優先して返す` を有効にすると `command_only` と同じ挙動になります。
 `handoff payload を保存する` を有効にすると、同じ handoff を `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に保存します。
-
-ブラウザ GUI を起動:
-
-```bash
-uv run python -m src.web.app
-```
-
-起動後に `http://127.0.0.1:8000` を開きます。
 
 このマシンでは `--mic-device` を省略した場合、`arecord -l` で見つかった最初の入力デバイスを優先します。
 
@@ -476,6 +435,94 @@ Whisper のモデルは `models/whisper` に保存されます。
 - `final` へ寄せるには、同じ結果が複数回連続する必要があります
 - 発話区間検出としての VAD は未実装です
 - ブラウザ録音の連続実行は smoke test では拾えないため、実ブラウザでの確認が必要です
+
+ここでいう VAD 未実装は「本格的な発話区間検出パイプラインが未実装」という意味です。軽量な `webrtcvad` ベースの speech detection は `mic-loop` ですでに使っています。
+
+## Compatibility notes
+
+主導線は `agent_*` ですが、互換のため `codex_*` 入口も残しています。
+
+- handoff reader の主導線: `src.agent_handoff`
+- runner の主導線: `src.agent_runner`
+- 互換入口: `src.codex_handoff`, `src.codex_runner`, `/api/codex-handoff-latest`
+
+既存の `src/core/codex_bridge.py`, `src/core/llm.py`, `src/runners/codex.py` も互換のため残していますが、新しい構成では `src/core/handoff_bridge.py`, `src/core/agent_instruction.py`, `src/runners/agent.py` を参照します。
+
+## Architecture
+
+```mermaid
+flowchart LR
+    CLI["CLI\nsrc/main.py"]
+    WEB["Web UI / JSON API\nsrc/web/app.py"]
+    WEBSERVICE["Web transcription service\nsrc/web/transcription_service.py"]
+    SESSION["Session\nsrc/core/session.py"]
+    PIPE["Pipeline\nsrc/core/pipeline.py"]
+    MIC["Microphone I/O\nsrc/io/microphone.py"]
+    AUDIO["Audio I/O\nsrc/io/audio.py"]
+    DRAFT["Command Draft\nsrc/core/agent_instruction.py"]
+    BRIDGE["Handoff Bridge\nsrc/core/handoff_bridge.py"]
+    HANDOFF["Handoff Reader\nsrc.agent_handoff / src.codex_handoff"]
+    RUNNER["Runner\nsrc.agent_runner / src.codex_runner.py"]
+    RUNNER_IMPL["Runner impls\nsrc/runners/*"]
+    WHISPER["Whisper"]
+
+    CLI --> SESSION
+    CLI --> PIPE
+    CLI --> MIC
+    WEB --> WEBSERVICE
+    WEBSERVICE --> PIPE
+    SESSION --> PIPE
+    PIPE --> AUDIO
+    PIPE --> WHISPER
+    CLI --> DRAFT
+    WEBSERVICE --> DRAFT
+    DRAFT --> BRIDGE
+    CLI --> BRIDGE
+    WEBSERVICE --> BRIDGE
+    BRIDGE --> HANDOFF
+    HANDOFF --> RUNNER
+    RUNNER --> RUNNER_IMPL
+```
+
+### Mic-loop Flow
+
+```mermaid
+flowchart LR
+    CAPTURE["capture chunk"]
+    VAD["webrtcvad speech detection"]
+    SESSION["session state"]
+    TRANSCRIBE["Whisper transcribe"]
+    RESULT["partial / final heuristic"]
+    COMMAND["instruction draft"]
+
+    CAPTURE --> VAD
+    VAD -->|speech| SESSION
+    VAD -->|silence| SESSION
+    SESSION --> TRANSCRIBE
+    SESSION --> RESULT
+    TRANSCRIBE --> RESULT
+    RESULT --> COMMAND
+```
+
+### Agent Handoff Flow
+
+```mermaid
+flowchart LR
+    TRANSCRIBE["transcription result"]
+    DRAFT["command draft"]
+    SAVE["handoff save\njson + txt"]
+    API["/api/agent-handoff-latest\n/api/codex-handoff-latest"]
+    CLI["src.agent_handoff\nsrc.codex_handoff"]
+    RUNNER["src.agent_runner / src.codex_runner"]
+    TARGET["target command / agent-side process"]
+
+    TRANSCRIBE --> DRAFT
+    DRAFT --> SAVE
+    SAVE --> API
+    SAVE --> CLI
+    CLI --> RUNNER
+    RUNNER --> TARGET
+```
 
 ## Manual checks
 
