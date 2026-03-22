@@ -509,7 +509,7 @@ PAGE_TEMPLATE = """<!doctype html>
         <div class="panel-header">
           <div>
             <h2>ファイルアップロード</h2>
-            <p>通常は かんたん から始め、必要な時だけ 詳細 を開きます。</p>
+            <p>通常は `かんたん` から始め、必要な時だけ `詳細` を開きます。</p>
           </div>
           <span class="mode-badge">アップロード</span>
         </div>
@@ -521,7 +521,7 @@ PAGE_TEMPLATE = """<!doctype html>
           <div id="upload-quick" class="mode-panel quick-stack">
             <div class="quick-card">
               <strong>1. 音声ファイルを選ぶ</strong>
-              <p>通常はここだけで十分です。</p>
+              <p>通常はここから始めれば十分です。</p>
               <div class="label-row">
                 <label for="audio_file">音声ファイル</label>
                 <span class="microcopy">mp3 / wav / m4a / mp4 / webm</span>
@@ -530,7 +530,7 @@ PAGE_TEMPLATE = """<!doctype html>
             </div>
             <div class="quick-card">
               <strong>2. 実行する</strong>
-              <p>結果は下の結果ビューに集約されます。</p>
+              <p>結果は下の結果ビューで確認します。</p>
               <button type="submit">文字起こしする</button>
             </div>
           </div>
