@@ -573,7 +573,7 @@ PAGE_TEMPLATE = """<!doctype html>
         <div class="panel-header">
           <div>
             <h2>ブラウザ録音</h2>
-            <p>かんたん では録音開始と停止だけを出し、詳細設定は 詳細 に退避しています。</p>
+            <p>`かんたん` では録音開始と停止だけを出し、詳細設定は `詳細` にまとめています。</p>
           </div>
           <span class="mode-badge">録音</span>
         </div>
@@ -593,7 +593,7 @@ PAGE_TEMPLATE = """<!doctype html>
           </div>
           <div class="quick-card">
             <strong>2. 進行を見る</strong>
-            <p>録音から完了までの状態を表示します。</p>
+            <p>録音から完了までの状態をここで確認します。</p>
             <div class="status-flow" aria-label="録音状態">
               <span id="step-idle" class="status-step active">待機中</span>
               <span id="step-recording" class="status-step">録音中</span>
