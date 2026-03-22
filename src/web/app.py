@@ -448,18 +448,18 @@ PAGE_TEMPLATE = """<!doctype html>
     <section class="hero">
       <div class="hero-copy">
         <h1>ai_core maintenance UI</h1>
-        <p class="lead">音声を受け取り、文字起こしと handoff 確認までを 1 画面で進めます。通常は `かんたん` から始めます。</p>
+        <p class="lead">音声を受け取り、文字起こしから handoff 確認までを 1 画面で進めます。通常は `かんたん` から始めます。</p>
       </div>
       <div class="hero-strip">
         <div class="hero-card">
           <p class="eyebrow">主導線</p>
           <strong>録音して handoff を確認</strong>
-          <span>入力から結果確認まで、保守用の導線を最短で辿れる構成です。</span>
+          <span>入力から結果確認までを最短で進められる構成です。</span>
         </div>
         <div class="hero-card">
           <p class="eyebrow">既定値</p>
           <strong>ja / small で開始</strong>
-          <span>詳細設定と録音デバッグは下段へ分離し、通常操作を先に見せています。</span>
+          <span>詳細設定と録音デバッグは下段にまとめています。</span>
         </div>
       </div>
     </section>

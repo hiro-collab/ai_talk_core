@@ -317,3 +317,6 @@
 - worker/web-ui: `src/web/app.py` の結果ビュー 1 面だけを調整し、説明文とアクション名を短くそろえて、結果確認から保存先確認までの読み順をそろえた
 - worker/web-ui: `src/web/app.py` の結果ビュー調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
 - worker/web-ui: `src/web/app.py` の結果ビュー調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+- worker/web-ui: `src/web/app.py` の Hero 1 面だけを調整し、先頭説明と補助カードの文量を詰めて主導線を先に読みやすくした
+- worker/web-ui: `src/web/app.py` の Hero 調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- worker/web-ui: `src/web/app.py` の Hero 調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
