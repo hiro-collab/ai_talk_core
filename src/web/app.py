@@ -468,31 +468,31 @@ PAGE_TEMPLATE = """<!doctype html>
       <div class="panel-header">
         <div>
           <h2>操作状況</h2>
-          <p>今どの入口を使っているかと、結果の次アクションだけを簡潔に表示します。</p>
+          <p>使っている入口と次にすることだけを簡潔に表示します。</p>
         </div>
         <span class="mode-badge">概要</span>
       </div>
       <div class="maintenance-grid">
         <div class="maintenance-card">
-          <strong>現在の入口</strong>
-          <p class="maintenance-copy">最後に触った操作と録音状態をまとめています。</p>
+          <strong>いまの入口</strong>
+          <p class="maintenance-copy">最後に使った操作と録音状態をまとめます。</p>
           <div class="maintenance-list">
             <div class="maintenance-item">
               <span>入力モード</span>
               <strong id="ui-active-lane" class="maintenance-value">未選択</strong>
             </div>
             <div class="maintenance-item">
-              <span>録音ステータス</span>
+              <span>録音状態</span>
               <strong id="ui-recorder-state" class="maintenance-value">待機中</strong>
             </div>
           </div>
         </div>
         <div class="maintenance-card">
-          <strong>結果と次アクション</strong>
-          <p class="maintenance-copy">直近の処理結果と次に見る場所を示します。</p>
+          <strong>結果と次の操作</strong>
+          <p class="maintenance-copy">直近の結果と次に見る場所を示します。</p>
           <div class="maintenance-list">
             <div class="maintenance-item">
-              <span>最新の結果</span>
+              <span>直近の結果</span>
               <strong id="ui-last-outcome" class="maintenance-value">{% if error %}エラー{% elif transcript or command %}結果あり{% elif message %}進行中{% else %}未実行{% endif %}</strong>
             </div>
             <div class="maintenance-item">
