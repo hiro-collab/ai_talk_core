@@ -16,70 +16,209 @@ PAGE_TEMPLATE = """<!doctype html>
   <title>ai_core Web UI</title>
   <style>
     :root {
-      --bg: #f5f1e8;
-      --panel: #fffdf8;
-      --line: #d8ccb6;
-      --text: #1f1a14;
-      --muted: #6d6257;
-      --accent: #9f4d2f;
-      --accent-2: #204b57;
+      --bg: #f4efe5;
+      --panel: rgba(255, 252, 245, 0.94);
+      --panel-strong: #fffaf1;
+      --line: #d7c7aa;
+      --text: #21170f;
+      --muted: #67594d;
+      --accent: #9c4f2d;
+      --accent-strong: #7d3e21;
+      --accent-alt: #1c5660;
+      --accent-soft: #f0e5d3;
+      --ok-bg: #eff6f1;
+      --ok-line: #bcd5c5;
+      --result-bg: #fff4df;
+      --result-line: #e3c48c;
+      --command-bg: #edf0fc;
+      --command-line: #b8c4f0;
+      --error-bg: #fff0ee;
+      --error-line: #e5b1ab;
+      --shadow: 0 20px 50px rgba(49, 31, 15, 0.08);
+    }
+    * {
+      box-sizing: border-box;
     }
     body {
       margin: 0;
       font-family: "Noto Sans JP", "Hiragino Sans", sans-serif;
       background:
-        radial-gradient(circle at top left, #fff7df 0%, transparent 32%),
-        radial-gradient(circle at bottom right, #d9efe7 0%, transparent 28%),
+        linear-gradient(145deg, rgba(255, 245, 225, 0.88), rgba(232, 241, 237, 0.7)),
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.85) 0%, transparent 30%),
         var(--bg);
       color: var(--text);
     }
     main {
-      max-width: 960px;
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 40px 20px 64px;
+      padding: 36px 20px 72px;
+    }
+    .hero {
+      display: grid;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    .hero-copy {
+      display: grid;
+      gap: 10px;
     }
     h1 {
-      margin: 0 0 12px;
-      font-size: clamp(2rem, 4vw, 3rem);
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      line-height: 1.04;
     }
     p.lead {
-      margin: 0 0 24px;
+      margin: 0;
       color: var(--muted);
-      max-width: 60ch;
+      max-width: 68ch;
+      line-height: 1.7;
+    }
+    .hero-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .hero-card,
+    .panel,
+    .result-shell {
+      background: var(--panel);
+      border: 1px solid rgba(215, 199, 170, 0.9);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+    .hero-card {
+      padding: 16px 18px;
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .hero-card strong {
+      display: block;
+      font-size: 1rem;
+    }
+    .hero-card span {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 20px;
+      align-items: start;
     }
     .panel {
-      background: var(--panel);
+      padding: 22px;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1.22rem;
+    }
+    .panel-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+    .mode-badge {
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    .mode-switch {
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .mode-switch button {
+      margin: 0;
+      min-width: 104px;
+      padding: 10px 14px;
+      background: #efe5d6;
+      color: var(--text);
+    }
+    .mode-switch button.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .mode-panel[hidden] {
+      display: none;
+    }
+    .quick-stack,
+    .advanced-stack {
+      display: grid;
+      gap: 14px;
+    }
+    .quick-card,
+    .advanced-card,
+    .maintenance-card {
       border: 1px solid var(--line);
       border-radius: 18px;
-      padding: 20px;
-      box-shadow: 0 14px 40px rgba(36, 22, 10, 0.08);
+      padding: 16px;
+      background: var(--panel-strong);
     }
-    .panel h2 {
-      margin-top: 0;
-      font-size: 1.2rem;
+    .quick-card strong,
+    .advanced-card strong,
+    .maintenance-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.98rem;
+    }
+    .quick-card p,
+    .advanced-card p,
+    .maintenance-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin: 14px 0 6px;
+    }
+    .label-row label {
+      margin: 0;
+    }
+    .microcopy {
+      color: var(--muted);
+      font-size: 0.82rem;
     }
     label {
       display: block;
-      font-size: 0.92rem;
-      margin: 14px 0 6px;
       color: var(--muted);
+      font-size: 0.92rem;
     }
-    input[type="file"], input[type="text"], select {
+    input[type="file"],
+    input[type="text"],
+    select {
       width: 100%;
-      box-sizing: border-box;
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 12px 14px;
       background: #fff;
+      color: var(--text);
       font: inherit;
     }
     button {
-      margin-top: 16px;
       border: none;
       border-radius: 999px;
       padding: 12px 18px;
@@ -87,44 +226,27 @@ PAGE_TEMPLATE = """<!doctype html>
       cursor: pointer;
       background: var(--accent);
       color: #fff;
+      transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+    }
+    button:hover:enabled {
+      transform: translateY(-1px);
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+      transform: none;
     }
     button.secondary {
-      background: var(--accent-2);
+      background: var(--accent-alt);
     }
     button.ghost {
       background: #efe5d6;
       color: var(--text);
     }
-    .status, .result, .error, .command, .meta {
-      margin-top: 20px;
-      padding: 16px;
-      border-radius: 14px;
-      white-space: pre-wrap;
-    }
-    .status[hidden], .result[hidden], .error[hidden], .command[hidden], .meta[hidden] {
-      display: none;
-    }
-    .status {
-      background: #eef5f5;
-      border: 1px solid #bfd5d6;
-    }
-    .result {
-      background: #fff6e6;
-      border: 1px solid #e8c88c;
-    }
-    .error {
-      background: #fff0ef;
-      border: 1px solid #e8b2ad;
-      color: #7d2314;
-    }
-    .command {
-      background: #eef0ff;
-      border: 1px solid #b8c1f1;
-    }
-    .meta {
-      background: #f7f4ee;
-      border: 1px solid #d9d0c0;
-      color: var(--muted);
+    button.inline-action {
+      margin: 0;
+      padding: 10px 14px;
+      font-size: 0.9rem;
     }
     .row {
       display: flex;
@@ -135,24 +257,138 @@ PAGE_TEMPLATE = """<!doctype html>
     .hint {
       color: var(--muted);
       font-size: 0.9rem;
-      margin-top: 8px;
+      margin: 0;
+      line-height: 1.55;
     }
     .checkbox {
       display: flex;
       gap: 10px;
-      align-items: center;
-      margin-top: 14px;
+      align-items: flex-start;
+      margin-top: 12px;
       color: var(--muted);
       font-size: 0.92rem;
+      line-height: 1.45;
     }
     .checkbox input {
       width: auto;
+      margin: 2px 0 0;
+      accent-color: var(--accent);
+    }
+    .status-flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .status-step {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #efe5d6;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .status-step.active {
+      background: var(--accent-alt);
+      color: #fff;
+    }
+    .status-box,
+    .result-box,
+    .command-box,
+    .meta-box,
+    .error-box {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 18px;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .status-box[hidden],
+    .result-box[hidden],
+    .command-box[hidden],
+    .meta-box[hidden],
+    .error-box[hidden],
+    .action-row[hidden] {
+      display: none;
+    }
+    .status-box {
+      background: var(--ok-bg);
+      border: 1px solid var(--ok-line);
+    }
+    .result-box {
+      background: var(--result-bg);
+      border: 1px solid var(--result-line);
+    }
+    .command-box {
+      background: var(--command-bg);
+      border: 1px solid var(--command-line);
+    }
+    .meta-box {
+      background: #f7f2e8;
+      border: 1px solid #d7ccb8;
+      color: var(--muted);
+    }
+    .error-box {
+      background: var(--error-bg);
+      border: 1px solid var(--error-line);
+      color: #7d2217;
+    }
+    .maintenance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .maintenance-value {
+      display: block;
+      margin-top: 8px;
+      font-size: 1rem;
+      color: var(--text);
+    }
+    .result-shell {
+      margin-top: 24px;
+      padding: 22px;
+    }
+    .result-shell-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+    .result-shell-header h2 {
       margin: 0;
+      font-size: 1.2rem;
+    }
+    .result-shell-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 0.92rem;
+    }
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .action-feedback {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      min-height: 1.4em;
+    }
+    details.debug-shell {
+      margin-top: 16px;
+    }
+    details.debug-shell summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.9rem;
     }
     .debug {
-      margin-top: 16px;
+      margin-top: 12px;
       padding: 14px;
-      border-radius: 14px;
+      border-radius: 16px;
       border: 1px dashed var(--line);
       background: #faf6ee;
       font-size: 0.88rem;
@@ -166,107 +402,222 @@ PAGE_TEMPLATE = """<!doctype html>
       white-space: pre-wrap;
       word-break: break-word;
       color: var(--muted);
+      line-height: 1.55;
     }
-    details.debug-shell {
-      margin-top: 16px;
-    }
-    details.debug-shell summary {
-      cursor: pointer;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-    .status-flow {
-      margin-top: 16px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .status-step {
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: #efe5d6;
-      color: var(--muted);
-      font-size: 0.82rem;
-    }
-    .status-step.active {
-      background: var(--accent-2);
-      color: #fff;
+    @media (max-width: 720px) {
+      main {
+        padding-inline: 14px;
+      }
+      .panel,
+      .result-shell {
+        padding: 18px;
+      }
+      .panel-header,
+      .result-shell-header {
+        flex-direction: column;
+      }
+      .mode-switch {
+        width: 100%;
+      }
+      .mode-switch button {
+        flex: 1 1 0;
+      }
     }
   </style>
 </head>
 <body>
   <main>
-    <h1>ai_core Web UI</h1>
-    <p class="lead">ローカル音声ファイルのアップロード、またはブラウザのマイク録音から、Whisper で文字起こしします。</p>
+    <section class="hero">
+      <div class="hero-copy">
+        <h1>ai_core maintenance UI</h1>
+        <p class="lead">音声ファイルかブラウザ録音を受け取り、Whisper で transcript を作り、必要なら handoff 保存まで進めます。通常操作は `Quick`、運用時の切り替えは `Advanced` に分離しています。</p>
+      </div>
+      <div class="hero-strip">
+        <div class="hero-card">
+          <p class="eyebrow">Primary Flow</p>
+          <strong>Capture -> Transcript -> Handoff</strong>
+          <span>maintenance 用の入口として、確認したい流れを最短で辿れる構成です。</span>
+        </div>
+        <div class="hero-card">
+          <p class="eyebrow">Default</p>
+          <strong>Language = ja / Model = small</strong>
+          <span>既定値は Quick 側に固定し、詳細調整だけ Advanced に寄せています。</span>
+        </div>
+        <div class="hero-card">
+          <p class="eyebrow">Debug</p>
+          <strong>通常導線から分離</strong>
+          <span>録音デバッグは折りたたみのまま維持し、普段の操作面から切り離しています。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Maintenance Status</h2>
+          <p>現在の進行状況と、次に何をすべきかを上段で把握できます。録音状態と処理結果の概要だけを通常導線に残します。</p>
+        </div>
+        <span class="mode-badge">Operator View</span>
+      </div>
+      <div class="maintenance-grid">
+        <div class="maintenance-card">
+          <strong>現在の入力モード</strong>
+          <p>最後に操作した入口</p>
+          <span id="ui-active-lane" class="maintenance-value">未選択</span>
+        </div>
+        <div class="maintenance-card">
+          <strong>録音ステータス</strong>
+          <p>ブラウザ録音の進行</p>
+          <span id="ui-recorder-state" class="maintenance-value">待機中</span>
+        </div>
+        <div class="maintenance-card">
+          <strong>最新の結果</strong>
+          <p>成功 / エラーの要約</p>
+          <span id="ui-last-outcome" class="maintenance-value">{% if error %}エラー{% elif transcript or command %}結果あり{% elif message %}進行中{% else %}未実行{% endif %}</span>
+        </div>
+        <div class="maintenance-card">
+          <strong>次アクション</strong>
+          <p>結果直下にも同じ導線を出します</p>
+          <span id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}内容をコピーまたは handoff を確認{% else %}Quick から開始{% endif %}</span>
+        </div>
+      </div>
+    </section>
 
     <div class="grid">
       <section class="panel">
-        <h2>ファイルアップロード</h2>
+        <div class="panel-header">
+          <div>
+            <h2>ファイルアップロード</h2>
+            <p>最短導線は Quick にまとめ、モデルや保存オプションは Advanced に分離しています。</p>
+          </div>
+          <span class="mode-badge">Upload Lane</span>
+        </div>
+        <div class="mode-switch" role="tablist" aria-label="アップロード設定モード">
+          <button type="button" class="tab-toggle active" data-target="upload-quick">Quick</button>
+          <button type="button" class="tab-toggle" data-target="upload-advanced">Advanced</button>
+        </div>
         <form id="upload-form" action="{{ url_for('transcribe_upload') }}" method="post" enctype="multipart/form-data">
-          <label for="audio_file">音声ファイル</label>
-          <input id="audio_file" name="audio_file" type="file" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" required>
+          <div id="upload-quick" class="mode-panel quick-stack">
+            <div class="quick-card">
+              <strong>1. 音声ファイルを選ぶ</strong>
+              <p>通常はここだけで十分です。既定値は `small` / `ja` です。</p>
+              <div class="label-row">
+                <label for="audio_file">音声ファイル</label>
+                <span class="microcopy">mp3 / wav / m4a / mp4 / webm</span>
+              </div>
+              <input id="audio_file" name="audio_file" type="file" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" required>
+            </div>
+            <div class="quick-card">
+              <strong>2. 実行する</strong>
+              <p>結果は下の Result Center に集約されます。</p>
+              <button type="submit">文字起こしする</button>
+            </div>
+          </div>
 
-          <label for="upload_model">モデル</label>
-          <select id="upload_model" name="model">
-            <option value="small">small</option>
-            <option value="base">base</option>
-            <option value="medium">medium</option>
-          </select>
+          <div id="upload-advanced" class="mode-panel advanced-stack" hidden>
+            <div class="advanced-card">
+              <strong>処理パラメータ</strong>
+              <div class="label-row">
+                <label for="upload_model">モデル</label>
+                <span class="microcopy">既定: small</span>
+              </div>
+              <select id="upload_model" name="model">
+                <option value="small">small</option>
+                <option value="base">base</option>
+                <option value="medium">medium</option>
+              </select>
 
-          <label for="upload_language">言語コード</label>
-          <input id="upload_language" name="language" type="text" value="ja" placeholder="ja">
-
-          <label class="checkbox" for="upload_instruction_only">
-            <input id="upload_instruction_only" name="instruction_only" type="checkbox" value="true">
-            指示草案を優先して返す
-          </label>
-
-          <label class="checkbox" for="upload_save_handoff">
-            <input id="upload_save_handoff" name="save_handoff" type="checkbox" value="true">
-            handoff payload を保存する
-          </label>
-
-          <button type="submit">文字起こしする</button>
+              <div class="label-row">
+                <label for="upload_language">言語コード</label>
+                <span class="microcopy">既定: ja</span>
+              </div>
+              <input id="upload_language" name="language" type="text" value="ja" placeholder="ja">
+            </div>
+            <div class="advanced-card">
+              <strong>出力オプション</strong>
+              <label class="checkbox" for="upload_instruction_only">
+                <input id="upload_instruction_only" name="instruction_only" type="checkbox" value="true">
+                transcript より指示草案を優先して確認する
+              </label>
+              <label class="checkbox" for="upload_save_handoff">
+                <input id="upload_save_handoff" name="save_handoff" type="checkbox" value="true">
+                handoff payload を保存して、後続 runner から再利用できるようにする
+              </label>
+            </div>
+          </div>
         </form>
       </section>
 
       <section class="panel">
-        <h2>ブラウザ録音</h2>
-        <div class="row">
-          <button id="start-record" class="secondary" type="button">録音開始</button>
-          <button id="stop-record" class="ghost" type="button" disabled>録音停止</button>
+        <div class="panel-header">
+          <div>
+            <h2>ブラウザ録音</h2>
+            <p>Quick では録音開始と停止だけに絞り、録音後の保存方針や出力形式は Advanced に退避しています。</p>
+          </div>
+          <span class="mode-badge">Record Lane</span>
+        </div>
+        <div class="mode-switch" role="tablist" aria-label="録音設定モード">
+          <button type="button" class="tab-toggle active" data-target="record-quick">Quick</button>
+          <button type="button" class="tab-toggle" data-target="record-advanced">Advanced</button>
         </div>
 
-        <label for="record_model">モデル</label>
-        <select id="record_model">
-          <option value="small">small</option>
-          <option value="base">base</option>
-          <option value="medium">medium</option>
-        </select>
-
-        <label for="record_language">言語コード</label>
-        <input id="record_language" type="text" value="ja" placeholder="ja">
-
-        <label class="checkbox" for="record_instruction_only">
-          <input id="record_instruction_only" type="checkbox" value="true">
-          指示草案を優先して返す
-        </label>
-
-        <label class="checkbox" for="record_save_handoff">
-          <input id="record_save_handoff" type="checkbox" value="true">
-          handoff payload を保存する
-        </label>
-
-        <p class="hint">ブラウザ側でマイク許可が必要です。録音停止後に自動でアップロードします。</p>
-        <div class="status-flow" aria-label="録音状態">
-          <span id="step-idle" class="status-step active">待機中</span>
-          <span id="step-recording" class="status-step">録音中</span>
-          <span id="step-uploading" class="status-step">アップロード中</span>
-          <span id="step-processing" class="status-step">文字起こし中</span>
-          <span id="step-done" class="status-step">完了</span>
-          <span id="step-error" class="status-step">エラー</span>
+        <div id="record-quick" class="mode-panel quick-stack">
+          <div class="quick-card">
+            <strong>1. マイク許可を与える</strong>
+            <p>停止後に自動でアップロードして処理します。</p>
+            <div class="row">
+              <button id="start-record" class="secondary" type="button">録音開始</button>
+              <button id="stop-record" class="ghost" type="button" disabled>録音停止</button>
+            </div>
+          </div>
+          <div class="quick-card">
+            <strong>2. 進行を見る</strong>
+            <p>録音から文字起こし完了までの流れを maintenance 用に可視化します。</p>
+            <div class="status-flow" aria-label="録音状態">
+              <span id="step-idle" class="status-step active">待機中</span>
+              <span id="step-recording" class="status-step">録音中</span>
+              <span id="step-uploading" class="status-step">アップロード中</span>
+              <span id="step-processing" class="status-step">文字起こし中</span>
+              <span id="step-done" class="status-step">完了</span>
+              <span id="step-error" class="status-step">エラー</span>
+            </div>
+            <div id="record-status" class="status-box" hidden></div>
+          </div>
         </div>
-        <div id="record-status" class="status" hidden></div>
+
+        <div id="record-advanced" class="mode-panel advanced-stack" hidden>
+          <div class="advanced-card">
+            <strong>処理パラメータ</strong>
+            <div class="label-row">
+              <label for="record_model">モデル</label>
+              <span class="microcopy">既定: small</span>
+            </div>
+            <select id="record_model">
+              <option value="small">small</option>
+              <option value="base">base</option>
+              <option value="medium">medium</option>
+            </select>
+
+            <div class="label-row">
+              <label for="record_language">言語コード</label>
+              <span class="microcopy">既定: ja</span>
+            </div>
+            <input id="record_language" type="text" value="ja" placeholder="ja">
+          </div>
+          <div class="advanced-card">
+            <strong>出力オプション</strong>
+            <label class="checkbox" for="record_instruction_only">
+              <input id="record_instruction_only" type="checkbox" value="true">
+              transcript より指示草案を優先して確認する
+            </label>
+            <label class="checkbox" for="record_save_handoff">
+              <input id="record_save_handoff" type="checkbox" value="true">
+              handoff payload を保存して後続コマンドから読み出せるようにする
+            </label>
+            <p class="hint">録音デバッグは通常導線から外し、下の開発者向けセクションに隔離しています。</p>
+          </div>
+        </div>
+
         <details class="debug-shell">
           <summary>開発者向けデバッグ情報</summary>
           <div class="debug">
@@ -277,15 +628,30 @@ PAGE_TEMPLATE = """<!doctype html>
       </section>
     </div>
 
-    <div id="page-status" class="status" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
-    <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
-    <div id="page-command" class="command" {% if not command %}hidden{% endif %}>Instruction draft:
+    <section class="result-shell">
+      <div class="result-shell-header">
+        <div>
+          <h2>Result Center</h2>
+          <p>文字起こし結果、指示草案、保存先、次アクションを 1 箇所に集約しています。通常操作はここを見れば足ります。</p>
+        </div>
+        <span class="mode-badge">After Action</span>
+      </div>
+      <div id="page-status" class="status-box" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
+      <div id="page-result" class="result-box" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
+      <div id="page-command" class="command-box" {% if not command %}hidden{% endif %}>Instruction draft:
 {{ command or "" }}</div>
-    <div id="page-meta" class="meta" {% if not command_path and not command_text_path %}hidden{% endif %}>Saved payload:
+      <div id="page-meta" class="meta-box" {% if not command_path and not command_text_path %}hidden{% endif %}>Saved payload:
 {{ command_path or "" }}{% if command_text_path %}
 Saved prompt:
 {{ command_text_path }}{% endif %}</div>
-    <div id="page-error" class="error" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
+      <div id="page-error" class="error-box" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
+      <div id="result-actions" class="action-row" {% if not transcript and not command and not command_path and not command_text_path %}hidden{% endif %}>
+        <button id="copy-transcript" class="inline-action ghost" type="button">transcript をコピー</button>
+        <button id="copy-command" class="inline-action ghost" type="button">instruction をコピー</button>
+        <button id="refresh-handoff" class="inline-action secondary" type="button">最新 handoff を再確認</button>
+      </div>
+      <div id="action-feedback" class="action-feedback"></div>
+    </section>
   </main>
 
   <script>
@@ -299,6 +665,15 @@ Saved prompt:
     const pageCommand = document.getElementById("page-command");
     const pageMeta = document.getElementById("page-meta");
     const pageError = document.getElementById("page-error");
+    const resultActions = document.getElementById("result-actions");
+    const actionFeedback = document.getElementById("action-feedback");
+    const activeLane = document.getElementById("ui-active-lane");
+    const recorderStateLabel = document.getElementById("ui-recorder-state");
+    const lastOutcome = document.getElementById("ui-last-outcome");
+    const nextAction = document.getElementById("ui-next-action");
+    const copyTranscriptButton = document.getElementById("copy-transcript");
+    const copyCommandButton = document.getElementById("copy-command");
+    const refreshHandoffButton = document.getElementById("refresh-handoff");
     const statusSteps = {
       idle: document.getElementById("step-idle"),
       recording: document.getElementById("step-recording"),
@@ -312,6 +687,38 @@ Saved prompt:
     let recorderState = "idle";
     let chunks = [];
     let lastBlobSize = 0;
+
+    const showActionFeedback = (text) => {
+      actionFeedback.textContent = text;
+    };
+
+    const setActiveLane = (text) => {
+      activeLane.textContent = text;
+    };
+
+    const setRecorderStateLabel = (text) => {
+      recorderStateLabel.textContent = text;
+    };
+
+    const syncMaintenanceSummary = ({ message = "", transcript = "", command = "", command_path = "", command_text_path = "", error = "" }) => {
+      if (error) {
+        lastOutcome.textContent = "エラー";
+        nextAction.textContent = "エラー内容を確認";
+        return;
+      }
+      if (transcript || command) {
+        lastOutcome.textContent = "結果あり";
+        nextAction.textContent = command_path || command_text_path ? "内容を確認して必要なら handoff を使う" : "内容を確認して必要ならコピーする";
+        return;
+      }
+      if (message) {
+        lastOutcome.textContent = "進行中";
+        nextAction.textContent = "処理完了を待つ";
+        return;
+      }
+      lastOutcome.textContent = "未実行";
+      nextAction.textContent = "Quick から開始";
+    };
 
     const renderDebug = (note = "") => {
       const lines = [
@@ -327,7 +734,7 @@ Saved prompt:
     };
 
     const setStatus = (text) => {
-      statusBox.hidden = false;
+      statusBox.hidden = !text;
       statusBox.textContent = text;
     };
 
@@ -360,6 +767,7 @@ Saved prompt:
       mediaRecorder = null;
       chunks = [];
       recorderState = "idle";
+      setRecorderStateLabel("待機中");
       setActiveStatusStep("idle");
       setRecorderButtons();
     };
@@ -370,7 +778,7 @@ Saved prompt:
       pageResult.hidden = !transcript;
       pageResult.textContent = transcript;
       pageCommand.hidden = !command;
-      pageCommand.textContent = command;
+      pageCommand.textContent = command ? `Instruction draft:\\n${command}` : "";
       pageMeta.hidden = !command_path && !command_text_path;
       pageMeta.textContent = [
         command_path ? `Saved payload:\\n${command_path}` : "",
@@ -378,16 +786,24 @@ Saved prompt:
       ].filter(Boolean).join("\\n");
       pageError.hidden = !error;
       pageError.textContent = error;
+      resultActions.hidden = !transcript && !command && !command_path && !command_text_path;
+      copyTranscriptButton.disabled = !transcript;
+      copyCommandButton.disabled = !command;
+      syncMaintenanceSummary({ message, transcript, command, command_path, command_text_path, error });
     };
 
-    const submitForTranscription = async (url, formData, processingText) => {
+    const submitForTranscription = async (url, formData, processingText, laneLabel) => {
       recorderState = "uploading";
+      setActiveLane(laneLabel);
+      setRecorderStateLabel("アップロード中");
       setActiveStatusStep("uploading");
       setRecorderButtons();
       setStatus(processingText);
       updateOutput({ message: processingText, transcript: "", command: "", command_path: "", command_text_path: "", error: "" });
+      showActionFeedback("");
       renderDebug(`upload start -> ${url}`);
       try {
+        setRecorderStateLabel("文字起こし中");
         setActiveStatusStep("processing");
         const response = await fetch(url, {
           method: "POST",
@@ -398,9 +814,11 @@ Saved prompt:
         updateOutput(payload);
         if (payload.error) {
           setStatus("処理に失敗しました。");
+          setRecorderStateLabel("エラー");
           setActiveStatusStep("error");
         } else {
           setStatus("処理完了");
+          setRecorderStateLabel("完了");
           setActiveStatusStep("done");
         }
         renderDebug(`upload done status=${response.status}`);
@@ -408,6 +826,7 @@ Saved prompt:
         const message = "通信に失敗しました: " + error;
         updateOutput({ error: message });
         setStatus(message);
+        setRecorderStateLabel("エラー");
         setActiveStatusStep("error");
         renderDebug(`upload failed: ${error}`);
       } finally {
@@ -416,13 +835,30 @@ Saved prompt:
       }
     };
 
+    document.querySelectorAll(".mode-switch").forEach((switchNode) => {
+      const buttons = Array.from(switchNode.querySelectorAll(".tab-toggle"));
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const targetId = button.dataset.target;
+          const panel = document.getElementById(targetId);
+          const panelGroup = switchNode.parentElement;
+          buttons.forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+          panelGroup.querySelectorAll(".mode-panel").forEach((candidate) => {
+            candidate.hidden = candidate !== panel;
+          });
+        });
+      });
+    });
+
     uploadForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      setActiveLane("ファイルアップロード");
       const formData = new FormData(uploadForm);
       await submitForTranscription(
         "{{ url_for('api_transcribe_upload') }}",
         formData,
-        "アップロードした音声を処理中..."
+        "アップロードした音声を処理中...",
+        "ファイルアップロード"
       );
     });
 
@@ -431,8 +867,10 @@ Saved prompt:
         renderDebug("start ignored because recorder is not idle");
         return;
       }
+      setActiveLane("ブラウザ録音");
       chunks = [];
       lastBlobSize = 0;
+      showActionFeedback("");
       try {
         activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const recorder = new MediaRecorder(activeStream);
@@ -454,6 +892,8 @@ Saved prompt:
           resetRecorderState();
           if (!recorder || recordedChunks.length === 0) {
             setStatus("録音データが空です。もう一度試してください。");
+            setRecorderStateLabel("エラー");
+            setActiveStatusStep("error");
             renderDebug("no recorded chunks after stop");
             return;
           }
@@ -473,17 +913,20 @@ Saved prompt:
           await submitForTranscription(
             "{{ url_for('api_transcribe_browser_recording') }}",
             formData,
-            "録音データをアップロードして処理中..."
+            "録音データをアップロードして処理中...",
+            "ブラウザ録音"
           );
         };
         recorder.onerror = () => {
           resetRecorderState();
           setStatus("録音中にエラーが発生しました。");
+          setRecorderStateLabel("エラー");
           setActiveStatusStep("error");
           renderDebug("recorder error");
         };
         recorder.start();
         recorderState = "recording";
+        setRecorderStateLabel("録音中");
         setActiveStatusStep("recording");
         setRecorderButtons();
         setStatus("録音中です。停止後にアップロードして文字起こしします。");
@@ -491,6 +934,7 @@ Saved prompt:
       } catch (error) {
         resetRecorderState();
         setStatus("録音開始に失敗しました: " + error);
+        setRecorderStateLabel("エラー");
         setActiveStatusStep("error");
         renderDebug(`start failed: ${error}`);
       }
@@ -502,6 +946,7 @@ Saved prompt:
         return;
       }
       recorderState = "stopping";
+      setRecorderStateLabel("停止処理中");
       setRecorderButtons();
       mediaRecorder.stop();
       stopButton.disabled = true;
@@ -510,8 +955,64 @@ Saved prompt:
       renderDebug("stop requested");
     });
 
+    const copyText = async (text, label) => {
+      if (!text) {
+        showActionFeedback(`${label} はまだありません。`);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        showActionFeedback(`${label} をクリップボードへコピーしました。`);
+      } catch (error) {
+        showActionFeedback(`${label} のコピーに失敗しました: ${error}`);
+      }
+    };
+
+    copyTranscriptButton?.addEventListener("click", async () => {
+      await copyText(pageResult.textContent, "transcript");
+    });
+
+    copyCommandButton?.addEventListener("click", async () => {
+      const commandText = pageCommand.textContent.replace(/^Instruction draft:\\n/, "");
+      await copyText(commandText, "instruction");
+    });
+
+    refreshHandoffButton?.addEventListener("click", async () => {
+      try {
+        const response = await fetch("{{ url_for('api_agent_handoff_latest') }}?source=web");
+        const payload = await response.json();
+        if (!response.ok) {
+          showActionFeedback(payload.error || "最新 handoff を取得できませんでした。");
+          return;
+        }
+        updateOutput({
+          message: pageStatus.textContent,
+          transcript: payload.transcript || pageResult.textContent,
+          command: payload.command || pageCommand.textContent.replace(/^Instruction draft:\\n/, ""),
+          command_path: payload.command_path || "",
+          command_text_path: payload.command_text_path || "",
+          error: "",
+        });
+        showActionFeedback("最新 handoff の保存先を更新しました。");
+      } catch (error) {
+        showActionFeedback("最新 handoff の確認に失敗しました: " + error);
+      }
+    });
+
+    setActiveLane("未選択");
+    setRecorderStateLabel("待機中");
     setActiveStatusStep("idle");
     setRecorderButtons();
+    syncMaintenanceSummary({
+      message: pageStatus.textContent,
+      transcript: pageResult.textContent,
+      command: pageCommand.textContent.replace(/^Instruction draft:\\n/, ""),
+      command_path: pageMeta.textContent.includes("Saved payload:") ? pageMeta.textContent : "",
+      command_text_path: "",
+      error: pageError.textContent,
+    });
+    copyTranscriptButton.disabled = !pageResult.textContent;
+    copyCommandButton.disabled = !pageCommand.textContent;
     renderDebug("ready");
   </script>
 </body>
@@ -613,6 +1114,7 @@ def process_transcription_request(
     message: str | None = None,
 ) -> tuple[dict[str, str], int]:
     """Run one transcription request and normalize the response payload."""
+
     def read_bool_flag(*names: str) -> bool:
         for name in names:
             value = request.form.get(name, "").strip().lower()
