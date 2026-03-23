@@ -12,16 +12,95 @@
   - reflected in records: yes
   - remaining open items: `final` 条件の高度化, VAD の実用化, 実行テンプレートの整理
 
+## Integrator messages
+
+- Worker は統合担当の最新メッセージをこの節で読む
+- この節は一時運用面として扱い、採用済み事実の棚とは分けて最新有効分だけを残す
+- Worker の事実ベースの応答先は `LOG.md`
+- Worker の提案、懸念、境界相談は `OPERATIONS_DRAFT.md` または `MODULE_REQUIREMENTS.md`
+- Worker は未合意の提案や途中経過を `SHARE_NOTE.md` に直接書かない
+
+### Message to `worker/web-ui`
+
+- 直近の返答、確認結果、連絡ルール理解の報告は受領済み
+- `worker/web-ui` の `src/web/app.py` は main working tree へほぼ反映済み
+- main 側は追加で、`prompt-only` 表示契約の維持と、保存済み handoff が無い時の 404 抑止を持っている
+- 現在の未統合差分は `LOG.md` と `OPERATIONS_DRAFT.md` の worker 側記録が中心である
+- API / handoff 契約は引き続き変更しない
+- 優先テーマは `録音を主導線にする`, `結果を主役にする`, `handoff を次アクションとして見せる`
+- 局所確認結果は `LOG.md` に `worker/web-ui:` で始めて追記する
+- 統合相談が必要な場合だけ `OPERATIONS_DRAFT.md` に `worker/web-ui:` で始めて追記する
+
+### Message to `worker/drivers-handoff`
+
+- 担当範囲は `src/drivers/*`, `src/runners/*` と handoff 周辺の最小範囲に留める
+- `main` で直接コミットしない
+- 提出単位は code 差分を優先し、記録更新は原則分離する
+- 返答受領済み。提出済み code commits は main working tree へ統合済み
+- 現在の worker 側の未コミット差分は `LOG.md` のみ
+- 次段の優先候補は handoff から agent 実行への bridge と backend status 表現の整理
+- 進捗や確認結果は `LOG.md` に `worker/drivers-handoff:` で始めて追記する
+- 契約変更や統合相談は `MODULE_REQUIREMENTS.md` または `OPERATIONS_DRAFT.md` に `worker/drivers-handoff:` で始めて追記する
+
+## Implementer messages
+
+### Message to implementer
+
+- 方針連絡は確認済み
+- Worker 向けの現在有効な作業指示の正本は、引き続き `## Integrator messages` に固定する
+- `## Implementer messages` は統合担当との共有メモとして扱い、Worker への実作業指示の正本にはしない
+- Worker への具体指示、提出単位の固定、採否判断は統合担当が中継する
+- `SHARE_NOTE.md` は最新有効分だけを維持し、詳細履歴は `LOG.md` / `REVIEW.md` へ寄せる方針で進める
+
+### Message to integrator
+
+- 今回の目的は、現行の分担運用を崩さずに UI 調整と記録整理を安全に進めること
+- `main` での直接コミット禁止を維持し、境界越え、契約変更、main 影響ありの案件を優先して中継する
+- `SHARE_NOTE.md` は最新有効な指示と統合済み事実だけを残し、詳細履歴は `LOG.md` / `REVIEW.md` 参照へ寄せる
+- `worker/web-ui` の返答、109 tests / OK、連絡ルール理解の確認は受領済みとして扱う
+- コードレビュー担当からの最新所見は受領済みとして扱い、`worker/drivers-handoff` の次の返答待ちを継続する
+- 前回確認以降の追加返答はないため、現行連絡を維持する
+- 優先機能は `mic-loop final`, `VAD 実運用`, `handoff -> agent bridge`, `backend status 表現`, `結果再利用導線` の順で扱う
+
+### Message to `worker/web-ui`
+
+- [`src/web/app.py`](/home/hiromu/projects/ai_core/src/web/app.py) の UI 表示整理を `web/ui` 層の中で閉じて進める
+- 主導線、status 面、結果ラベル、次アクションの見せ方は調整してよい
+- API / handoff 契約は変更しない
+- 直近の Hero 圧縮、status 圧縮、結果ビュー文言整理は妥当
+- 次も小さい提出単位で進め、`情報設計の再配置` と `結果アクション追加` を同時に広げすぎない
+- 優先テーマは `録音を主導線にする`, `結果を主役にする`, `handoff を次アクションとして見せる`
+- 現時点では追加の差し戻しはなく、引き続き同方針で進めてよい
+- 進捗と確認結果は `LOG.md` に `worker/web-ui:` で記録し、統合相談が必要な場合だけ `OPERATIONS_DRAFT.md` に上げる
+
+### Message to `worker/drivers-handoff`
+
+- `src/drivers/*`, `src/runners/*`, handoff 周辺の最小範囲で責務を保ったまま進める
+- 提出単位は code 差分を優先し、CLI / Web / docs まで同時に広げない
+- 直近の返答はまだ未確認のため、まず差分の有無、再開する範囲、局所確認計画を `LOG.md` に短く返す
+- 追加返答があるまでは、新規作業を広げず現行方針を維持する
+- 優先テーマは `handoff を agent 実行へ渡す次段 bridge` と `backend ごとの status / response 表現` の整理
+- 進捗は `LOG.md`、契約変更や境界相談は `MODULE_REQUIREMENTS.md` または `OPERATIONS_DRAFT.md` に記録する
+
+### Message to code reviewer
+
+- 最新の所見受領を確認した。現時点の懸念は `SHARE_NOTE.md` と運用記録の責務分離にあるものとして扱う
+- 次回も `core/session`, `drivers/handoff`, `web/ui` の境界と、記録側の責務混在リスクを優先して見てほしい
+- 技術面では `mic-loop final` 条件、VAD 実運用、handoff / bridge 命名整理を重点観点とする
+- 今回は追加依頼なしとし、次回 review 時も所見は `REVIEW.md` にのみ記録する
+
+### Message to design reviewer
+
+- 本日は休み
+- デザインレビュー依頼は次回に回す
+
 ## Changed files in latest implementation turn
 
-- `README.md`
-- `src/core/status_report.py`
-- `src/drivers/__init__.py`
+- `src/web/app.py`
 - `src/drivers/base.py`
 - `src/runners/agent.py`
 - `src/runners/common.py`
 - `src/runners/ollama.py`
-- `src/web/app.py`
 - `smoke_test.py`
 - `MODULE_REQUIREMENTS.md`
 - `OPERATIONS_DRAFT.md`
@@ -30,155 +109,56 @@
 
 ## Current status
 
-- `uv run python -m src.main data/sample_audio.mp3 --language ja` で文字起こし成功
-- `uv run python -m src.main --mic --duration 5 --mic-device plughw:2,0 --language ja` で文字起こし成功
-- `uv run python -m src.main --mic --duration 5 --language ja` でも文字起こし成功
-- `uv run python -m src.main --mic-loop --duration 3 --iterations 1 --language ja` で文字起こし成功
-- `uv run python -m src.web.app` でローカル Web UI を起動可能
-- `uv run python smoke_test.py` で 102 件の smoke test 成功
-- `uv run python smoke_test.py` を再実行し、108 件の smoke test 成功を確認
-- `src/core/pipeline.py` で共通の capture -> buffer -> transcribe 経路を追加
-- `AudioBuffer` を追加し、`mic-loop` が最新チャンクをバッファ経由で文字起こしする形になった
-- `TranscriptionResult` を追加し、`mic-loop` は各チャンクを `partial` として扱う形になった
-- Web UI は fetch ベースで結果領域だけを更新するようになった
-- ブラウザ録音は `MediaRecorder` と stream を明示的にリセットするようになった
-- `/api/transcribe-upload` と `/api/transcribe-browser-recording` の JSON API ルートを追加した
-- Web UI / API のアップロード一時ファイルはリクエストごとに固有名を使うようになった
-- Web UI の fetch 先は `/api/...` ルートへ統一し、転写本体処理は共通関数へ寄せた
-- ブラウザ録音には `Recorder Debug` を追加し、state と blob size を可視化した
-- Web UI の言語入力欄は既定で `ja` にした
-- ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化するようになった
-- ブラウザ録音はユーザー実機で 2 回連続実行でき、録音状態の復帰と blob 生成は確認済み
-- ブラウザ録音の主課題は連続録音の可否より認識精度側になった
-- 転写結果から指示草案を返す最小ブリッジを追加した
-- API に `command_only` オプションを追加し、`command` を主に返せるようにした
-- Web UI からも `command_only` を切り替えられるようにした
-- Whisper モデルは `models/whisper/small.pt`
-- GPU 利用を確認済み (`cuda:0`)
-- `HD Pro Webcam C920` で録音確認済み
-- README に Architecture 図と Mic-loop Flow 図を追加した
-- `src/core/handoff_bridge.py` を実体の handoff 境界として使い始め、`src/core/codex_bridge.py` は互換ラッパーとして残した
-- `src/core/agent_instruction.py` を実体の指示草案生成として使い始め、`src/core/llm.py` は互換ラッパーとして残した
-- `src/runners/agent.py` を runner 実体として使い始め、`src/runners/codex.py` は互換ラッパーとして残した
-- CLI に `--command-output` を追加し、Codex 連携用 JSON を保存できるようにした
-- Web/API からも `save_command` で handoff payload を保存できるようにした
-- Codex handoff として JSON に加えて `.txt` prompt も保存できるようにした
-- `.txt` 側は bare command ではなく、`Voice transcript` / `Requested task` を含む prompt 形式にした
-- 保存済み handoff を取得する `/api/codex-handoff-latest` を追加した
-- ローカル CLI から最新 handoff を読む `src.codex_handoff` を追加した
-- 最新 handoff を任意コマンドへ流す `src.codex_runner` を追加した
-- `src.agent_runner` を正面の runner CLI とし、毎回コマンド列を書かずに試せるようにした
-- `src.agent_runner` に `codex exec` へ handoff を流す `codex-exec` テンプレートを追加した
-- `codex-exec` は `codex` コマンドの PATH 存在を実行前に検証するようにした
-- `src/drivers/base.py` を追加し、`DriverRequest` / `DriverResult` による backend 実行契約を導入した
-- command availability check は `src.drivers.base` を正本とし、`src.runners.common.validate_runner_command_available` は互換 alias として保った
-- `src/runners/agent.py` と `src/runners/ollama.py` は driver 契約経由で subprocess 実行するよう整理した
-- runner 実装を `src/runners/` へ寄せ始め、トップレベル CLI は互換ラッパーとして残す方針にした
-- Whisper モデル読み込み時に CUDA が busy / unavailable の場合、CPU fallback を試すようにした
-- `mic-loop` は安定した発話のあとに無音が来た場合、その発話を `final` とみなせるようになった
-- `mic-loop` は `Ctrl+C` 停止時も、未確定の最後の発話を `final` として flush できるようになった
-- `mic-loop` は十分に長い同一発話であれば、2 回連続でも `final` に寄せるようになった
-- `--mic-loop` では `--vad-aggressiveness 0..3` で WebRTC VAD の強さを調整できる
-- 中くらい以上の発話は、安定時間が十分長ければ `final` に寄せるようになった
-- `--final-stable-seconds` で `final` に寄せる安定時間を調整できる
-- `partial/final` のヒューリスティクスは `src/main.py` から `src/core/finalization.py` に切り出した
-- `src/core/session.py` を追加し、`mic-loop` の buffer / repeat / final flush 状態を CLI 本体から分離した
-- `src/web/transcription_service.py` を追加し、Web/API の転写本体処理を Flask route から分離した
-- `src/core/status_report.py` を追加し、runtime / dependency / doctor / torch-pin の診断 helper を `src.main` から分離した
-- `src.agent_handoff` / `src.agent_runner` と `/api/agent-handoff-latest` を追加し、`agent_*` 名を正面の handoff 取得口として使えるようにした
-- `src/core/handoff_bridge.py` を追加し、Web/API と handoff reader は汎用 handoff 境界を参照し始めた
-- README の Architecture 図を handoff / runner まで含む最新構成に更新した
-- CLI に `--emit-instruction`, `--instruction-only`, `--handoff-output` の互換別名を追加した
-- Web UI の「Codex 指示草案」表現を「指示草案」へ寄せた
-- Web/API でも `instruction_only` と `save_handoff` の別名を受けられるようにした
-- `--mic-profile responsive|balanced|strict` を追加し、VAD と final の調整値をプリセットから選べるようにした
-- `--mic-loop` の開始時に、実際に使われる profile / VAD / final しきい値を `[mic-tuning] ...` として表示するようにした
-- `--list-mic-profiles` を追加し、利用可能な mic-loop プリセット一覧を CLI から確認できるようにした
-- `--show-mic-tuning` を追加し、profile と override から解決される tuning 値だけを録音前に確認できるようにした
-- `--list-mic-profiles` と `--show-mic-tuning` は `--mic-tuning-format json` でも出力できるようにした
-- `--show-runtime-status` を追加し、Whisper / Torch / ffmpeg / ffprobe の runtime 状態を text/json で確認できるようにした
-- runtime status には `transcription_device` と `runtime_note` も含め、GPU 不可時の CPU fallback を読み取りやすくした
-- runtime status には `nvidia_smi_available`, `nvidia_driver_version`, `nvidia_gpu_name` も含め、driver 側と Torch 側の食い違いを見やすくした
-- `nvidia-smi` は見えるのに `torch_cuda_available` が `False` の場合、runtime status は Torch/driver CUDA mismatch または local CUDA 初期化問題の疑いも示すようにした
-- runtime status には `suggested_action` も含め、project-local に次に取るべき対応を読みやすくした
-- `--show-dependency-status` を追加し、`pyproject.toml` の direct dependency と現在の installed version をまとめて確認できるようにした
-- dependency status では `torch` が direct dependency ではなく `openai-whisper` 経由の transitive dependency であることを確認できるようにした
-- `--doctor` を追加し、runtime と dependency の状態をまとめて確認できるようにした
-- `--show-torch-pin-plan` を追加し、`.venv` 内で完結する Torch pin 方針を text/json で確認できるようにした
-- Torch version に `+cu128` などの build suffix がある場合は、version-only pin ではなく build/source 選択も必要になり得ることを plan で示すようにした
-- Torch pin plan には `pyproject_dependency_entry` と `uv_add_command` も含め、次に何を `pyproject.toml` へ足すかの叩き台を CLI から確認できるようにした
-- `--mic-loop` の `[mic-tuning] ...` と停止メッセージは stderr に出し、`--instruction-only` や handoff 用の stdout を汚さないようにした
-- README 冒頭を `agent handoff` 主体へ再構成し、`agent_*` を主導線、`codex_*` を互換導線へ下げた
-- Web UI に `待機中 / 録音中 / アップロード中 / 文字起こし中 / 完了 / エラー` の状態表示を追加した
-- Web UI の `Recorder Debug` は `開発者向けデバッグ情報` の折りたたみ内へ退避した
-- API upload, handoff 保存, `src.agent_handoff`, `src.agent_runner --template cat`, Web UI アップロード, ブラウザ録音 1 回, 状態表示, debug 折りたたみをユーザー実機で確認済み
+- main の現在地は `agent handoff` 主導線と `worker/*` 運用ルールの両立を前提にする
+- `main` の未コミット差分は記録ファイルと `smoke_test.py` に限られ、`src/web/app.py` の未コミット差分はない
+- `worker/web-ui` の UI 改善は main working tree にほぼ統合済みで、main 側は `prompt-only` 表示契約と 404 抑止を追加保持している
+- `worker/drivers-handoff` の driver response 正規化、runner 共通 helper、公開 export、関連 smoke test は main working tree に統合済み
+- handoff / runner / driver / session / web service の分離は main に反映済み
+- Web UI の Quick / Advanced / Debug 分離と maintenance status は main に反映済み
+- 詳細な実装履歴と確認ログは `LOG.md` を正本とする
 
 ## Next tasks
 
-- `--mic-loop` の出力確定方針を決める
-- VAD の実用的な運用方針を決める
-- `partial` を `final` に切り替える条件をさらに高度化する
-- `--mic-loop` は有限ループ最終回に加えて、同一結果の連続でも `final` に寄せるようになった
-- `webrtcvad` ベースの speech detection を追加した
-- デフォルトマイク選択を C920 固定から、最初の入力デバイス優先へ一般化した
-- 無音チャンクは CLI で `[silence N] silence detected` と表示するようになった
-- CLI に `--emit-command` を追加した
-- CLI に `--command-only` を追加した
-- 短すぎる断片は `partial` のままにして、誤認識を `final` に寄せにくくした
-- `final` へ寄せるには、同じ結果が複数回連続する必要がある
-- `command-only` をそのまま外部エージェント実行へつなぐ境界整理を続ける
-- Web/API 側の `command_path` を使った次段の agent 実行 bridge を検討する
-- Web/API 側の `command_text_path` を使って、そのまま貼り付ける運用も可能にした
-- 他プロセスが最新 handoff を取りに来る API 境界を追加した
-- Web を経由せずローカル handoff を読む CLI 境界も追加した
-- ローカルの agent 実行プロセスへ handoff を渡す bridge を追加した
-- `agent_runner` は template 指定でも handoff を流せるようにした
-- `agent_runner` は `codex-exec` テンプレートで Codex CLI にそのまま handoff を流せる
-- driver contract は導入済みだが、backend ごとの状態表示や response モデルの統一は未完了
-- 無音チャンク直後に直前発話を `final` とみなす補助ルールを追加した
-- `Ctrl+C` で止めた時も、最後の安定発話を `final` として 1 回だけ出せるようにした
-- 長い発話は 2 回連続、短い発話は 3 回連続を基準に `final` へ寄せる
-- VAD のしきい値は CLI から調整できるようにした
-- `codex-exec` は PATH に `codex` が無い場合、実行前に入力エラーで止まる
-- `final` 判定には repeat 回数に加えて安定時間も使うようにした
+- `--mic-loop` の `final` 条件をさらに詰める
+- VAD の実用運用と無音処理の方針を固める
+- handoff から agent 実行への次段 bridge を整理する
+- backend ごとの response / status 表現の統一を検討する
+
+## Feature priority
+
+### 今すぐ必要
+
+- `mic-loop` の `final` 条件を実用寄りにする
+- VAD と無音処理の運用を固める
+- `録る -> 結果を見る -> handoff を使う` の主導線を完成させる
+
+### 近いうちに必要
+
+- handoff から agent 実行への次段 bridge を整える
+- backend ごとの status / response 表現をそろえる
+- 結果の再利用導線を整える
+
+### 後でよい
+
+- handoff / bridge / cache path に残る `codex` 命名の整理
+- `smoke_test.py` の責務別整理
+- 履歴や session 保存の拡張
 
 ## Collaboration request
 
-- 今回の再編案は「リポジトリ分割は保留しつつ、同一リポジトリ内で `transcription core`, `session/state`, `driver`, `maintenance UI` の境界を明確化する」方針を前提にする
-- 実装担当は、まず `session/state` 層を追加し、`src/main.py` と `src/web/app.py` から状態遷移と実行制御を薄く切り出す方針で作業する
-- コードレビュー担当は、この再編案に対して `責務分離`, `将来の常時待受への拡張性`, `Codex/Ollama driver の差し替えやすさ`, `既存互換 CLI/API を壊しにくいか` を主に見て `REVIEW.md` に記録する
-- デザインレビュー担当は、この再編案に対して `maintenance UI` としての使いやすさ, `状態表示の自然さ`, `Quick / Advanced の切り分け`, `常時待受 UI に育てる前提での情報設計` を主に見て `DESIGN_REVIEW.md` に記録する
-- レビュー担当は `SHARE_NOTE.md` を更新せず、所見はそれぞれの主記録先にだけ追記する
-- 実装担当はレビュー反映後に、合意済みの次アクションだけを `SHARE_NOTE.md` に反映する
-- 時間ベースの `final` 条件は CLI からしきい値を調整できる
-- `ollama_runner` はシステム未導入前提で、コマンド組み立てと失敗モードまでを先に整える
+- リポジトリ分割は保留し、同一リポジトリ内で `core/session`, `drivers/handoff`, `web/ui` の境界を維持する
+- レビュー所見は `REVIEW.md` / `DESIGN_REVIEW.md` に残し、合意済み事項だけを `SHARE_NOTE.md` に昇格する
+- 事実ベースの進捗は `LOG.md`、境界相談は `OPERATIONS_DRAFT.md` または `MODULE_REQUIREMENTS.md` に残す
 
 ## Review-derived actions
 
-- 有限ループ最終回以外の `final` 条件として、同一結果の連続を反映済み
-- 短すぎる断片は `final` に寄せにくくする調整を反映済み
-- `final` は連続回数ベースで安定化を進めている
-- 無音チャンクを Whisper に渡しにくくする軽い VAD 相当を反映済み
-- 本格的な VAD 運用の詰めは未着手
-- `webrtcvad` ベースの speech detection を反映済み
-- 無音チャンク時の表示改善を反映済み
-- デフォルトマイク選択の一般化を反映済み
-- `/api/transcribe-browser-recording` のサーバーテストは反映済み
-- ブラウザ録音の 2 回連続実行は実機確認済み
-- ブラウザ録音の精度改善として `webm` の正規化を反映済み
-- README への位置づけ反映は対応済み
-- Web UI の基本状態表示改善は対応済み
+- 無音表示改善、`webrtcvad` ベース検出、browser recording 連続実行確認は反映済み
+- session / handoff / runner / driver / web service の切り出しは反映済み
+- なお `final` 条件の高度化と VAD 実運用は open のまま
 
 ## Handover notes
 
 - `ffmpeg` が必要
-- 入力はローカル音声ファイル前提
-- 出力は標準出力のみ
 - `MEMORY.md`, `REVIEW.md`, `SHARE_NOTE.md`, `LOG.md` を用途別に使い分ける
 - デザインレビューは `DESIGN_REVIEW.md` を主記録先にし、コードレビューとは混ぜない
-- 統合担当確認: main で `uv run python smoke_test.py` を実行し、108 件の smoke test 成功を再確認
-- 統合担当採用: `src/web/app.py` に Quick / Advanced 分離、上段 maintenance status、Result Center、copy / latest handoff 再確認アクションを反映した
-- 統合担当確認: `worker/web-ui` の採用後も main で `uv run python smoke_test.py` 108 件成功を確認した
-- 統合担当採用: `src/web/app.py` に Quick / Advanced / Debug 分離、maintenance status、Result Center、copy / latest handoff 再確認アクションを反映した
-- 統合担当採用: `src/drivers/base.py`, `src/runners/agent.py`, `src/runners/common.py`, `src/runners/ollama.py` に driver result metadata と runner 出力共通化を反映した
-- 統合担当確認: 上記 2 件の統合後も main で `uv run python smoke_test.py` 108 件成功を確認した
+- 詳細な統合履歴、採用判断、個別確認は `LOG.md` を参照する

@@ -300,6 +300,9 @@ git branch -D worker/web-ui
 - 基本の連絡経路は `統合担当経由` にする
 - Worker 同士が直接仕様調整を始めない
 - 境界を越える判断は、統合担当が中継して決める
+- `SHARE_NOTE.md` の `## Integrator messages` は最新有効分だけを残し、古い指示を積み上げすぎない
+- 統合担当経由の連絡は、境界越え、契約変更、main 影響ありの案件を優先する
+- 軽微な担当内判断まで統合担当へ集約しすぎない
 
 ### Direction flow draft
 

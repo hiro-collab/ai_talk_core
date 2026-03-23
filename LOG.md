@@ -338,3 +338,17 @@
 - worker/web-ui: `src/web/app.py` の maintenance `次にすること` 表現を 1 箇所だけ調整し、結果ビュー側の文言と揃えた
 - worker/web-ui: maintenance `次にすること` 調整後に `uv run python -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
 - worker/web-ui: maintenance `次にすること` 調整後に `uv run python smoke_test.py` を実行し、109 tests / OK を確認
+
+- 統合担当として `git diff --name-only`, `git diff -- src/web/app.py`, `git merge-base main worker/web-ui`, `git diff --no-index -- src/web/app.py .worktrees/web-ui/src/web/app.py`, 各 worktree の `git status --short --branch` と `git log` を確認した
+- 統合担当確認: `main` の未コミット差分は記録ファイルと `smoke_test.py` のみで、`src/web/app.py` の未コミット差分はない
+- 統合担当確認: `worker/web-ui` と `main` の `src/web/app.py` のズレは branch 差分ではなく worker 側の未コミット UI パッチであり、`Hero`, `かんたん/詳細`, 単一状態表示, 結果アクションをまとめて含むため提出単位が広い
+- 統合担当判断: `worker/web-ui` の追加 UI 編集は一時保留とし、次回は `1 画面 1 論点` の差分へ切り直してから統合判断する
+- 統合担当確認: `worker/drivers-handoff` の提出済み code commits は `a7683cb`, `ec29e59`, `8d62a8c`, `b250c97`, `240ca73`, `d95760b`, `b689c46` で、現在の未コミット差分は `LOG.md` のみ
+- 統合担当採用: `src/drivers/__init__.py`, `src/drivers/base.py`, `src/runners/common.py`, `src/runners/agent.py`, `src/runners/ollama.py`, `smoke_test.py` に `worker/drivers-handoff` の code 差分を main working tree へ反映した
+- 統合担当確認: `python3 -m py_compile src/drivers/__init__.py src/drivers/base.py src/runners/common.py src/runners/agent.py src/runners/ollama.py smoke_test.py` を実行し、構文確認成功
+- 統合担当確認: `uv run python smoke_test.py` を実行し、114 tests / OK を確認した。途中で `whisper/tokenizer.py` の `ResourceWarning` は出たが、テスト自体は成功
+- 統合担当採用: `src/web/app.py` に `worker/web-ui` 由来のうち、安全に切り出せた UI 差分を main working tree へ反映した。対象は `結果` 面の整理、録音状態の単一表示、`かんたん` 面の step 表示と補助ノート、詳細設定文言の整理、Hero と配色トーンの更新
+- 統合担当採用: その後 `worker/web-ui` の `src/web/app.py` を main working tree へほぼ全面反映し、`操作状況` パネルを外した構成へ寄せた
+- 統合担当判断: `prompt-only` 表示契約の維持と、保存済み handoff が無い時に `/api/agent-handoff-latest?source=web` への不要な 404 fetch を防ぐガードは main 側で追加保持した
+- 統合担当確認: `python3 -m py_compile src/web/app.py smoke_test.py` を実行し、構文確認成功
+- 統合担当確認: `uv run python smoke_test.py` を再実行し、114 tests / OK を確認した。途中で `whisper/tokenizer.py` の `ResourceWarning` は出たが、テスト自体は成功

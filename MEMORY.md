@@ -27,6 +27,13 @@
 - `DESIGN_REVIEW.md` はデザインレビュー専用の主記録先として使い、コードレビューとは混ぜない
 - `SHARE_NOTE.md` の `Turn contract` は最上段で維持し、レビュー運用の基準点とする
 - `AGENTS.md` や `/init` 相当の運用ファイルは重複作成しない。既存ファイルの有無を先に確認し、必要時は追加前に提案する
+- Worker は `worker/*` worktree で差分作成と局所確認までを担当し、main で直接コミットしない
+- 統合担当だけが main worktree で採用判断、必要時の再構成、最終テスト、統合コミット、採用済み記録の反映を行う
+- main と worker で同じ責務ファイルを同時に dirty にしない。main 側に未コミット差分がある場合は、統合作業か一時退避かを先に決めてから Worker を進める
+- 統合担当の最新指示は `SHARE_NOTE.md` の `## Integrator messages` を正本にする
+- Worker の事実ベースの返答は `LOG.md` に担当名 prefix 付きで書き、提案や境界相談は `OPERATIONS_DRAFT.md` または `MODULE_REQUIREMENTS.md` に書く
+- `SHARE_NOTE.md` の `## Integrator messages` は最新有効分を正本とし、古い指示を積み上げすぎない
+- 統合担当経由の連絡は、境界越え、契約変更、main 影響ありの案件を優先し、軽微な担当内判断まで集約しすぎない
 
 ## Codex startup
 

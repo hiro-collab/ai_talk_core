@@ -129,6 +129,14 @@
 - 第4段階: maintenance UI に session 状態表示を導入する
 - 第4段階の最初として、Web UI に基本状態表示を追加した
 
+## Near-term product priorities
+
+- 第1優先: `mic-loop` の `final` 条件と VAD / 無音処理を実用寄りにする
+- 第2優先: handoff から agent 実行への次段 bridge を整える
+- 第3優先: Web UI で `録る -> 結果を見る -> handoff を使う` の主導線を強くする
+- 第4優先: backend ごとの status / response 表現をそろえる
+- `codex` 命名整理や `smoke_test.py` 分割は後段の整理対象として扱う
+
 ## Review focus
 
 - 各モジュールが要求仕様を超えて責務を抱えすぎていないか
