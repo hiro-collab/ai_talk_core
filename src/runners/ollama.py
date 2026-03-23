@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-from src.drivers.base import DriverRequest, dispatch_driver_request
 from src.io.audio import AudioInputError
-from src.runners.common import emit_driver_result
+from src.runners.common import emit_driver_result, execute_runner_command
 from src.runners.handoff import render_handoff_output
 
 
@@ -57,12 +56,10 @@ def main() -> int:
         return 1
 
     try:
-        result = dispatch_driver_request(
-            DriverRequest(
-                backend_name="ollama",
-                command=command,
-                payload=payload,
-            )
+        result = execute_runner_command(
+            backend_name="ollama",
+            command=command,
+            payload=payload,
         )
     except AudioInputError as exc:
         print(f"Input error: {exc}")

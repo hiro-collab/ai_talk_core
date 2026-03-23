@@ -16,42 +16,37 @@ PAGE_TEMPLATE = """<!doctype html>
   <title>ai_core Web UI</title>
   <style>
     :root {
-      --bg: #f4efe5;
-      --panel: rgba(255, 252, 245, 0.94);
-      --panel-strong: #fffaf1;
-      --line: #d7c7aa;
-      --text: #21170f;
-      --muted: #67594d;
-      --accent: #9c4f2d;
-      --accent-strong: #7d3e21;
-      --accent-alt: #1c5660;
-      --accent-soft: #f0e5d3;
-      --ok-bg: #eff6f1;
-      --ok-line: #bcd5c5;
-      --result-bg: #fff4df;
-      --result-line: #e3c48c;
-      --command-bg: #edf0fc;
-      --command-line: #b8c4f0;
-      --error-bg: #fff0ee;
-      --error-line: #e5b1ab;
-      --shadow: 0 20px 50px rgba(49, 31, 15, 0.08);
-    }
-    * {
-      box-sizing: border-box;
+      --bg: #f5f1e8;
+      --panel: #fffdf8;
+      --line: #d8ccb6;
+      --text: #1f1a14;
+      --muted: #6d6257;
+      --accent: #9f4d2f;
+      --accent-2: #204b57;
     }
     body {
       margin: 0;
       font-family: "Noto Sans JP", "Hiragino Sans", sans-serif;
       background:
-        linear-gradient(145deg, rgba(255, 245, 225, 0.88), rgba(232, 241, 237, 0.7)),
-        radial-gradient(circle at top left, rgba(255, 255, 255, 0.85) 0%, transparent 30%),
+        radial-gradient(circle at top left, #fff7df 0%, transparent 32%),
+        radial-gradient(circle at bottom right, #d9efe7 0%, transparent 28%),
         var(--bg);
       color: var(--text);
     }
     main {
-      max-width: 1080px;
+      max-width: 960px;
       margin: 0 auto;
-      padding: 36px 20px 72px;
+      padding: 40px 20px 64px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 4vw, 3rem);
+    }
+    p.lead {
+      margin: 0;
+      color: var(--muted);
+      max-width: 68ch;
+      line-height: 1.7;
     }
     .hero {
       display: grid;
@@ -62,33 +57,17 @@ PAGE_TEMPLATE = """<!doctype html>
       display: grid;
       gap: 10px;
     }
-    h1 {
-      margin: 0;
-      font-size: clamp(2rem, 4vw, 3.2rem);
-      line-height: 1.04;
-    }
-    p.lead {
-      margin: 0;
-      color: var(--muted);
-      max-width: 68ch;
-      line-height: 1.7;
-    }
     .hero-strip {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
     }
-    .hero-card,
-    .panel,
-    .result-shell {
-      background: var(--panel);
-      border: 1px solid rgba(215, 199, 170, 0.9);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(12px);
-    }
     .hero-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
       padding: 16px 18px;
+      box-shadow: 0 14px 40px rgba(36, 22, 10, 0.08);
     }
     .eyebrow {
       margin: 0 0 6px;
@@ -106,15 +85,6 @@ PAGE_TEMPLATE = """<!doctype html>
       font-size: 0.92rem;
       line-height: 1.5;
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 20px;
-      align-items: start;
-    }
-    .panel {
-      padding: 22px;
-    }
     .panel-header {
       display: flex;
       justify-content: space-between;
@@ -124,7 +94,7 @@ PAGE_TEMPLATE = """<!doctype html>
     }
     .panel-header h2 {
       margin: 0;
-      font-size: 1.22rem;
+      font-size: 1.2rem;
     }
     .panel-header p {
       margin: 6px 0 0;
@@ -135,8 +105,8 @@ PAGE_TEMPLATE = """<!doctype html>
     .mode-badge {
       border-radius: 999px;
       padding: 7px 12px;
-      background: var(--accent-soft);
-      color: var(--accent-strong);
+      background: #f0e5d3;
+      color: #7d3e21;
       font-size: 0.8rem;
       white-space: nowrap;
     }
@@ -166,23 +136,42 @@ PAGE_TEMPLATE = """<!doctype html>
       gap: 14px;
     }
     .quick-card,
-    .advanced-card,
-    .maintenance-card {
+    .advanced-card {
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 16px;
-      background: var(--panel-strong);
+      background: #fffaf1;
+    }
+    .step-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .step-head strong {
+      margin: 0;
+    }
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: #f0e5d3;
+      color: #7d3e21;
+      font-size: 0.82rem;
+      font-weight: 700;
+      flex: 0 0 auto;
     }
     .quick-card strong,
-    .advanced-card strong,
-    .maintenance-card strong {
+    .advanced-card strong {
       display: block;
       margin-bottom: 6px;
       font-size: 0.98rem;
     }
     .quick-card p,
-    .advanced-card p,
-    .maintenance-card p {
+    .advanced-card p {
       margin: 0;
       color: var(--muted);
       font-size: 0.9rem;
@@ -202,23 +191,52 @@ PAGE_TEMPLATE = """<!doctype html>
       color: var(--muted);
       font-size: 0.82rem;
     }
+    .helper-note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      background: #f7f1e6;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+    .helper-note strong {
+      color: var(--text);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 14px 40px rgba(36, 22, 10, 0.08);
+    }
+    .panel h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
     label {
       display: block;
-      color: var(--muted);
       font-size: 0.92rem;
+      margin: 14px 0 6px;
+      color: var(--muted);
     }
-    input[type="file"],
-    input[type="text"],
-    select {
+    input[type="file"], input[type="text"], select {
       width: 100%;
+      box-sizing: border-box;
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: 12px;
       padding: 12px 14px;
       background: #fff;
-      color: var(--text);
       font: inherit;
     }
     button {
+      margin-top: 16px;
       border: none;
       border-radius: 999px;
       padding: 12px 18px;
@@ -226,27 +244,44 @@ PAGE_TEMPLATE = """<!doctype html>
       cursor: pointer;
       background: var(--accent);
       color: #fff;
-      transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
-    }
-    button:hover:enabled {
-      transform: translateY(-1px);
-    }
-    button:disabled {
-      cursor: not-allowed;
-      opacity: 0.58;
-      transform: none;
     }
     button.secondary {
-      background: var(--accent-alt);
+      background: var(--accent-2);
     }
     button.ghost {
       background: #efe5d6;
       color: var(--text);
     }
-    button.inline-action {
-      margin: 0;
-      padding: 10px 14px;
-      font-size: 0.9rem;
+    .status, .result, .error, .command, .meta {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: 14px;
+      white-space: pre-wrap;
+    }
+    .status[hidden], .result[hidden], .error[hidden], .command[hidden], .meta[hidden] {
+      display: none;
+    }
+    .status {
+      background: #eef5f5;
+      border: 1px solid #bfd5d6;
+    }
+    .result {
+      background: #fff6e6;
+      border: 1px solid #e8c88c;
+    }
+    .error {
+      background: #fff0ef;
+      border: 1px solid #e8b2ad;
+      color: #7d2314;
+    }
+    .command {
+      background: #eef0ff;
+      border: 1px solid #b8c1f1;
+    }
+    .meta {
+      background: #f7f4ee;
+      border: 1px solid #d9d0c0;
+      color: var(--muted);
     }
     .row {
       display: flex;
@@ -257,156 +292,24 @@ PAGE_TEMPLATE = """<!doctype html>
     .hint {
       color: var(--muted);
       font-size: 0.9rem;
-      margin: 0;
-      line-height: 1.55;
+      margin-top: 8px;
     }
     .checkbox {
       display: flex;
       gap: 10px;
-      align-items: flex-start;
-      margin-top: 12px;
+      align-items: center;
+      margin-top: 14px;
       color: var(--muted);
       font-size: 0.92rem;
-      line-height: 1.45;
     }
     .checkbox input {
       width: auto;
-      margin: 2px 0 0;
-      accent-color: var(--accent);
-    }
-    .status-flow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-    }
-    .status-step {
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: #efe5d6;
-      color: var(--muted);
-      font-size: 0.82rem;
-    }
-    .status-step.active {
-      background: var(--accent-alt);
-      color: #fff;
-    }
-    .status-box,
-    .result-box,
-    .command-box,
-    .meta-box,
-    .error-box {
-      margin-top: 16px;
-      padding: 16px;
-      border-radius: 18px;
-      white-space: pre-wrap;
-      line-height: 1.6;
-    }
-    .status-box[hidden],
-    .result-box[hidden],
-    .command-box[hidden],
-    .meta-box[hidden],
-    .error-box[hidden],
-    .action-row[hidden] {
-      display: none;
-    }
-    .status-box {
-      background: var(--ok-bg);
-      border: 1px solid var(--ok-line);
-    }
-    .result-box {
-      background: var(--result-bg);
-      border: 1px solid var(--result-line);
-    }
-    .command-box {
-      background: var(--command-bg);
-      border: 1px solid var(--command-line);
-    }
-    .meta-box {
-      background: #f7f2e8;
-      border: 1px solid #d7ccb8;
-      color: var(--muted);
-    }
-    .error-box {
-      background: var(--error-bg);
-      border: 1px solid var(--error-line);
-      color: #7d2217;
-    }
-    .maintenance-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 12px;
-      margin-top: 14px;
-    }
-    .maintenance-copy {
       margin: 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.55;
-    }
-    .maintenance-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-    }
-    .maintenance-item {
-      display: grid;
-      gap: 4px;
-    }
-    .maintenance-item span {
-      color: var(--muted);
-      font-size: 0.82rem;
-    }
-    .maintenance-value {
-      display: block;
-      font-size: 1rem;
-      color: var(--text);
-    }
-    .result-shell {
-      margin-top: 24px;
-      padding: 22px;
-    }
-    .result-shell-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      align-items: start;
-      margin-bottom: 14px;
-    }
-    .result-shell-header h2 {
-      margin: 0;
-      font-size: 1.2rem;
-    }
-    .result-shell-header p {
-      margin: 6px 0 0;
-      color: var(--muted);
-      line-height: 1.55;
-      font-size: 0.92rem;
-    }
-    .action-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 16px;
-    }
-    .action-feedback {
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 0.88rem;
-      min-height: 1.4em;
-    }
-    details.debug-shell {
-      margin-top: 16px;
-    }
-    details.debug-shell summary {
-      cursor: pointer;
-      color: var(--muted);
-      font-size: 0.9rem;
     }
     .debug {
-      margin-top: 12px;
+      margin-top: 16px;
       padding: 14px;
-      border-radius: 16px;
+      border-radius: 14px;
       border: 1px dashed var(--line);
       background: #faf6ee;
       font-size: 0.88rem;
@@ -420,26 +323,67 @@ PAGE_TEMPLATE = """<!doctype html>
       white-space: pre-wrap;
       word-break: break-word;
       color: var(--muted);
-      line-height: 1.55;
     }
-    @media (max-width: 720px) {
-      main {
-        padding-inline: 14px;
-      }
-      .panel,
-      .result-shell {
-        padding: 18px;
-      }
-      .panel-header,
-      .result-shell-header {
-        flex-direction: column;
-      }
-      .mode-switch {
-        width: 100%;
-      }
-      .mode-switch button {
-        flex: 1 1 0;
-      }
+    details.debug-shell {
+      margin-top: 16px;
+    }
+    details.debug-shell summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .status-current {
+      margin-top: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--accent-2);
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+    .status-pill::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: currentColor;
+      opacity: 0.75;
+    }
+    .result-shell {
+      margin-top: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 14px 40px rgba(36, 22, 10, 0.08);
+    }
+    .result-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .result-actions[hidden] {
+      display: none;
+    }
+    .inline-action {
+      margin-top: 0;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+    }
+    .action-feedback {
+      min-height: 1.4em;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.88rem;
     }
   </style>
 </head>
@@ -447,59 +391,24 @@ PAGE_TEMPLATE = """<!doctype html>
   <main>
     <section class="hero">
       <div class="hero-copy">
-        <h1>ai_core maintenance UI</h1>
-        <p class="lead">音声を受け取り、文字起こしから handoff 確認までを 1 画面で進めます。通常は `かんたん` から始めます。</p>
+        <h1>ai_core Web UI</h1>
+        <p class="lead">音声を入れて文字起こしし、必要なら handoff 保存先まで確認します。通常は `かんたん` だけを使います。</p>
       </div>
       <div class="hero-strip">
         <div class="hero-card">
-          <p class="eyebrow">主導線</p>
-          <strong>録音して handoff を確認</strong>
-          <span>入力から結果確認までを最短で進められる構成です。</span>
+          <p class="eyebrow">流れ</p>
+          <strong>入れる -> 結果を見る -> handoff を確認</strong>
+          <span>主導線を先に見せ、設定変更だけを後ろへ分けます。</span>
         </div>
         <div class="hero-card">
-          <p class="eyebrow">既定値</p>
-          <strong>ja / small で開始</strong>
-          <span>詳細設定と録音デバッグは下段にまとめています。</span>
+          <p class="eyebrow">既定</p>
+          <strong>`ja` / `small` でそのまま使う</strong>
+          <span>通常はそのまま使い、変更時だけ `詳細` を開きます。</span>
         </div>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-header">
-        <div>
-          <h2>操作状況</h2>
-          <p>使っている入口と次にすることだけを簡潔に表示します。</p>
-        </div>
-        <span class="mode-badge">概要</span>
-      </div>
-      <div class="maintenance-grid">
-        <div class="maintenance-card">
-          <strong>いまの入口</strong>
-          <p class="maintenance-copy">最後に使った操作と録音状態をまとめます。</p>
-          <div class="maintenance-list">
-            <div class="maintenance-item">
-              <span>入力モード</span>
-              <strong id="ui-active-lane" class="maintenance-value">未選択</strong>
-            </div>
-            <div class="maintenance-item">
-              <span>録音状態</span>
-              <strong id="ui-recorder-state" class="maintenance-value">待機中</strong>
-            </div>
-          </div>
-        </div>
-        <div class="maintenance-card">
-          <strong>結果と次の操作</strong>
-          <p class="maintenance-copy">直近の結果と次に見る場所を示します。</p>
-          <div class="maintenance-list">
-            <div class="maintenance-item">
-              <span>直近の結果</span>
-              <strong id="ui-last-outcome" class="maintenance-value">{% if error %}エラー{% elif transcript or command %}結果あり{% elif message %}進行中{% else %}未実行{% endif %}</strong>
-            </div>
-            <div class="maintenance-item">
-              <span>次にすること</span>
-              <strong id="ui-next-action" class="maintenance-value">{% if error %}エラー内容を確認{% elif transcript or command %}保存先を確認またはコピー{% else %}かんたん から開始{% endif %}</strong>
-            </div>
-          </div>
+        <div class="hero-card">
+          <p class="eyebrow">デバッグ</p>
+          <strong>通常導線から分離</strong>
+          <span>録音デバッグは折りたたみ、通常の操作面から分けています。</span>
         </div>
       </div>
     </section>
@@ -509,7 +418,7 @@ PAGE_TEMPLATE = """<!doctype html>
         <div class="panel-header">
           <div>
             <h2>ファイルアップロード</h2>
-            <p>通常は `かんたん` から始め、必要な時だけ `詳細` を開きます。</p>
+            <p>通常は `かんたん` だけで実行できます。</p>
           </div>
           <span class="mode-badge">アップロード</span>
         </div>
@@ -520,17 +429,23 @@ PAGE_TEMPLATE = """<!doctype html>
         <form id="upload-form" action="{{ url_for('transcribe_upload') }}" method="post" enctype="multipart/form-data">
           <div id="upload-quick" class="mode-panel quick-stack">
             <div class="quick-card">
-              <strong>1. 音声ファイルを選ぶ</strong>
-              <p>通常はここから始めれば十分です。</p>
-              <div class="label-row">
-                <label for="audio_file">音声ファイル</label>
-                <span class="microcopy">mp3 / wav / m4a / mp4 / webm</span>
+              <div class="step-head">
+                <span class="step-badge">1</span>
+                <strong>ファイルを選ぶ</strong>
               </div>
+              <p>通常はここから始めます。</p>
+              <label for="audio_file">音声ファイル</label>
               <input id="audio_file" name="audio_file" type="file" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" required>
+              <div class="helper-note">
+                <strong>このまま実行できます。</strong> `ja` / `small` を使います。
+              </div>
             </div>
             <div class="quick-card">
-              <strong>2. 実行する</strong>
-              <p>結果は下の結果ビューで確認します。</p>
+              <div class="step-head">
+                <span class="step-badge">2</span>
+                <strong>文字起こしする</strong>
+              </div>
+              <p>結果は下に表示されます。</p>
               <button type="submit">文字起こしする</button>
             </div>
           </div>
@@ -558,11 +473,11 @@ PAGE_TEMPLATE = """<!doctype html>
               <strong>出力オプション</strong>
               <label class="checkbox" for="upload_instruction_only">
                 <input id="upload_instruction_only" name="instruction_only" type="checkbox" value="true">
-                指示草案を先に確認する
+                指示草案を優先表示する
               </label>
               <label class="checkbox" for="upload_save_handoff">
                 <input id="upload_save_handoff" name="save_handoff" type="checkbox" value="true">
-                handoff 保存先を残す
+                handoff を保存する
               </label>
             </div>
           </div>
@@ -573,7 +488,7 @@ PAGE_TEMPLATE = """<!doctype html>
         <div class="panel-header">
           <div>
             <h2>ブラウザ録音</h2>
-            <p>`かんたん` では録音開始と停止だけを出し、詳細設定は `詳細` にまとめています。</p>
+            <p>通常は `かんたん` で録音開始と停止だけを使います。</p>
           </div>
           <span class="mode-badge">録音</span>
         </div>
@@ -584,25 +499,29 @@ PAGE_TEMPLATE = """<!doctype html>
 
         <div id="record-quick" class="mode-panel quick-stack">
           <div class="quick-card">
-            <strong>1. 録音する</strong>
-            <p>停止後に自動でアップロードして処理します。</p>
+            <div class="step-head">
+              <span class="step-badge">1</span>
+              <strong>録音を始める</strong>
+            </div>
+              <p>停止すると自動で送信します。</p>
             <div class="row">
               <button id="start-record" class="secondary" type="button">録音開始</button>
               <button id="stop-record" class="ghost" type="button" disabled>録音停止</button>
             </div>
+            <div class="helper-note">
+                <strong>このまま録音できます。</strong> `ja` / `small` を使います。
+            </div>
           </div>
           <div class="quick-card">
-            <strong>2. 進行を見る</strong>
-            <p>録音から完了までの状態をここで確認します。</p>
-            <div class="status-flow" aria-label="録音状態">
-              <span id="step-idle" class="status-step active">待機中</span>
-              <span id="step-recording" class="status-step">録音中</span>
-              <span id="step-uploading" class="status-step">アップロード中</span>
-              <span id="step-processing" class="status-step">文字起こし中</span>
-              <span id="step-done" class="status-step">完了</span>
-              <span id="step-error" class="status-step">エラー</span>
+            <div class="step-head">
+              <span class="step-badge">2</span>
+              <strong>現在の状態</strong>
             </div>
-            <div id="record-status" class="status-box" hidden></div>
+            <p>いまの状態だけを表示します。</p>
+            <div class="status-current" aria-label="録音状態">
+              <div id="record-status-pill" class="status-pill">待機中</div>
+            </div>
+            <div id="record-status" class="status" hidden></div>
           </div>
         </div>
 
@@ -629,13 +548,13 @@ PAGE_TEMPLATE = """<!doctype html>
             <strong>出力オプション</strong>
             <label class="checkbox" for="record_instruction_only">
               <input id="record_instruction_only" type="checkbox" value="true">
-              指示草案を先に確認する
+              指示草案を優先表示する
             </label>
             <label class="checkbox" for="record_save_handoff">
               <input id="record_save_handoff" type="checkbox" value="true">
-              handoff 保存先を残す
+              handoff を保存する
             </label>
-            <p class="hint">録音デバッグは下の開発者向けセクションにまとめています。</p>
+            <p class="hint">録音デバッグは通常導線から外し、下の開発者向けセクションに隔離しています。</p>
           </div>
         </div>
 
@@ -650,26 +569,26 @@ PAGE_TEMPLATE = """<!doctype html>
     </div>
 
     <section class="result-shell">
-      <div class="result-shell-header">
+      <div class="panel-header">
         <div>
-          <h2>結果ビュー</h2>
-          <p>結果、指示草案、保存先、次の操作をここでまとめて確認できます。</p>
+          <h2>結果</h2>
+          <p>結果を見て、必要ならコピーか保存先確認へ進みます。</p>
         </div>
         <span class="mode-badge">活用</span>
       </div>
-      <div id="page-status" class="status-box" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
-      <div id="page-result" class="result-box" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
-      <div id="page-command" class="command-box" {% if not command %}hidden{% endif %}>指示草案:
+      <div id="page-status" class="status" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
+      <div id="page-result" class="result" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
+      <div id="page-command" class="command" {% if not command %}hidden{% endif %}>指示草案:
 {{ command or "" }}</div>
-      <div id="page-meta" class="meta-box" {% if not command_path and not command_text_path %}hidden{% endif %}>{% if command_path %}handoff 保存先:
+      <div id="page-meta" class="meta" {% if not command_path and not command_text_path %}hidden{% endif %}>{% if command_path %}handoff 保存先:
 {{ command_path }}{% endif %}{% if command_text_path %}{% if command_path %}
 {% endif %}プロンプト保存先:
 {{ command_text_path }}{% endif %}</div>
-      <div id="page-error" class="error-box" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
-      <div id="result-actions" class="action-row" {% if not transcript and not command and not command_path and not command_text_path %}hidden{% endif %}>
-        <button id="copy-transcript" class="inline-action ghost" type="button">文字起こしをコピー</button>
-        <button id="copy-command" class="inline-action ghost" type="button">指示草案をコピー</button>
-        <button id="refresh-handoff" class="inline-action secondary" type="button">保存先を確認</button>
+      <div id="page-error" class="error" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
+      <div id="result-actions" class="result-actions" {% if not transcript and not command and not command_path and not command_text_path %}hidden{% endif %}>
+        <button id="copy-transcript" class="ghost inline-action" type="button">文字起こしをコピー</button>
+        <button id="copy-command" class="ghost inline-action" type="button">指示草案をコピー</button>
+        <button id="refresh-handoff" class="secondary inline-action" type="button" {% if not command_path and not command_text_path %}disabled{% endif %}>保存先を確認</button>
       </div>
       <div id="action-feedback" class="action-feedback"></div>
     </section>
@@ -687,22 +606,11 @@ PAGE_TEMPLATE = """<!doctype html>
     const pageMeta = document.getElementById("page-meta");
     const pageError = document.getElementById("page-error");
     const resultActions = document.getElementById("result-actions");
-    const actionFeedback = document.getElementById("action-feedback");
-    const activeLane = document.getElementById("ui-active-lane");
-    const recorderStateLabel = document.getElementById("ui-recorder-state");
-    const lastOutcome = document.getElementById("ui-last-outcome");
-    const nextAction = document.getElementById("ui-next-action");
     const copyTranscriptButton = document.getElementById("copy-transcript");
     const copyCommandButton = document.getElementById("copy-command");
     const refreshHandoffButton = document.getElementById("refresh-handoff");
-    const statusSteps = {
-      idle: document.getElementById("step-idle"),
-      recording: document.getElementById("step-recording"),
-      uploading: document.getElementById("step-uploading"),
-      processing: document.getElementById("step-processing"),
-      done: document.getElementById("step-done"),
-      error: document.getElementById("step-error"),
-    };
+    const actionFeedback = document.getElementById("action-feedback");
+    const statusPill = document.getElementById("record-status-pill");
     let mediaRecorder = null;
     let activeStream = null;
     let recorderState = "idle";
@@ -713,38 +621,20 @@ PAGE_TEMPLATE = """<!doctype html>
       actionFeedback.textContent = text;
     };
 
-    const setActiveLane = (text) => {
-      activeLane.textContent = text;
-    };
-
-    const setRecorderStateLabel = (text) => {
-      recorderStateLabel.textContent = text;
-    };
-
-    const extractSavedPaths = (text = "") => ({
-      command_path: (text.match(/handoff 保存先:\\n([^\\n]+)/) || [null, ""])[1],
-      command_text_path: (text.match(/プロンプト保存先:\\n([^\\n]+)/) || [null, ""])[1],
+    document.querySelectorAll(".mode-switch").forEach((switchNode) => {
+      const buttons = Array.from(switchNode.querySelectorAll(".tab-toggle"));
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const targetId = button.dataset.target;
+          const panel = document.getElementById(targetId);
+          const panelGroup = switchNode.parentElement;
+          buttons.forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+          panelGroup.querySelectorAll(".mode-panel").forEach((candidate) => {
+            candidate.hidden = candidate !== panel;
+          });
+        });
+      });
     });
-
-    const syncMaintenanceSummary = ({ message = "", transcript = "", command = "", command_path = "", command_text_path = "", error = "" }) => {
-      if (error) {
-        lastOutcome.textContent = "エラー";
-        nextAction.textContent = "エラー内容を確認";
-        return;
-      }
-      if (transcript || command) {
-        lastOutcome.textContent = "結果あり";
-        nextAction.textContent = command_path || command_text_path ? "保存先を確認" : "内容を確認して必要ならコピーする";
-        return;
-      }
-      if (message) {
-        lastOutcome.textContent = "進行中";
-        nextAction.textContent = "処理完了を待つ";
-        return;
-      }
-      lastOutcome.textContent = "未実行";
-      nextAction.textContent = "かんたん から開始";
-    };
 
     const renderDebug = (note = "") => {
       const lines = [
@@ -764,9 +654,17 @@ PAGE_TEMPLATE = """<!doctype html>
       statusBox.textContent = text;
     };
 
-    const setActiveStatusStep = (stepName) => {
-      Object.values(statusSteps).forEach((element) => element?.classList.remove("active"));
-      statusSteps[stepName]?.classList.add("active");
+    const setCurrentStatus = (stepName) => {
+      const labels = {
+        idle: "待機中",
+        recording: "録音中",
+        stopping: "停止処理中",
+        uploading: "アップロード中",
+        processing: "文字起こし中",
+        done: "完了",
+        error: "エラー",
+      };
+      statusPill.textContent = labels[stepName] || "待機中";
     };
 
     const setRecorderButtons = () => {
@@ -793,8 +691,7 @@ PAGE_TEMPLATE = """<!doctype html>
       mediaRecorder = null;
       chunks = [];
       recorderState = "idle";
-      setRecorderStateLabel("待機中");
-      setActiveStatusStep("idle");
+      setCurrentStatus("idle");
       setRecorderButtons();
     };
 
@@ -815,22 +712,19 @@ PAGE_TEMPLATE = """<!doctype html>
       resultActions.hidden = !transcript && !command && !command_path && !command_text_path;
       copyTranscriptButton.disabled = !transcript;
       copyCommandButton.disabled = !command;
-      syncMaintenanceSummary({ message, transcript, command, command_path, command_text_path, error });
+      refreshHandoffButton.disabled = !command_path && !command_text_path;
     };
 
-    const submitForTranscription = async (url, formData, processingText, laneLabel) => {
+    const submitForTranscription = async (url, formData, processingText) => {
       recorderState = "uploading";
-      setActiveLane(laneLabel);
-      setRecorderStateLabel("アップロード中");
-      setActiveStatusStep("uploading");
+      setCurrentStatus("uploading");
       setRecorderButtons();
       setStatus(processingText);
       updateOutput({ message: processingText, transcript: "", command: "", command_path: "", command_text_path: "", error: "" });
       showActionFeedback("");
       renderDebug(`upload start -> ${url}`);
       try {
-        setRecorderStateLabel("文字起こし中");
-        setActiveStatusStep("processing");
+        setCurrentStatus("processing");
         const response = await fetch(url, {
           method: "POST",
           body: formData,
@@ -840,20 +734,17 @@ PAGE_TEMPLATE = """<!doctype html>
         updateOutput(payload);
         if (payload.error) {
           setStatus("処理に失敗しました。");
-          setRecorderStateLabel("エラー");
-          setActiveStatusStep("error");
+          setCurrentStatus("error");
         } else {
           setStatus("処理完了");
-          setRecorderStateLabel("完了");
-          setActiveStatusStep("done");
+          setCurrentStatus("done");
         }
         renderDebug(`upload done status=${response.status}`);
       } catch (error) {
         const message = "通信に失敗しました: " + error;
         updateOutput({ error: message });
         setStatus(message);
-        setRecorderStateLabel("エラー");
-        setActiveStatusStep("error");
+        setCurrentStatus("error");
         renderDebug(`upload failed: ${error}`);
       } finally {
         recorderState = "idle";
@@ -861,30 +752,13 @@ PAGE_TEMPLATE = """<!doctype html>
       }
     };
 
-    document.querySelectorAll(".mode-switch").forEach((switchNode) => {
-      const buttons = Array.from(switchNode.querySelectorAll(".tab-toggle"));
-      buttons.forEach((button) => {
-        button.addEventListener("click", () => {
-          const targetId = button.dataset.target;
-          const panel = document.getElementById(targetId);
-          const panelGroup = switchNode.parentElement;
-          buttons.forEach((candidate) => candidate.classList.toggle("active", candidate === button));
-          panelGroup.querySelectorAll(".mode-panel").forEach((candidate) => {
-            candidate.hidden = candidate !== panel;
-          });
-        });
-      });
-    });
-
     uploadForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      setActiveLane("ファイルアップロード");
       const formData = new FormData(uploadForm);
       await submitForTranscription(
         "{{ url_for('api_transcribe_upload') }}",
         formData,
-        "アップロードした音声を処理中...",
-        "ファイルアップロード"
+        "アップロードした音声を処理中..."
       );
     });
 
@@ -893,10 +767,8 @@ PAGE_TEMPLATE = """<!doctype html>
         renderDebug("start ignored because recorder is not idle");
         return;
       }
-      setActiveLane("ブラウザ録音");
       chunks = [];
       lastBlobSize = 0;
-      showActionFeedback("");
       try {
         activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const recorder = new MediaRecorder(activeStream);
@@ -918,8 +790,7 @@ PAGE_TEMPLATE = """<!doctype html>
           resetRecorderState();
           if (!recorder || recordedChunks.length === 0) {
             setStatus("録音データが空です。もう一度試してください。");
-            setRecorderStateLabel("エラー");
-            setActiveStatusStep("error");
+            setCurrentStatus("error");
             renderDebug("no recorded chunks after stop");
             return;
           }
@@ -939,29 +810,25 @@ PAGE_TEMPLATE = """<!doctype html>
           await submitForTranscription(
             "{{ url_for('api_transcribe_browser_recording') }}",
             formData,
-            "録音データをアップロードして処理中...",
-            "ブラウザ録音"
+            "録音データをアップロードして処理中..."
           );
         };
         recorder.onerror = () => {
           resetRecorderState();
           setStatus("録音中にエラーが発生しました。");
-          setRecorderStateLabel("エラー");
-          setActiveStatusStep("error");
+          setCurrentStatus("error");
           renderDebug("recorder error");
         };
         recorder.start();
         recorderState = "recording";
-        setRecorderStateLabel("録音中");
-        setActiveStatusStep("recording");
+        setCurrentStatus("recording");
         setRecorderButtons();
         setStatus("録音中です。停止後にアップロードして文字起こしします。");
         renderDebug("recording started");
       } catch (error) {
         resetRecorderState();
         setStatus("録音開始に失敗しました: " + error);
-        setRecorderStateLabel("エラー");
-        setActiveStatusStep("error");
+        setCurrentStatus("error");
         renderDebug(`start failed: ${error}`);
       }
     });
@@ -972,12 +839,11 @@ PAGE_TEMPLATE = """<!doctype html>
         return;
       }
       recorderState = "stopping";
-      setRecorderStateLabel("停止処理中");
       setRecorderButtons();
       mediaRecorder.stop();
       stopButton.disabled = true;
       setStatus("録音停止。アップロードの準備中です。");
-      setActiveStatusStep("uploading");
+      setCurrentStatus("stopping");
       renderDebug("stop requested");
     });
 
@@ -988,14 +854,14 @@ PAGE_TEMPLATE = """<!doctype html>
       }
       try {
         await navigator.clipboard.writeText(text);
-        showActionFeedback(`${label} をクリップボードへコピーしました。`);
+        showActionFeedback(`${label} をコピーしました。`);
       } catch (error) {
         showActionFeedback(`${label} のコピーに失敗しました: ${error}`);
       }
     };
 
     copyTranscriptButton?.addEventListener("click", async () => {
-      await copyText(pageResult.textContent, "文字起こし結果");
+      await copyText(pageResult.textContent, "文字起こし");
     });
 
     copyCommandButton?.addEventListener("click", async () => {
@@ -1004,6 +870,10 @@ PAGE_TEMPLATE = """<!doctype html>
     });
 
     refreshHandoffButton?.addEventListener("click", async () => {
+      if (refreshHandoffButton.disabled) {
+        showActionFeedback("保存済み handoff がまだありません。");
+        return;
+      }
       try {
         const response = await fetch("{{ url_for('api_agent_handoff_latest') }}?source=web");
         const payload = await response.json();
@@ -1019,25 +889,14 @@ PAGE_TEMPLATE = """<!doctype html>
           command_text_path: payload.command_text_path || "",
           error: "",
         });
-        showActionFeedback("handoff 保存先の表示を更新しました。");
+        showActionFeedback("handoff 保存先を更新しました。");
       } catch (error) {
         showActionFeedback("handoff 保存先の確認に失敗しました: " + error);
       }
     });
 
-    setActiveLane("未選択");
-    setRecorderStateLabel("待機中");
-    setActiveStatusStep("idle");
+    setCurrentStatus("idle");
     setRecorderButtons();
-    const initialSavedPaths = extractSavedPaths(pageMeta.textContent);
-    syncMaintenanceSummary({
-      message: pageStatus.textContent,
-      transcript: pageResult.textContent,
-      command: pageCommand.textContent.replace(/^指示草案:\\n/, ""),
-      command_path: initialSavedPaths.command_path,
-      command_text_path: initialSavedPaths.command_text_path,
-      error: pageError.textContent,
-    });
     copyTranscriptButton.disabled = !pageResult.textContent;
     copyCommandButton.disabled = !pageCommand.textContent;
     renderDebug("ready");
@@ -1141,7 +1000,6 @@ def process_transcription_request(
     message: str | None = None,
 ) -> tuple[dict[str, str], int]:
     """Run one transcription request and normalize the response payload."""
-
     def read_bool_flag(*names: str) -> bool:
         for name in names:
             value = request.form.get(name, "").strip().lower()

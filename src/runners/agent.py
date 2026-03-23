@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.drivers.base import DriverRequest, dispatch_driver_request
 from src.io.audio import AudioInputError
 from src.runners.common import (
     emit_driver_result,
+    execute_runner_command,
     normalize_command_args,
     validate_runner_command_available,
 )
@@ -84,14 +84,22 @@ def main() -> int:
         return 0
 
     try:
-        result = dispatch_driver_request(
-            DriverRequest(
-                backend_name="agent",
-                command=command,
-                payload=payload,
-            )
+        result = execute_runner_command(
+            backend_name="agent",
+            command=command,
+            payload=payload,
         )
     except AudioInputError as exc:
         print(f"Input error: {exc}")
         return 1
     return emit_driver_result(result)
+__all__ = [
+    "STATIC_TEMPLATES",
+    "build_parser",
+    "build_template_command",
+    "main",
+    "normalize_command_args",
+    "resolve_runner_command",
+    "validate_runner_command_available",
+]
+

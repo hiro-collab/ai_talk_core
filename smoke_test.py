@@ -6,6 +6,7 @@ import io
 import contextlib
 import json
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import unittest
@@ -64,7 +65,8 @@ from src.codex_runner import (
 from src.ollama_runner import build_ollama_command
 from src.core.pipeline import AudioChunk, TranscriptionResult
 from src.core.session import MicLoopSession, MicLoopTuning
-from src.drivers.base import DriverRequest, dispatch_driver_request
+from src.drivers import DriverRequest, DriverResponse, DriverResult, dispatch_driver_request
+from src.runners.common import emit_driver_result, execute_runner_command
 from src.web.app import create_app, render_page
 from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
 
@@ -378,8 +380,8 @@ class SmokeTests(unittest.TestCase):
         """Prompt-only results should not render an empty handoff label."""
         with self.app.test_request_context("/"):
             page = render_page(command_text_path="/tmp/web_latest.txt")
-        self.assertIn("保存済みプロンプト:\n/tmp/web_latest.txt", page)
-        self.assertNotIn("保存済み handoff:\n\n保存済みプロンプト", page)
+        self.assertIn("プロンプト保存先:\n/tmp/web_latest.txt", page)
+        self.assertNotIn("handoff 保存先:\n\nプロンプト保存先", page)
 
     def test_webrtcvad_dependency_is_available(self) -> None:
         """webrtcvad should be importable after dependency sync."""
@@ -1433,6 +1435,25 @@ class SmokeTests(unittest.TestCase):
             ["codex", "exec", "-C", str(PROJECT_ROOT), "-"],
         )
 
+    def test_drivers_package_exports_public_contract(self) -> None:
+        """Drivers package should expose the public driver contract surface."""
+        response = DriverResponse(
+            backend_name="agent",
+            command_name="codex",
+            command_line="codex exec -",
+            returncode=0,
+            status="ok",
+            succeeded=True,
+            has_output=True,
+            stdout_text="ok\n",
+            stderr_text="",
+            stream="stdout",
+            text="ok\n",
+        )
+
+        self.assertEqual(response.command_name, "codex")
+        self.assertEqual(response.status, "ok")
+
     def test_validate_runner_command_available_accepts_existing_path_command(self) -> None:
         """Absolute path commands should pass when they exist."""
         validate_runner_command_available(["/bin/echo", "ok"])
@@ -1490,6 +1511,109 @@ class SmokeTests(unittest.TestCase):
                         payload="hello",
                     )
                 )
+
+    def test_driver_result_response_returns_backend_neutral_view(self) -> None:
+        """Driver results should expose a backend-neutral response view."""
+        result = DriverResult(
+            backend_name="agent",
+            command=["codex", "exec", "-"],
+            payload="hello",
+            returncode=0,
+            stdout="ok\n",
+            stderr="warn\n",
+            command_name="codex",
+        )
+
+        response = result.response
+        self.assertEqual(response.backend_name, "agent")
+        self.assertEqual(response.command_name, "codex")
+        self.assertEqual(response.command_line, "codex exec -")
+        quoted = DriverResult(
+            backend_name="agent",
+            command=["python", "-c", "print('hello world')"],
+            payload="",
+            returncode=0,
+            stdout="",
+            stderr="",
+            command_name="python",
+        )
+        self.assertEqual(quoted.command_line, shlex.join(quoted.command))
+        self.assertEqual(response.returncode, 0)
+        self.assertEqual(response.status, "ok")
+        self.assertTrue(response.succeeded)
+        self.assertTrue(response.has_output)
+        self.assertEqual(response.stdout_text, "ok\n")
+        self.assertEqual(response.stderr_text, "warn\n")
+        self.assertEqual(response.stream, "stdout")
+        self.assertEqual(response.text, "ok\n")
+
+    def test_driver_result_status_distinguishes_output_cases(self) -> None:
+        """Driver status labels should distinguish output/no-output success and failure."""
+        success_no_output = DriverResult(
+            backend_name="agent",
+            command=["true"],
+            payload="",
+            returncode=0,
+            stdout="",
+            stderr="",
+            command_name="true",
+        )
+        failure_no_output = DriverResult(
+            backend_name="agent",
+            command=["false"],
+            payload="",
+            returncode=1,
+            stdout="",
+            stderr="",
+            command_name="false",
+        )
+
+        self.assertEqual(success_no_output.status, "ok_no_output")
+        self.assertEqual(success_no_output.response.status, "ok_no_output")
+        self.assertEqual(failure_no_output.status, "error_no_output")
+        self.assertEqual(failure_no_output.response.status, "error_no_output")
+
+    def test_execute_runner_command_dispatches_normalized_request(self) -> None:
+        """Runner helpers should build driver requests consistently."""
+        expected = DriverResult(
+            backend_name="agent",
+            command=["cat"],
+            payload="hello",
+            returncode=0,
+            stdout="ok\n",
+            stderr="",
+            command_name="cat",
+        )
+        with mock.patch("src.runners.common.dispatch_driver_request", return_value=expected) as dispatch:
+            result = execute_runner_command("agent", ["cat"], "hello")
+
+        dispatch.assert_called_once()
+        request = dispatch.call_args.args[0]
+        self.assertEqual(request.backend_name, "agent")
+        self.assertEqual(request.command, ["cat"])
+        self.assertEqual(request.payload, "hello")
+        self.assertIs(result, expected)
+
+    def test_emit_driver_result_uses_response_stream(self) -> None:
+        """Runner output emission should respect the normalized response stream."""
+        result = DriverResult(
+            backend_name="ollama",
+            command=["ollama", "run", "llama3"],
+            payload="hello",
+            returncode=1,
+            stdout="partial\n",
+            stderr="failed\n",
+            command_name="ollama",
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            exit_code = emit_driver_result(result)
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout.getvalue(), "partial\n")
+        self.assertEqual(stderr.getvalue(), "failed\n")
 
     def test_build_ollama_command_normalizes_model_name(self) -> None:
         """Ollama runner should trim the model name."""
