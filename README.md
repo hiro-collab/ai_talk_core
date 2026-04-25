@@ -13,12 +13,27 @@ Whisper を使った転写は中核の手段であり、主目的は `voice capt
 
 ## Start Here
 
-最短で試す:
+GitHub から clone して初回セットアップする:
+
+```bash
+git clone https://github.com/hiro-collab/ai_talk_core.git
+cd ai_talk_core
+sudo apt update
+sudo apt install -y ffmpeg alsa-utils
+uv sync
+uv run python -m src.main data/sample_audio.mp3 --language ja --model small
+```
+
+`uv` が未導入の場合は、先に公式手順で `uv` をインストールしてください。Python 依存は `pyproject.toml` と `uv.lock` で管理しているため、通常は `requirements.txt` ではなく `uv sync` を使います。
+
+最短で再実行する:
 
 ```bash
 uv sync
 uv run python -m src.main data/sample_audio.mp3 --language ja
 ```
+
+初回実行時は Whisper の `small` モデルを `models/whisper/` に自動ダウンロードします。ネットワーク接続が必要です。
 
 Web UI を起動する:
 
@@ -51,9 +66,11 @@ uv run python -m src.agent_runner --source web --template cat
 
 - Ubuntu 22.04
 - Python 3.11.15
-- 仮想環境は `.venv` を使用
-- パッケージ管理は `uv` を使用
-- `ffmpeg` がシステムに導入済みであること
+- `uv`
+- `ffmpeg`
+- `alsa-utils` (`arecord` を使うマイク録音時に必要)
+- ネットワーク接続 (初回 Whisper モデル取得時に必要)
+- 仮想環境は `uv sync` で作られる `.venv` を使用
 - GPU は任意です
 - 現在の開発環境では CUDA 利用を確認済みです
 
@@ -88,10 +105,17 @@ uv run python -m src.web.app
 
 ## API / CLI Setup
 
-依存同期:
+Python 依存を同期:
 
 ```bash
 uv sync
+```
+
+Ubuntu のシステム依存を入れる:
+
+```bash
+sudo apt update
+sudo apt install -y ffmpeg alsa-utils
 ```
 
 smoke test 実行:
@@ -404,6 +428,14 @@ Whisper のモデルは `models/whisper` に保存されます。
 - Whisper のモデルは `models/whisper` に保存されます
 - モデルファイルは容量が大きいため、VCS 管理対象外にします
 - プロジェクトごとにモデルを持つ方針なので、複数プロジェクトで Whisper を使うと保存容量は重複します
+- 既定モデルは `small` です。初回転写時に自動取得されます
+- 事前に取得する場合は次を実行します:
+
+```bash
+uv run python -c "import whisper; whisper.load_model('small', download_root='models/whisper')"
+```
+
+別モデルを使う場合は `--model base` などを指定します。指定したモデルも初回利用時に同じ場所へ取得されます。
 
 ## サンプル結果
 
@@ -420,10 +452,11 @@ Whisper のモデルは `models/whisper` に保存されます。
 
 ## Notes / limitations
 
-- 初回実行時は Whisper モデルをダウンロードします
+- 初回実行時は Whisper モデルを `models/whisper/` にダウンロードします
 - GPU が使える環境では CUDA を利用します
-- GPU が使えない場合は CPU 実行になります
+- GPU が使えない場合は CPU 実行になり、転写は遅くなる場合があります
 - `ffmpeg` が無い環境では文字起こしに失敗します
+- マイク録音には `arecord` が必要です。Ubuntu では `alsa-utils` に含まれます
 - マイク入力は固定時間録音の反復であり、真のストリーミング処理ではありません
 - 録音音声は `ffmpeg` の `silenceremove` で軽く前後トリムできます
 - `--mic-loop` では `webrtcvad` でほぼ無音のチャンクを軽くスキップします
