@@ -72,7 +72,19 @@ uv run python -m src.agent_runner --source web --template cat
 - ネットワーク接続 (初回 Whisper モデル取得時に必要)
 - 仮想環境は `uv sync` で作られる `.venv` を使用
 - GPU は任意です
-- 現在の開発環境では CUDA 利用を確認済みです
+
+## Verified Environment
+
+以下の環境で動作確認しています。PC 固有のホスト名、ユーザー名、ローカル絶対パスは再現に不要なため記載していません。
+
+- OS: Ubuntu 22.04
+- Python: 3.11.15
+- Package manager: `uv`
+- Audio tools: `ffmpeg`, `arecord`
+- Whisper model: `small`, `base`
+- GPU: NVIDIA CUDA 環境で確認済み
+- CPU fallback: 動作しますが、転写は遅くなる場合があります
+- Microphone: HD Pro Webcam C920
 
 ## Repository stance
 
