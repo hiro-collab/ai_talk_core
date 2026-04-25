@@ -86,6 +86,18 @@ uv run python -m src.agent_runner --source web --template cat
 - CPU fallback: 動作しますが、転写は遅くなる場合があります
 - Microphone: HD Pro Webcam C920
 
+## Windows Support Plan
+
+Windows ネイティブ実行は未検証です。今後 Windows でも動くようにする予定ですが、現時点で確実に案内できる主対象は Ubuntu です。
+
+- 当面の推奨: Windows では WSL2 + Ubuntu での利用を優先してください
+- 動く可能性が高い範囲: ファイル入力の文字起こし、Web UI のファイルアップロード、Whisper モデル取得
+- 未対応扱いの範囲: `--mic` / `--mic-loop` は Linux の `arecord` 前提です
+- Windows ネイティブ利用時は `ffmpeg` を別途インストールし、`PATH` に追加する必要があります
+- CUDA/GPU 利用は Windows ネイティブと WSL2 で PyTorch の導入条件が変わります
+
+Windows 対応を進める場合は、`src/io/microphone.py` の録音処理を OS ごとに分離し、Linux の `arecord` 実装と Windows 用の録音 backend を差し替え可能にしてください。`src/io/audio.py` の `ffmpeg` 前提は維持できますが、Windows ではパス検出とエラーメッセージを明確にする必要があります。
+
 ## Repository stance
 
 - このリポジトリは現時点では `~/projects/ai_core` に置く前提です
