@@ -112,12 +112,17 @@ def validate_driver_command_available(command: list[str]) -> None:
     if not command:
         return
     executable = command[0]
-    if "/" in executable:
+    if _is_path_command(executable):
         if not Path(executable).exists():
             raise AudioInputError(f"runner command not found: {executable}")
         return
     if shutil.which(executable) is None:
         raise AudioInputError(f"runner command not found in PATH: {executable}")
+
+
+def _is_path_command(executable: str) -> bool:
+    """Return whether a command name is an explicit filesystem path."""
+    return Path(executable).is_absolute() or "/" in executable or "\\" in executable
 
 
 def dispatch_driver_request(request: DriverRequest) -> DriverResult:

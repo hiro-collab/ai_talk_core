@@ -1312,8 +1312,8 @@ class SmokeTests(unittest.TestCase):
                     save_handoff=True,
                 )
             )
-        self.assertEqual(response.command_path, "/tmp/web_latest.json")
-        self.assertEqual(response.command_text_path, "/tmp/web_latest.txt")
+        self.assertEqual(response.command_path, str(saved_paths.json_path))
+        self.assertEqual(response.command_text_path, str(saved_paths.text_path))
 
     def test_build_codex_instruction_returns_none_for_blank(self) -> None:
         """Blank transcripts should not produce instruction drafts."""
@@ -1425,7 +1425,7 @@ class SmokeTests(unittest.TestCase):
                 ["--", "python", "-c", "print('ignored')"],
                 PROJECT_ROOT,
             ),
-            ["cat"],
+            build_template_command("cat", PROJECT_ROOT),
         )
 
     def test_build_template_command_supports_codex_exec(self) -> None:
@@ -1456,12 +1456,12 @@ class SmokeTests(unittest.TestCase):
 
     def test_validate_runner_command_available_accepts_existing_path_command(self) -> None:
         """Absolute path commands should pass when they exist."""
-        validate_runner_command_available(["/bin/echo", "ok"])
+        validate_runner_command_available([sys.executable, "--version"])
 
     def test_validate_runner_command_available_rejects_missing_path_command(self) -> None:
         """Missing absolute path commands should fail early."""
         with self.assertRaisesRegex(AudioInputError, "runner command not found"):
-            validate_runner_command_available(["/no/such/cmd"])
+            validate_runner_command_available([str(PROJECT_ROOT / "missing-command")])
 
     def test_validate_runner_command_available_rejects_missing_path_entry(self) -> None:
         """PATH lookups should fail early for missing commands."""

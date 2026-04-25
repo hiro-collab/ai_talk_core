@@ -88,13 +88,22 @@ uv run python -m src.agent_runner --source web --template cat
 
 ## Windows Support Plan
 
-Windows ネイティブ実行は未検証です。今後 Windows でも動くようにする予定ですが、現時点で確実に案内できる主対象は Ubuntu です。
+Windows ネイティブ実行は一部検証済みです。現時点では Windows 対応を進めている段階で、確実な主対象は引き続き Ubuntu ですが、ファイル入力と Web UI/API 周りは Windows でも開発できます。
 
-- 当面の推奨: Windows では WSL2 + Ubuntu での利用を優先してください
-- 動く可能性が高い範囲: ファイル入力の文字起こし、Web UI のファイルアップロード、Whisper モデル取得
+- Windows で確認済みの範囲: `uv sync`, ファイル入力の文字起こし, Web UI/API のサーバー側 smoke test, Whisper モデル取得
 - 未対応扱いの範囲: `--mic` / `--mic-loop` は Linux の `arecord` 前提です
-- Windows ネイティブ利用時は `ffmpeg` を別途インストールし、`PATH` に追加する必要があります
+- Windows ネイティブ利用時は `ffmpeg` を別途インストールし、`PATH` に追加してください
 - CUDA/GPU 利用は Windows ネイティブと WSL2 で PyTorch の導入条件が変わります
+- WSL2 + Ubuntu は、Linux と同じ `arecord` 前提のマイク録音を検証したい場合の有力な選択肢です
+
+Windows ネイティブでの最小確認:
+
+```powershell
+uv sync
+uv run python -m src.main --doctor
+uv run python -m src.main data\sample_audio.mp3 --language ja --model small
+uv run python smoke_test.py
+```
 
 Windows 対応を進める場合は、`src/io/microphone.py` の録音処理を OS ごとに分離し、Linux の `arecord` 実装と Windows 用の録音 backend を差し替え可能にしてください。`src/io/audio.py` の `ffmpeg` 前提は維持できますが、Windows ではパス検出とエラーメッセージを明確にする必要があります。
 

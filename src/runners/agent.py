@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sys
 
 from src.io.audio import AudioInputError
 from src.runners.common import (
@@ -15,9 +16,11 @@ from src.runners.common import (
 from src.runners.handoff import render_handoff_output
 
 
+STDIN_ECHO_COMMAND = "import sys; sys.stdout.write(sys.stdin.read())"
+
 STATIC_TEMPLATES: dict[str, list[str]] = {
-    "cat": ["cat"],
-    "python-stdin": ["python", "-c", "import sys; print(sys.stdin.read())"],
+    "cat": [sys.executable, "-c", STDIN_ECHO_COMMAND],
+    "python-stdin": [sys.executable, "-c", STDIN_ECHO_COMMAND],
 }
 
 
@@ -102,4 +105,3 @@ __all__ = [
     "resolve_runner_command",
     "validate_runner_command_available",
 ]
-
