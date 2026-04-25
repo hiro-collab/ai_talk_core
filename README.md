@@ -91,7 +91,7 @@ uv run python -m src.agent_runner --source web --template cat
 Windows ネイティブ実行は一部検証済みです。現時点では Windows 対応を進めている段階で、確実な主対象は引き続き Ubuntu ですが、ファイル入力と Web UI/API 周りは Windows でも開発できます。
 
 - Windows で確認済みの範囲: `uv sync`, ファイル入力の文字起こし, Web UI/API のサーバー側 smoke test, Whisper モデル取得
-- 未対応扱いの範囲: `--mic` / `--mic-loop` は Linux の `arecord` 前提です
+- Windows のマイク録音は `ffmpeg-dshow` backend を使います。`--mic-backend auto` は Windows では `ffmpeg-dshow`, Linux では `arecord` を選びます
 - Windows ネイティブ利用時は `ffmpeg` を別途インストールし、`PATH` に追加してください
 - CUDA/GPU 利用は Windows ネイティブと WSL2 で PyTorch の導入条件が変わります
 - WSL2 + Ubuntu は、Linux と同じ `arecord` 前提のマイク録音を検証したい場合の有力な選択肢です
@@ -105,7 +105,20 @@ uv run python -m src.main data\sample_audio.mp3 --language ja --model small
 uv run python smoke_test.py
 ```
 
-Windows 対応を進める場合は、`src/io/microphone.py` の録音処理を OS ごとに分離し、Linux の `arecord` 実装と Windows 用の録音 backend を差し替え可能にしてください。`src/io/audio.py` の `ffmpeg` 前提は維持できますが、Windows ではパス検出とエラーメッセージを明確にする必要があります。
+Windows のマイク録音を試す:
+
+```powershell
+uv run python -m src.main --mic --duration 5 --language ja --mic-backend auto
+```
+
+`default` では `ffmpeg` が最初に報告した DirectShow audio device を使います。明示指定したい場合は、先に device 名を確認してください。
+
+```powershell
+ffmpeg -hide_banner -list_devices true -f dshow -i dummy
+uv run python -m src.main --mic --duration 5 --language ja --mic-device "Microphone Array (Realtek(R) Audio)"
+```
+
+GPU は必須ではありません。CPU 版 Torch でも動作しますが、Whisper は遅くなります。GPU を使う場合は PyTorch の公式 selector (`https://pytorch.org/get-started/locally/`) で Windows / pip / CUDA の組み合わせを確認し、プロジェクトの `.venv` 内で Torch を調整してください。システムの NVIDIA driver を先に変えるより、まず `uv run python -m src.main --doctor` と `uv run python -m src.main --show-torch-pin-plan` で状態を見てください。
 
 ## Repository stance
 

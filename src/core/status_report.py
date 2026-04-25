@@ -5,6 +5,7 @@ from __future__ import annotations
 from src.core.dependency_status import format_dependency_status, get_dependency_status
 from src.core.torch_pin_plan import format_torch_pin_plan, get_torch_pin_plan
 from src.io.audio import get_runtime_status
+from src.io.microphone import get_microphone_runtime_status
 
 
 def format_runtime_status(status: dict[str, str | bool | None]) -> str:
@@ -19,6 +20,7 @@ def build_doctor_status() -> dict[str, object]:
     """Return a combined diagnosis view for runtime and dependency state."""
     return {
         "runtime": get_runtime_status(),
+        "microphone": get_microphone_runtime_status(),
         "dependencies": get_dependency_status(),
     }
 
@@ -26,16 +28,26 @@ def build_doctor_status() -> dict[str, object]:
 def format_doctor_status(status: dict[str, object]) -> str:
     """Format the combined diagnosis view for terminal output."""
     runtime = status["runtime"]
+    microphone = status.get("microphone")
     dependencies = status["dependencies"]
     assert isinstance(runtime, dict)
     assert isinstance(dependencies, dict)
-    return "\n\n".join(
-        [
-            "Doctor summary:",
-            format_runtime_status(runtime),
-            format_dependency_status(dependencies),
-        ]
-    )
+    sections = [
+        "Doctor summary:",
+        format_runtime_status(runtime),
+    ]
+    if isinstance(microphone, dict):
+        sections.append(format_microphone_status(microphone))
+    sections.append(format_dependency_status(dependencies))
+    return "\n\n".join(sections)
+
+
+def format_microphone_status(status: dict[str, object]) -> str:
+    """Format microphone backend status for terminal output."""
+    lines = ["Microphone status:"]
+    for key, value in status.items():
+        lines.append(f"- {key}: {value}")
+    return "\n".join(lines)
 
 
 def build_torch_pin_status() -> dict[str, object]:

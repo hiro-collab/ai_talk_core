@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
-import wave
+import platform
 import re
 import shutil
 import subprocess
+import wave
 
 from src.core.pipeline import AudioChunk
-from src.io.audio import AudioEnvironmentError, AudioInputError
+from src.io.audio import (
+    AudioEnvironmentError,
+    AudioInputError,
+    ensure_ffmpeg_available,
+)
+
+
+SUPPORTED_MICROPHONE_BACKENDS = ("auto", "arecord", "ffmpeg-dshow")
+RECORDING_MICROPHONE_BACKENDS = ("arecord", "ffmpeg-dshow")
 
 
 class WebRtcVadAdapter:
@@ -47,13 +56,56 @@ def get_trimmed_recording_path() -> Path:
     return temp_dir / "mic_input_trimmed.wav"
 
 
+def normalize_microphone_backend(backend: str = "auto") -> str:
+    """Normalize and validate a microphone backend name."""
+    normalized = (backend or "auto").strip().lower()
+    if normalized not in SUPPORTED_MICROPHONE_BACKENDS:
+        raise AudioInputError(
+            "--mic-backend must be one of: "
+            f"{', '.join(SUPPORTED_MICROPHONE_BACKENDS)}"
+        )
+    return normalized
+
+
+def get_platform_default_microphone_backend() -> str | None:
+    """Return the preferred microphone backend for the current OS."""
+    system_name = platform.system().lower()
+    if system_name == "windows":
+        return "ffmpeg-dshow"
+    if system_name == "linux":
+        return "arecord"
+    return None
+
+
+def resolve_microphone_backend(backend: str = "auto") -> str:
+    """Resolve an explicit or automatic microphone backend name."""
+    normalized = normalize_microphone_backend(backend)
+    if normalized != "auto":
+        return normalized
+    default_backend = get_platform_default_microphone_backend()
+    if default_backend is None:
+        raise AudioEnvironmentError(
+            "microphone recording is not supported on this OS with --mic-backend auto"
+        )
+    return default_backend
+
+
 def ensure_arecord_available() -> None:
     """Ensure arecord is available in the local environment."""
     if shutil.which("arecord") is None:
         raise AudioEnvironmentError("arecord is not installed or not found in PATH")
 
 
-def get_default_microphone_device() -> str:
+def ensure_ffmpeg_dshow_available() -> None:
+    """Ensure the Windows ffmpeg DirectShow microphone backend is usable."""
+    if platform.system().lower() != "windows":
+        raise AudioEnvironmentError(
+            "ffmpeg-dshow microphone backend is only supported on Windows"
+        )
+    ensure_ffmpeg_available()
+
+
+def get_default_arecord_microphone_device() -> str:
     """Return a preferred arecord device string from detected capture devices."""
     ensure_arecord_available()
 
@@ -75,6 +127,101 @@ def get_default_microphone_device() -> str:
             return f"plughw:{card_index},{device_index}"
 
     return "default"
+
+
+def list_ffmpeg_dshow_audio_devices() -> list[str]:
+    """Return DirectShow audio device names reported by ffmpeg."""
+    ensure_ffmpeg_dshow_available()
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        text=True,
+        check=False,
+    )
+    output = "\n".join(part for part in (result.stderr, result.stdout) if part)
+    devices: list[str] = []
+    in_audio_section = False
+    for line in output.splitlines():
+        typed_match = re.search(r'"([^"]+)"\s+\(audio\)', line)
+        if typed_match:
+            devices.append(typed_match.group(1))
+            continue
+        if "DirectShow audio devices" in line:
+            in_audio_section = True
+            continue
+        if "DirectShow video devices" in line:
+            in_audio_section = False
+            continue
+        if not in_audio_section or "Alternative name" in line:
+            continue
+        match = re.search(r'"([^"]+)"', line)
+        if match:
+            devices.append(match.group(1))
+    return devices
+
+
+def get_default_ffmpeg_dshow_microphone_device() -> str:
+    """Return the first DirectShow audio input reported by ffmpeg."""
+    devices = list_ffmpeg_dshow_audio_devices()
+    if devices:
+        return devices[0]
+    raise AudioEnvironmentError(
+        "no DirectShow audio capture device found. "
+        "Run `ffmpeg -hide_banner -list_devices true -f dshow -i dummy` "
+        "and pass a device name with --mic-device."
+    )
+
+
+def get_default_microphone_device(backend: str = "auto") -> str:
+    """Return a default device string for the selected microphone backend."""
+    resolved_backend = resolve_microphone_backend(backend)
+    if resolved_backend == "arecord":
+        return get_default_arecord_microphone_device()
+    if resolved_backend == "ffmpeg-dshow":
+        return get_default_ffmpeg_dshow_microphone_device()
+    raise AudioEnvironmentError(f"unsupported microphone backend: {resolved_backend}")
+
+
+def get_microphone_runtime_status() -> dict[str, object]:
+    """Return a compact view of microphone backend support."""
+    platform_system = platform.system() or "Unknown"
+    default_backend = get_platform_default_microphone_backend()
+    available_backends = [
+        backend
+        for backend in RECORDING_MICROPHONE_BACKENDS
+        if _is_microphone_backend_available(backend)
+    ]
+    selected_backend = default_backend or "unsupported"
+    selected_available = selected_backend in available_backends
+    note: str | None = None
+    if default_backend is None:
+        note = "No automatic microphone backend is defined for this OS."
+    elif not selected_available:
+        note = (
+            f"Default microphone backend '{default_backend}' is not currently available."
+        )
+
+    return {
+        "platform_system": platform_system,
+        "default_microphone_backend": default_backend,
+        "selected_microphone_backend": selected_backend,
+        "selected_microphone_backend_available": selected_available,
+        "available_microphone_backends": available_backends,
+        "arecord_available": shutil.which("arecord") is not None,
+        "ffmpeg_dshow_available": _is_microphone_backend_available("ffmpeg-dshow"),
+        "microphone_note": note,
+    }
+
+
+def _is_microphone_backend_available(backend: str) -> bool:
+    """Return whether a microphone backend has its local command prerequisites."""
+    if backend == "arecord":
+        return shutil.which("arecord") is not None
+    if backend == "ffmpeg-dshow":
+        return platform.system().lower() == "windows" and shutil.which("ffmpeg") is not None
+    return False
 
 
 def validate_duration(duration: int) -> None:
@@ -113,9 +260,16 @@ def trim_silence(
     ]
 
     try:
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+        )
     except subprocess.CalledProcessError as exc:
-        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        message = _subprocess_error_message(exc)
         raise AudioEnvironmentError(f"silence trimming failed: {message}") from exc
 
     if not output_path.exists() or output_path.stat().st_size <= 1024:
@@ -179,13 +333,49 @@ def record_microphone_audio(
     sample_rate: int = 16000,
     channels: int = 1,
     trim_silence_enabled: bool = True,
+    backend: str = "auto",
 ) -> Path:
     """Record a fixed-duration wav file from the microphone."""
     validate_duration(duration)
-    ensure_arecord_available()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    resolved_device = get_default_microphone_device() if device == "default" else device
+    resolved_backend = resolve_microphone_backend(backend)
+    if resolved_backend == "arecord":
+        _record_arecord_audio(
+            output_path=output_path,
+            duration=duration,
+            device=device,
+            sample_rate=sample_rate,
+            channels=channels,
+        )
+    elif resolved_backend == "ffmpeg-dshow":
+        _record_ffmpeg_dshow_audio(
+            output_path=output_path,
+            duration=duration,
+            device=device,
+            sample_rate=sample_rate,
+            channels=channels,
+        )
+    else:
+        raise AudioEnvironmentError(f"unsupported microphone backend: {resolved_backend}")
 
+    if trim_silence_enabled:
+        return trim_silence(input_path=output_path, output_path=get_trimmed_recording_path())
+
+    return output_path
+
+
+def _record_arecord_audio(
+    output_path: Path,
+    duration: int,
+    device: str,
+    sample_rate: int,
+    channels: int,
+) -> None:
+    """Record a wav file using Linux arecord."""
+    ensure_arecord_available()
+    resolved_device = (
+        get_default_arecord_microphone_device() if device == "default" else device
+    )
     command = [
         "arecord",
         "-D",
@@ -204,13 +394,57 @@ def record_microphone_audio(
     try:
         subprocess.run(command, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as exc:
-        message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        message = _subprocess_error_message(exc)
         raise AudioEnvironmentError(f"microphone recording failed: {message}") from exc
 
-    if trim_silence_enabled:
-        return trim_silence(input_path=output_path, output_path=get_trimmed_recording_path())
 
-    return output_path
+def _record_ffmpeg_dshow_audio(
+    output_path: Path,
+    duration: int,
+    device: str,
+    sample_rate: int,
+    channels: int,
+) -> None:
+    """Record a wav file using Windows ffmpeg DirectShow."""
+    ensure_ffmpeg_dshow_available()
+    resolved_device = (
+        get_default_ffmpeg_dshow_microphone_device()
+        if device == "default"
+        else device
+    )
+    command = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "dshow",
+        "-t",
+        str(duration),
+        "-i",
+        f"audio={resolved_device}",
+        "-ar",
+        str(sample_rate),
+        "-ac",
+        str(channels),
+        "-c:a",
+        "pcm_s16le",
+        str(output_path),
+    ]
+
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        message = _subprocess_error_message(exc)
+        raise AudioEnvironmentError(
+            f"microphone recording failed with ffmpeg-dshow device "
+            f"'{resolved_device}': {message}"
+        ) from exc
 
 
 def capture_microphone_chunk(
@@ -220,6 +454,7 @@ def capture_microphone_chunk(
     sample_rate: int = 16000,
     channels: int = 1,
     trim_silence_enabled: bool = True,
+    backend: str = "auto",
 ) -> AudioChunk:
     """Capture one microphone chunk and wrap it for the pipeline."""
     audio_path = record_microphone_audio(
@@ -229,5 +464,13 @@ def capture_microphone_chunk(
         sample_rate=sample_rate,
         channels=channels,
         trim_silence_enabled=trim_silence_enabled,
+        backend=backend,
     )
     return AudioChunk(path=audio_path, source="microphone")
+
+
+def _subprocess_error_message(exc: subprocess.CalledProcessError) -> str:
+    """Return a safe message from a failed subprocess call."""
+    stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+    stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+    return stderr.strip() or stdout.strip() or str(exc)

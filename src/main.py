@@ -27,6 +27,7 @@ from src.io.audio import (
     validate_model_name,
 )
 from src.io.microphone import (
+    SUPPORTED_MICROPHONE_BACKENDS,
     capture_microphone_chunk,
     get_temp_recording_path,
     has_detectable_speech,
@@ -110,6 +111,7 @@ def format_mic_loop_tuning(
 def run_mic_loop(
     duration: int,
     mic_device: str,
+    mic_backend: str,
     model_name: str,
     language: str | None,
     iterations: int | None,
@@ -145,6 +147,7 @@ def run_mic_loop(
                 output_path=get_temp_recording_path(),
                 duration=duration,
                 device=mic_device,
+                backend=mic_backend,
                 trim_silence_enabled=trim_silence_enabled,
             )
             next_iteration = completed_iterations + 1
@@ -291,7 +294,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mic-device",
         default="default",
-        help="Microphone device for arecord. Default: default",
+        help="Microphone device for the active recording backend. Default: default",
+    )
+    parser.add_argument(
+        "--mic-backend",
+        choices=SUPPORTED_MICROPHONE_BACKENDS,
+        default="auto",
+        help=(
+            "Microphone recording backend: auto, arecord, or ffmpeg-dshow. "
+            "Default: auto"
+        ),
     )
     parser.add_argument(
         "--model",
@@ -485,6 +497,7 @@ def main() -> int:
             return run_mic_loop(
                 duration=args.duration,
                 mic_device=args.mic_device,
+                mic_backend=args.mic_backend,
                 model_name=args.model,
                 language=args.language,
                 iterations=args.iterations,
@@ -503,6 +516,7 @@ def main() -> int:
                 output_path=get_temp_recording_path(),
                 duration=args.duration,
                 device=args.mic_device,
+                backend=args.mic_backend,
                 trim_silence_enabled=not args.no_trim_silence,
             )
         else:

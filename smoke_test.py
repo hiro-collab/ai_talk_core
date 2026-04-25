@@ -54,7 +54,13 @@ from src.main import (
 from src.io.audio import should_retry_model_load_on_cpu
 from src.io.audio import AudioInputError
 from src.io.audio import get_runtime_status
-from src.io.microphone import validate_vad_aggressiveness
+from src.io.microphone import (
+    get_microphone_runtime_status,
+    list_ffmpeg_dshow_audio_devices,
+    record_microphone_audio,
+    resolve_microphone_backend,
+    validate_vad_aggressiveness,
+)
 from src.codex_handoff import render_handoff_output
 from src.codex_runner import (
     build_template_command,
@@ -340,6 +346,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         payload = json.loads(result.stdout)
         self.assertIn("runtime", payload)
+        self.assertIn("microphone", payload)
         self.assertIn("dependencies", payload)
 
     def test_torch_pin_plan_can_return_json(self) -> None:
@@ -394,6 +401,145 @@ class SmokeTests(unittest.TestCase):
         """Supported VAD aggressiveness values should pass validation."""
         for value in (0, 1, 2, 3):
             validate_vad_aggressiveness(value)
+
+    def test_resolve_microphone_backend_uses_os_default(self) -> None:
+        """Auto microphone backend should select the OS-specific recorder."""
+        with mock.patch("src.io.microphone.platform.system", return_value="Windows"):
+            self.assertEqual(resolve_microphone_backend("auto"), "ffmpeg-dshow")
+        with mock.patch("src.io.microphone.platform.system", return_value="Linux"):
+            self.assertEqual(resolve_microphone_backend("auto"), "arecord")
+
+    def test_list_ffmpeg_dshow_audio_devices_parses_audio_section(self) -> None:
+        """DirectShow device parsing should extract only audio device names."""
+        dshow_output = "\n".join(
+            [
+                "[dshow @ 000] DirectShow video devices",
+                '[dshow @ 000]  "HD Pro Webcam C920"',
+                "[dshow @ 000] DirectShow audio devices",
+                '[dshow @ 000]  "Microphone Array (Realtek(R) Audio)"',
+                '[dshow @ 000]     Alternative name "@device_cm_{abc}"',
+            ]
+        )
+        with mock.patch(
+            "src.io.microphone.platform.system",
+            return_value="Windows",
+        ), mock.patch(
+            "src.io.microphone.ensure_ffmpeg_available",
+        ), mock.patch(
+            "src.io.microphone.subprocess.run"
+        ) as subprocess_run:
+            subprocess_run.return_value = subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stdout="",
+                stderr=dshow_output,
+            )
+            self.assertEqual(
+                list_ffmpeg_dshow_audio_devices(),
+                ["Microphone Array (Realtek(R) Audio)"],
+            )
+
+    def test_list_ffmpeg_dshow_audio_devices_parses_typed_lines(self) -> None:
+        """DirectShow parsing should support ffmpeg lines marked with (audio)."""
+        dshow_output = "\n".join(
+            [
+                '[dshow @ 000] "OBS Virtual Camera" (video)',
+                '[dshow @ 000] "Webcam 4 (NDI Webcam Audio)" (audio)',
+                '[dshow @ 000] "HD Pro Webcam C920" (none)',
+            ]
+        )
+        with mock.patch(
+            "src.io.microphone.platform.system",
+            return_value="Windows",
+        ), mock.patch(
+            "src.io.microphone.ensure_ffmpeg_available",
+        ), mock.patch(
+            "src.io.microphone.subprocess.run"
+        ) as subprocess_run:
+            subprocess_run.return_value = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=dshow_output,
+                stderr="",
+            )
+            self.assertEqual(
+                list_ffmpeg_dshow_audio_devices(),
+                ["Webcam 4 (NDI Webcam Audio)"],
+            )
+
+    def test_record_microphone_audio_uses_arecord_backend(self) -> None:
+        """Linux microphone backend should keep the existing arecord command shape."""
+        output_path = PROJECT_ROOT / ".cache" / "tests" / "mic_arecord.wav"
+        with mock.patch(
+            "src.io.microphone.ensure_arecord_available"
+        ), mock.patch(
+            "src.io.microphone.get_default_arecord_microphone_device",
+            return_value="plughw:1,0",
+        ), mock.patch(
+            "src.io.microphone.subprocess.run"
+        ) as subprocess_run:
+            subprocess_run.return_value = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout="",
+                stderr="",
+            )
+            result = record_microphone_audio(
+                output_path=output_path,
+                duration=2,
+                backend="arecord",
+                trim_silence_enabled=False,
+            )
+        command = subprocess_run.call_args.args[0]
+        self.assertEqual(result, output_path)
+        self.assertEqual(command[:2], ["arecord", "-D"])
+        self.assertIn("plughw:1,0", command)
+
+    def test_record_microphone_audio_uses_ffmpeg_dshow_backend(self) -> None:
+        """Windows microphone backend should record through ffmpeg DirectShow."""
+        output_path = PROJECT_ROOT / ".cache" / "tests" / "mic_dshow.wav"
+        with mock.patch(
+            "src.io.microphone.platform.system",
+            return_value="Windows",
+        ), mock.patch(
+            "src.io.microphone.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.io.microphone.subprocess.run"
+        ) as subprocess_run:
+            subprocess_run.return_value = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout="",
+                stderr="",
+            )
+            result = record_microphone_audio(
+                output_path=output_path,
+                duration=2,
+                device="Microphone Array (Realtek(R) Audio)",
+                backend="ffmpeg-dshow",
+                trim_silence_enabled=False,
+            )
+        command = subprocess_run.call_args.args[0]
+        self.assertEqual(result, output_path)
+        self.assertEqual(command[:4], ["ffmpeg", "-y", "-f", "dshow"])
+        self.assertIn("audio=Microphone Array (Realtek(R) Audio)", command)
+        self.assertIn("pcm_s16le", command)
+
+    def test_get_microphone_runtime_status_reports_backend_availability(self) -> None:
+        """Microphone status should expose OS defaults and backend availability."""
+        with mock.patch(
+            "src.io.microphone.platform.system",
+            return_value="Windows",
+        ), mock.patch(
+            "src.io.microphone.shutil.which",
+            side_effect=lambda name: "C:\\ffmpeg\\bin\\ffmpeg.exe"
+            if name == "ffmpeg"
+            else None,
+        ):
+            status = get_microphone_runtime_status()
+        self.assertEqual(status["default_microphone_backend"], "ffmpeg-dshow")
+        self.assertTrue(status["selected_microphone_backend_available"])
+        self.assertIn("ffmpeg-dshow", status["available_microphone_backends"])
 
     def test_web_upload_transcribes_sample_audio(self) -> None:
         """Web UI upload route should transcribe sample audio."""
@@ -1020,6 +1166,16 @@ class SmokeTests(unittest.TestCase):
                     "runtime_note": "cpu fallback",
                     "suggested_action": "pin torch locally",
                 },
+                "microphone": {
+                    "platform_system": "Windows",
+                    "default_microphone_backend": "ffmpeg-dshow",
+                    "selected_microphone_backend": "ffmpeg-dshow",
+                    "selected_microphone_backend_available": True,
+                    "available_microphone_backends": ["ffmpeg-dshow"],
+                    "arecord_available": False,
+                    "ffmpeg_dshow_available": True,
+                    "microphone_note": None,
+                },
                 "dependencies": {
                     "pyproject_path": "/tmp/pyproject.toml",
                     "direct_dependencies": ["flask>=3.1.3", "openai-whisper>=20250625"],
@@ -1038,6 +1194,8 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertIn("Doctor summary:", text)
         self.assertIn("Runtime status:", text)
+        self.assertIn("Microphone status:", text)
+        self.assertIn("default_microphone_backend: ffmpeg-dshow", text)
         self.assertIn("Dependency status:", text)
         self.assertIn("torch_direct_dependency: False", text)
 
@@ -1045,6 +1203,7 @@ class SmokeTests(unittest.TestCase):
         """Doctor status helper should include runtime and dependency sections."""
         status = build_doctor_status()
         self.assertIn("runtime", status)
+        self.assertIn("microphone", status)
         self.assertIn("dependencies", status)
 
     def test_format_torch_pin_plan_includes_steps_and_commands(self) -> None:
