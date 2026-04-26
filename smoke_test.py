@@ -34,13 +34,21 @@ from src.core.finalization import (
     required_repeat_count_for_final,
     should_mark_result_final,
 )
+from src.core.input_gate import (
+    InputGate,
+    InputGateError,
+    InputGateEvent,
+    parse_input_gate_payload,
+)
 from src.core.torch_pin_plan import format_torch_pin_plan, get_torch_pin_plan
 from src.main import (
+    build_input_gate_data,
     build_doctor_status,
     build_mic_profile_list_data,
     build_mic_tuning_data,
     build_torch_pin_status,
     format_doctor_status,
+    format_input_gate_state,
     format_mic_profile_list,
     format_mic_loop_tuning,
     format_runtime_status,
@@ -318,6 +326,22 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(payload["profile"], "balanced")
         self.assertEqual(payload["vad_aggressiveness"], 2)
         self.assertEqual(payload["final_stable_seconds"], 8)
+
+    def test_show_input_gate_can_return_json(self) -> None:
+        """Input-gate status should be inspectable without starting audio capture."""
+        result = run_cli(
+            "--show-input-gate",
+            "--input-disabled",
+            "--input-gate-reason",
+            "sword_sign",
+            "--input-gate-format",
+            "json",
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["input_enabled"])
+        self.assertEqual(payload["reason"], "sword_sign")
+        self.assertEqual(payload["source"], "cli")
 
     def test_show_runtime_status_can_return_json(self) -> None:
         """Runtime status should support JSON output."""
@@ -1275,6 +1299,53 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertEqual(format_transcription_result(result), "[silence 4] silence detected")
 
+    def test_format_transcription_result_marks_input_disabled(self) -> None:
+        """Input-gated results should not be presented as silence."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="",
+            is_final=False,
+            chunk_count=0,
+            input_enabled=False,
+            input_gate_reason="sword_sign",
+        )
+        self.assertEqual(
+            format_transcription_result(result),
+            "[disabled] input disabled: sword_sign",
+        )
+
+    def test_parse_input_gate_payload_accepts_mic_enabled_alias(self) -> None:
+        """Input-gate protocol should accept mic_enabled for integration adapters."""
+        event = parse_input_gate_payload(
+            {
+                "type": "input_gate_state",
+                "mic_enabled": True,
+                "reason": "sword_sign",
+                "source": "gesture_bridge",
+                "timestamp": 1710000000.0,
+            }
+        )
+        self.assertTrue(event.input_enabled)
+        self.assertEqual(event.reason, "sword_sign")
+        self.assertEqual(event.source, "gesture_bridge")
+        self.assertEqual(event.timestamp, 1710000000.0)
+
+    def test_parse_input_gate_payload_rejects_non_boolean_enabled_value(self) -> None:
+        """Input-gate protocol should reject ambiguous string booleans."""
+        with self.assertRaises(InputGateError):
+            parse_input_gate_payload({"mic_enabled": "true"})
+
+    def test_input_gate_state_formats_and_serializes(self) -> None:
+        """Input-gate state should have stable text and JSON-friendly views."""
+        gate = InputGate(initially_enabled=False, reason="sword_sign", source="test")
+        self.assertEqual(
+            format_input_gate_state(gate.state),
+            "[input-gate] input_enabled=False reason=sword_sign source=test",
+        )
+        payload = build_input_gate_data(gate.state)
+        self.assertEqual(payload["type"], "input_gate_state")
+        self.assertFalse(payload["input_enabled"])
+
     def test_maybe_finalize_on_silence_returns_final_result(self) -> None:
         """A silence chunk after repeated speech should finalize the last speech."""
         silence_result = TranscriptionResult(
@@ -1396,6 +1467,52 @@ class SmokeTests(unittest.TestCase):
         self.assertTrue(second.is_final)
         self.assertEqual(session.state.repeat_count, 2)
         self.assertEqual(session.state.finalized_text, "依存関係を確認して")
+
+    def test_mic_loop_session_exposes_input_gate_decision(self) -> None:
+        """Mic-loop session should expose input gating without gesture details."""
+        pipeline = mock.Mock()
+        session = MicLoopSession(
+            pipeline=pipeline,
+            tuning=MicLoopTuning(vad_aggressiveness=2, final_stable_seconds=8),
+            input_gate=InputGate(initially_enabled=False, reason="sword_sign"),
+        )
+        self.assertFalse(session.should_accept_input())
+        disabled_result = session.process_input_disabled()
+        self.assertFalse(disabled_result.input_enabled)
+        self.assertEqual(disabled_result.input_gate_reason, "sword_sign")
+        blocked_result = session.process_chunk(
+            AudioChunk(path=Path("blocked.wav"), source="microphone"),
+            has_speech=True,
+            language="ja",
+            chunk_duration=3,
+            is_last_iteration=False,
+        )
+        self.assertFalse(blocked_result.input_enabled)
+        pipeline.transcribe_buffer_result.assert_not_called()
+        session.update_input_gate(
+            InputGateEvent(
+                input_enabled=True,
+                reason="sword_sign",
+                source="gesture_bridge",
+            )
+        )
+        self.assertTrue(session.should_accept_input())
+        self.assertEqual(session.input_gate_state().source, "gesture_bridge")
+        pipeline.transcribe_buffer_result.return_value = TranscriptionResult(
+            source="microphone",
+            text="依存関係を確認して",
+            is_final=False,
+            chunk_count=1,
+        )
+        result = session.process_chunk(
+            AudioChunk(path=Path("chunk1.wav"), source="microphone"),
+            has_speech=True,
+            language="ja",
+            chunk_duration=3,
+            is_last_iteration=True,
+        )
+        self.assertTrue(result.input_enabled)
+        self.assertEqual(result.text, "依存関係を確認して")
 
     def test_mic_loop_session_finalize_on_interrupt_uses_internal_state(self) -> None:
         """Interrupt finalization should use the session's tracked last speech."""

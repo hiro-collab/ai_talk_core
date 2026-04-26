@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from src.core.agent_instruction import build_agent_instruction
 from src.core.handoff_bridge import save_handoff_bundle
+from src.core.input_gate import InputGate, InputGateState
 from src.core.pipeline import AudioChunk, TranscriptionPipeline, TranscriptionResult
 from src.core.session import MicLoopSession, MicLoopTuning
 from src.core.status_report import (
@@ -45,6 +47,9 @@ MIC_LOOP_PROFILES: dict[str, tuple[int, int, str]] = {
 
 def format_transcription_result(result: TranscriptionResult) -> str:
     """Format a realtime transcription result for terminal output."""
+    if not result.input_enabled:
+        reason = f": {result.input_gate_reason}" if result.input_gate_reason else ""
+        return f"[disabled] input disabled{reason}"
     if result.is_silence:
         chunk_count = result.chunk_count
         result_type = "final" if result.is_final else "silence"
@@ -94,6 +99,21 @@ def print_runtime_note(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def build_input_gate_data(state: InputGateState) -> dict[str, bool | float | str | None]:
+    """Return the input-gate state as a stable JSON-friendly payload."""
+    return state.to_payload()
+
+
+def format_input_gate_state(state: InputGateState) -> str:
+    """Format the current input-gate state for terminal output."""
+    return (
+        "[input-gate] "
+        f"input_enabled={state.enabled} "
+        f"reason={state.reason} "
+        f"source={state.source}"
+    )
+
+
 def format_mic_loop_tuning(
     profile: str,
     vad_aggressiveness: int,
@@ -122,16 +142,30 @@ def run_mic_loop(
     mic_profile: str,
     vad_aggressiveness: int,
     final_stable_seconds: int,
+    input_enabled: bool = True,
+    input_gate_reason: str = "manual",
 ) -> int:
     """Record and transcribe microphone chunks until interrupted."""
-    session = MicLoopSession(
-        pipeline=TranscriptionPipeline(model_name=model_name),
-        tuning=MicLoopTuning(
-            vad_aggressiveness=vad_aggressiveness,
-            final_stable_seconds=final_stable_seconds,
-        ),
+    input_gate = InputGate(
+        initially_enabled=input_enabled,
+        reason=input_gate_reason,
+        source="cli",
     )
+    session: MicLoopSession | None = None
     completed_iterations = 0
+
+    def get_session() -> MicLoopSession:
+        nonlocal session
+        if session is None:
+            session = MicLoopSession(
+                pipeline=TranscriptionPipeline(model_name=model_name),
+                tuning=MicLoopTuning(
+                    vad_aggressiveness=vad_aggressiveness,
+                    final_stable_seconds=final_stable_seconds,
+                ),
+                input_gate=input_gate,
+            )
+        return session
 
     print_runtime_note(
         format_mic_loop_tuning(
@@ -140,9 +174,32 @@ def run_mic_loop(
             final_stable_seconds=final_stable_seconds,
         )
     )
+    print_runtime_note(format_input_gate_state(input_gate.state))
 
     try:
         while iterations is None or completed_iterations < iterations:
+            next_iteration = completed_iterations + 1
+            is_last_iteration = iterations is not None and next_iteration == iterations
+            if not input_gate.is_enabled():
+                if session is None:
+                    result = TranscriptionResult(
+                        source="microphone",
+                        text="",
+                        is_final=is_last_iteration,
+                        chunk_count=0,
+                        input_enabled=False,
+                        input_gate_reason=input_gate.state.reason,
+                    )
+                else:
+                    result = session.process_input_disabled(
+                        is_last_iteration=is_last_iteration
+                    )
+                print_runtime_note(format_transcription_result(result))
+                completed_iterations += 1
+                if iterations is None or completed_iterations < iterations:
+                    time.sleep(duration)
+                continue
+
             chunk = capture_microphone_chunk(
                 output_path=get_temp_recording_path(),
                 duration=duration,
@@ -150,9 +207,8 @@ def run_mic_loop(
                 backend=mic_backend,
                 trim_silence_enabled=trim_silence_enabled,
             )
-            next_iteration = completed_iterations + 1
-            is_last_iteration = iterations is not None and next_iteration == iterations
-            result = session.process_chunk(
+            active_session = get_session()
+            result = active_session.process_chunk(
                 chunk,
                 has_speech=has_detectable_speech(
                     chunk.path,
@@ -170,7 +226,7 @@ def run_mic_loop(
             save_handoff_if_requested(result.text, command_output)
             completed_iterations += 1
     except KeyboardInterrupt:
-        final_result = session.finalize_on_interrupt()
+        final_result = None if session is None else session.finalize_on_interrupt()
         if final_result is not None:
             if command_only:
                 print_agent_instruction_only(final_result.text)
@@ -348,6 +404,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format for --list-mic-profiles or --show-mic-tuning. Default: text",
     )
     parser.add_argument(
+        "--show-input-gate",
+        action="store_true",
+        help="Print the initial input-gate state and exit.",
+    )
+    parser.add_argument(
+        "--input-gate-format",
+        choices=("text", "json"),
+        default="text",
+        help="Output format for --show-input-gate. Default: text",
+    )
+    parser.add_argument(
+        "--input-disabled",
+        action="store_true",
+        help="Start mic-loop with microphone input gated off.",
+    )
+    parser.add_argument(
+        "--input-gate-reason",
+        default="manual",
+        help="Reason label used when initializing the input gate. Default: manual",
+    )
+    parser.add_argument(
         "--show-runtime-status",
         action="store_true",
         help="Print the local Whisper / Torch / ffmpeg runtime status and exit.",
@@ -470,6 +547,23 @@ def main() -> int:
                     )
                 )
             return 0
+        if args.show_input_gate:
+            input_gate = InputGate(
+                initially_enabled=not args.input_disabled,
+                reason=args.input_gate_reason,
+                source="cli",
+            )
+            if args.input_gate_format == "json":
+                print(
+                    json.dumps(
+                        build_input_gate_data(input_gate.state),
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                )
+            else:
+                print(format_input_gate_state(input_gate.state))
+            return 0
         if print_status_command(args):
             return 0
         validate_model_name(args.model)
@@ -478,6 +572,10 @@ def main() -> int:
             args.emit_command = True
         if args.mic and args.mic_loop:
             raise AudioInputError("--mic and --mic-loop cannot be used together")
+        if args.input_disabled and not args.mic_loop:
+            raise AudioInputError(
+                "--input-disabled can only be used with --mic-loop or --show-input-gate"
+            )
         validate_iterations(args.iterations)
         if args.iterations is not None and not args.mic_loop:
             raise AudioInputError("--iterations can only be used with --mic-loop")
@@ -508,6 +606,8 @@ def main() -> int:
                 mic_profile=args.mic_profile,
                 vad_aggressiveness=resolved_vad_aggressiveness,
                 final_stable_seconds=resolved_final_stable_seconds,
+                input_enabled=not args.input_disabled,
+                input_gate_reason=args.input_gate_reason,
             )
         if args.mic:
             if args.audio_file is not None:

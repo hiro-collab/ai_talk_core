@@ -2,7 +2,7 @@
 
 音声で拾った内容を transcript にし、instruction / handoff を生成して外部 agent へつなぐためのローカル基盤です。
 Whisper を使った転写は中核の手段であり、主目的は `voice capture -> transcript -> handoff -> agent backend` の流れを育てることです。
-現在は `file input`, `mic`, `mic-loop`, `Web UI`, `JSON API`, `agent handoff` を扱えます。
+現在は `file input`, `mic`, `mic-loop`, `input gate`, `Web UI`, `JSON API`, `agent handoff` を扱えます。
 
 ## What This Is
 
@@ -10,6 +10,7 @@ Whisper を使った転写は中核の手段であり、主目的は `voice capt
 - 主導線: `agent_*` CLI / API / handoff
 - Web UI: maintenance UI。保守用だが、使いやすく状態が分かることを重視する
 - 現在の共通経路: `capture -> buffer -> transcribe`
+- 外部入力境界: gesture や network adapter は `input_enabled` に変換してから core へ渡す
 
 ## Start Here
 
@@ -56,6 +57,7 @@ uv run python -m src.agent_runner --source web --template cat
 ## Current Status
 
 - 今できること: ファイル入力、固定時間マイク入力、簡易マイクループ、Web UI、JSON API、軽量 VAD、軽い無音トリム、instruction draft、handoff 保存
+- 入力制御: `input gate` で mic-loop の capture 可否を外部 adapter から制御できる土台を追加済み
 - まだできないこと: 真のリアルタイム streaming、本格的な常時待受 UI、`partial/final` の本格運用
 - 位置づけ: GUI 主体ではなく、音声入力フロントエンド兼サービス境界を優先
 - ブラウザ録音の `webm` はサーバー側で `16kHz mono wav` 相当に正規化してから転写
@@ -244,6 +246,12 @@ uv run python -m src.main --mic --duration 5 --language ja
 uv run python -m src.main --mic-loop --duration 3 --language ja
 ```
 
+入力ゲートの状態を確認:
+
+```bash
+uv run python -m src.main --show-input-gate --input-gate-format json
+```
+
 `Ctrl+C` で停止した場合も、直前の安定した発話は `final` として 1 回だけ flush を試みます。
 また、十分に長い同一発話は 2 回連続でも `final` に寄せます。短い断片は引き続き厳しめです。
 必要なら `--mic-profile responsive|balanced|strict` で mic-loop の調整プリセットを切り替えられます。
@@ -253,6 +261,7 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 ただし、時間条件だけで単発チャンクを即 `final` にすることは避け、最低限の反復を前提にしています。
 これらの `final` ヒューリスティクスは `src/core/finalization.py` に切り出し、CLI 本体から分離しています。
 `--mic-loop` の開始時には、実際に使われる profile / VAD / final しきい値を `[mic-tuning] ...` として stderr に表示します。`--instruction-only` や handoff 用の stdout は汚さないようにしています。
+`--input-disabled` を付けると mic-loop は capture を開始せず、入力ゲートが開くまで待つ前提の状態になります。現時点の CLI では手動確認用で、実運用では gesture / WebSocket / keyboard などの adapter が `input_enabled` を更新する composition root から使います。
 
 転写結果と指示草案を同時に表示:
 
@@ -309,6 +318,12 @@ uv run python -m src.main --mic --duration 5 --language ja
 
 ```bash
 uv run python -m src.main --mic-loop --duration 3 --language ja
+```
+
+入力ゲートを閉じた状態で mic-loop を開始:
+
+```bash
+uv run python -m src.main --mic-loop --input-disabled --input-gate-reason sword_sign
 ```
 
 VAD の強さを変える:
@@ -567,13 +582,17 @@ flowchart LR
 
 ```mermaid
 flowchart LR
+    GATE["input gate"]
     CAPTURE["capture chunk"]
+    SKIP["skip capture"]
     VAD["webrtcvad speech detection"]
     SESSION["session state"]
     TRANSCRIBE["Whisper transcribe"]
     RESULT["partial / final heuristic"]
     COMMAND["instruction draft"]
 
+    GATE -->|enabled| CAPTURE
+    GATE -->|disabled| SKIP
     CAPTURE --> VAD
     VAD -->|speech| SESSION
     VAD -->|silence| SESSION

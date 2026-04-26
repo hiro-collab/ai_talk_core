@@ -10,6 +10,7 @@ from src.core.finalization import (
     normalize_transcript_text,
     should_mark_result_final,
 )
+from src.core.input_gate import InputGate, InputGateEvent, InputGateState
 from src.core.pipeline import AudioBuffer, AudioChunk, TranscriptionPipeline, TranscriptionResult
 
 
@@ -30,6 +31,7 @@ class MicLoopState:
     repeat_count: int = 0
     last_spoken_result: TranscriptionResult | None = None
     finalized_text: str | None = None
+    input_disabled_count: int = 0
 
 
 class MicLoopSession:
@@ -40,10 +42,50 @@ class MicLoopSession:
         pipeline: TranscriptionPipeline,
         tuning: MicLoopTuning,
         source: str = "microphone",
+        input_gate: InputGate | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.tuning = tuning
         self.state = MicLoopState(buffer=AudioBuffer(source=source))
+        self.input_gate = input_gate or InputGate()
+
+    def input_gate_state(self) -> InputGateState:
+        """Return the current input-gate state."""
+        return self.input_gate.state
+
+    def should_accept_input(self) -> bool:
+        """Return whether the caller should capture and submit microphone input."""
+        return self.input_gate.is_enabled()
+
+    def set_input_enabled(
+        self,
+        enabled: bool,
+        *,
+        reason: str = "manual",
+        source: str = "session",
+    ) -> InputGateState:
+        """Update whether this session should accept input."""
+        return self.input_gate.set_input_enabled(
+            enabled,
+            reason=reason,
+            source=source,
+        )
+
+    def update_input_gate(self, event: InputGateEvent) -> InputGateState:
+        """Apply an input-gate event to this session."""
+        return self.input_gate.update(event)
+
+    def process_input_disabled(self, *, is_last_iteration: bool = False) -> TranscriptionResult:
+        """Return a result for a loop tick where input capture was intentionally gated."""
+        self.state.input_disabled_count += 1
+        return TranscriptionResult(
+            source=self.state.buffer.source,
+            text="",
+            is_final=is_last_iteration,
+            chunk_count=len(self.state.buffer.chunks),
+            input_enabled=False,
+            input_gate_reason=self.input_gate.state.reason,
+        )
 
     def process_chunk(
         self,
@@ -55,6 +97,8 @@ class MicLoopSession:
         is_last_iteration: bool,
     ) -> TranscriptionResult:
         """Consume one captured chunk and return the current mic-loop result."""
+        if not self.should_accept_input():
+            return self.process_input_disabled(is_last_iteration=is_last_iteration)
         self.state.buffer.append(chunk)
         if has_speech:
             result = self.pipeline.transcribe_buffer_result(

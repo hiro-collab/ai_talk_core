@@ -60,6 +60,14 @@
 - CLI print, Flask request, handoff 保存を直接持たない
 - 今後は常時待受に向けた `session/state` の核に育てる
 
+### `src/core/input_gate.py`
+
+- 外部入力で音声 capture を受け付けるかを決める backend 非依存の gate を担当する
+- `input_enabled` / `mic_enabled` のような汎用 payload を受ける
+- MediaPipe, WebSocket, OBS, Dify など具体 adapter には依存しない
+- gesture 固有の判定は統合アプリまたは adapter 側で `input_enabled` に変換してから渡す
+- session からは `should_accept_input()` / `set_input_enabled()` 相当で利用できること
+
 ### `src/core/agent_instruction.py`
 
 - transcript から instruction draft を作る
@@ -128,6 +136,7 @@
 - 第3段階は最小導入済みで、runner から driver request/result 契約を経由する形になった
 - 第4段階: maintenance UI に session 状態表示を導入する
 - 第4段階の最初として、Web UI に基本状態表示を追加した
+- 外部 gesture 連携の前段として、`src/core/input_gate.py` を導入し、MediaPipe を知らない入力制御境界を追加した
 
 ## Near-term product priorities
 
@@ -135,6 +144,7 @@
 - 第2優先: handoff から agent 実行への次段 bridge を整える
 - 第3優先: Web UI で `録る -> 結果を見る -> handoff を使う` の主導線を強くする
 - 第4優先: backend ごとの status / response 表現をそろえる
+- 第5優先: gesture / keyboard / network adapter から `input_enabled` を更新する composition root を追加する
 - `codex` 命名整理や `smoke_test.py` 分割は後段の整理対象として扱う
 
 ## Review focus

@@ -26,6 +26,8 @@ class TranscriptionResult:
     is_final: bool
     chunk_count: int
     is_silence: bool = False
+    input_enabled: bool = True
+    input_gate_reason: str = ""
 
 
 @dataclass
