@@ -2,6 +2,8 @@
 .worktrees/
 .cache/
 .codex/
+.playwright-cli/
+output/playwright/
 __pycache__/
 *.pyc
 *.pyo

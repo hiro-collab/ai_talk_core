@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ai_core Web UI</title>
+  <link rel="icon" href="{{ url_for('favicon') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <main
+    id="app"
+    class="app-shell"
+    data-api-transcribe-upload="{{ url_for('api_transcribe_upload') }}"
+    data-api-transcribe-browser-recording="{{ url_for('api_transcribe_browser_recording') }}"
+    data-api-agent-handoff-latest="{{ url_for('api_agent_handoff_latest') }}"
+    data-api-doctor="{{ url_for('api_doctor') }}"
+  >
+    <header class="app-header">
+      <div class="title-block">
+        <p class="eyebrow">Local voice handoff</p>
+        <h1>ai_core Web UI</h1>
+        <p class="lead">音声ファイルまたはブラウザ録音を文字起こしし、agent 向けの handoff まで確認します。</p>
+      </div>
+      <div class="header-actions" aria-label="既定設定">
+        <span class="setting-chip">language: ja</span>
+        <span class="setting-chip">model: small</span>
+      </div>
+    </header>
+
+    <section class="diagnostics" aria-label="ランタイム診断">
+      <div class="diagnostic-item">
+        <span>Transcription</span>
+        <strong id="diag-device">確認中</strong>
+      </div>
+      <div class="diagnostic-item">
+        <span>Microphone</span>
+        <strong id="diag-microphone">確認中</strong>
+      </div>
+      <div class="diagnostic-item">
+        <span>GPU</span>
+        <strong id="diag-gpu">確認中</strong>
+      </div>
+      <div class="diagnostic-item">
+        <span>ffmpeg</span>
+        <strong id="diag-ffmpeg">確認中</strong>
+      </div>
+    </section>
+
+    <section class="workspace" aria-label="入力と結果">
+      <div class="input-column">
+        <section class="panel input-panel">
+          <div class="panel-header">
+            <div>
+              <h2>ファイル入力</h2>
+              <p>手元の音声ファイルを送信して文字起こしします。</p>
+            </div>
+            <span class="mode-badge">upload</span>
+          </div>
+
+          <div class="mode-switch" role="tablist" aria-label="アップロード設定モード">
+            <button type="button" class="tab-toggle active" data-target="upload-quick" role="tab" aria-selected="true">基本</button>
+            <button type="button" class="tab-toggle" data-target="upload-advanced" role="tab" aria-selected="false">詳細</button>
+          </div>
+
+          <form id="upload-form" action="{{ url_for('transcribe_upload') }}" method="post" enctype="multipart/form-data">
+            <div id="upload-quick" class="mode-panel form-stack" role="tabpanel">
+              <label for="audio_file">音声ファイル</label>
+              <input id="audio_file" name="audio_file" type="file" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" required>
+              <p class="hint">mp3, wav, m4a, mp4, mpeg, mpga, webm に対応しています。</p>
+              <button type="submit" class="primary-action">文字起こしする</button>
+            </div>
+
+            <div id="upload-advanced" class="mode-panel form-grid" role="tabpanel" hidden>
+              <div>
+                <label for="upload_model">モデル</label>
+                <select id="upload_model" name="model">
+                  <option value="small">small</option>
+                  <option value="base">base</option>
+                  <option value="medium">medium</option>
+                </select>
+              </div>
+              <div>
+                <label for="upload_language">言語コード</label>
+                <input id="upload_language" name="language" type="text" value="ja" placeholder="ja">
+              </div>
+              <label class="checkbox" for="upload_instruction_only">
+                <input id="upload_instruction_only" name="instruction_only" type="checkbox" value="true">
+                指示草案を優先表示する
+              </label>
+              <label class="checkbox" for="upload_save_handoff">
+                <input id="upload_save_handoff" name="save_handoff" type="checkbox" value="true">
+                handoff を保存する
+              </label>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel input-panel">
+          <div class="panel-header">
+            <div>
+              <h2>ブラウザ録音</h2>
+              <p>ブラウザのマイク権限を使って録音し、停止後に送信します。</p>
+            </div>
+            <span class="mode-badge">browser</span>
+          </div>
+
+          <div class="mode-switch" role="tablist" aria-label="録音設定モード">
+            <button type="button" class="tab-toggle active" data-target="record-quick" role="tab" aria-selected="true">基本</button>
+            <button type="button" class="tab-toggle" data-target="record-advanced" role="tab" aria-selected="false">詳細</button>
+          </div>
+
+          <div id="record-quick" class="mode-panel form-stack" role="tabpanel">
+            <div class="record-actions">
+              <button id="start-record" class="secondary-action" type="button">録音開始</button>
+              <button id="stop-record" class="ghost-action" type="button" disabled>録音停止</button>
+            </div>
+            <div class="status-row" aria-label="録音状態">
+              <span>状態</span>
+              <strong id="record-status-pill">待機中</strong>
+            </div>
+            <div class="status-row microphone-row" aria-label="使用マイク">
+              <span>使用マイク</span>
+              <strong id="active-microphone">確認中</strong>
+            </div>
+            <div id="record-status" class="status-message" hidden></div>
+          </div>
+
+          <div id="record-advanced" class="mode-panel form-grid" role="tabpanel" hidden>
+            <div>
+              <label for="record_model">モデル</label>
+              <select id="record_model">
+                <option value="small">small</option>
+                <option value="base">base</option>
+                <option value="medium">medium</option>
+              </select>
+            </div>
+            <div>
+              <label for="record_language">言語コード</label>
+              <input id="record_language" type="text" value="ja" placeholder="ja">
+            </div>
+            <label class="checkbox" for="record_instruction_only">
+              <input id="record_instruction_only" type="checkbox" value="true">
+              指示草案を優先表示する
+            </label>
+            <label class="checkbox" for="record_save_handoff">
+              <input id="record_save_handoff" type="checkbox" value="true">
+              handoff を保存する
+            </label>
+          </div>
+
+          <details class="debug-shell">
+            <summary>開発者向けデバッグ情報</summary>
+            <pre id="record-debug">state=idle</pre>
+          </details>
+        </section>
+      </div>
+
+      <section class="panel result-panel" aria-label="結果">
+        <div class="panel-header">
+          <div>
+            <h2>結果</h2>
+            <p>文字起こし、指示草案、保存先をここで確認します。</p>
+          </div>
+          <span class="mode-badge">result</span>
+        </div>
+
+        <div id="page-status" class="status-message" {% if not message %}hidden{% endif %}>{{ message or "" }}</div>
+        <div id="page-result" class="result-output" {% if not transcript %}hidden{% endif %}>{{ transcript or "" }}</div>
+        <div id="page-command" class="command-output" {% if not command %}hidden{% endif %}>指示草案:
+{{ command or "" }}</div>
+        <div id="page-error" class="error-output" {% if not error %}hidden{% endif %}>{{ error or "" }}</div>
+
+        <div id="result-actions" class="result-actions" {% if not transcript and not command and not command_path and not command_text_path %}hidden{% endif %}>
+          <button id="copy-transcript" class="ghost-action" type="button">文字起こしをコピー</button>
+          <button id="copy-command" class="ghost-action" type="button">指示草案をコピー</button>
+          <button id="refresh-handoff" class="secondary-action" type="button" {% if not command_path and not command_text_path %}disabled{% endif %}>保存先を確認</button>
+        </div>
+        <div id="page-meta" class="meta-output" {% if not command_path and not command_text_path %}hidden{% endif %}>{% if command_path %}handoff 保存先:
+{{ command_path }}{% endif %}{% if command_text_path %}{% if command_path %}
+{% endif %}プロンプト保存先:
+{{ command_text_path }}{% endif %}</div>
+        <div id="action-feedback" class="action-feedback" aria-live="polite"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

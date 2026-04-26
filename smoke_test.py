@@ -403,9 +403,46 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("record_instruction_only", page)
         self.assertIn("upload_save_handoff", page)
         self.assertIn("record_save_handoff", page)
+        self.assertIn("data-api-doctor", page)
+        self.assertIn("app.css", page)
+        self.assertIn("app.js", page)
         self.assertIn("待機中", page)
-        self.assertIn("文字起こし中", page)
+        self.assertIn("active-microphone", page)
         self.assertIn("開発者向けデバッグ情報", page)
+
+    def test_web_static_assets_load(self) -> None:
+        """Web UI CSS and JS assets should be served separately."""
+        css_response = self.client.get("/static/app.css")
+        js_response = self.client.get("/static/app.js")
+        try:
+            self.assertEqual(css_response.status_code, 200)
+            self.assertEqual(js_response.status_code, 200)
+            self.assertIn("text/css", css_response.content_type)
+            self.assertIn("javascript", js_response.content_type)
+            js_text = js_response.get_data(as_text=True)
+            self.assertNotIn("指示草案:\\\\n", js_text)
+            self.assertNotIn('join("\\\\n")', js_text)
+        finally:
+            css_response.close()
+            js_response.close()
+
+    def test_web_favicon_loads(self) -> None:
+        """Web UI should not emit a missing favicon request."""
+        response = self.client.get("/favicon.ico")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("image/svg+xml", response.content_type)
+
+    def test_api_doctor_returns_runtime_sections(self) -> None:
+        """Web UI should expose doctor status for diagnostics display."""
+        response = self.client.get("/api/doctor")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.is_json)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertIn("runtime", payload)
+        self.assertIn("microphone", payload)
+        self.assertIn("dependencies", payload)
+        self.assertIn("selected_microphone_device", payload["microphone"])
 
     def test_render_page_with_prompt_only_omits_empty_handoff_label(self) -> None:
         """Prompt-only results should not render an empty handoff label."""
@@ -413,6 +450,19 @@ class SmokeTests(unittest.TestCase):
             page = render_page(command_text_path="/tmp/web_latest.txt")
         self.assertIn("プロンプト保存先:\n/tmp/web_latest.txt", page)
         self.assertNotIn("handoff 保存先:\n\nプロンプト保存先", page)
+
+    def test_render_page_places_handoff_paths_after_result_actions(self) -> None:
+        """Handoff paths should sit directly after the related action buttons."""
+        with self.app.test_request_context("/"):
+            page = render_page(
+                transcript="hello",
+                command="say hello",
+                command_path=r"C:\tmp\web_latest.json",
+                command_text_path=r"C:\tmp\web_latest.txt",
+            )
+        self.assertLess(page.index('id="result-actions"'), page.index('id="page-meta"'))
+        self.assertIn("handoff 保存先:\nC:\\tmp\\web_latest.json", page)
+        self.assertIn("プロンプト保存先:\nC:\\tmp\\web_latest.txt", page)
 
     def test_webrtcvad_dependency_is_available(self) -> None:
         """webrtcvad should be importable after dependency sync."""

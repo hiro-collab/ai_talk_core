@@ -195,6 +195,7 @@ def get_microphone_runtime_status() -> dict[str, object]:
     ]
     selected_backend = default_backend or "unsupported"
     selected_available = selected_backend in available_backends
+    selected_device: str | None = None
     note: str | None = None
     if default_backend is None:
         note = "No automatic microphone backend is defined for this OS."
@@ -202,11 +203,17 @@ def get_microphone_runtime_status() -> dict[str, object]:
         note = (
             f"Default microphone backend '{default_backend}' is not currently available."
         )
+    else:
+        try:
+            selected_device = get_default_microphone_device(selected_backend)
+        except AudioEnvironmentError as exc:
+            note = f"{note} {exc}" if note else str(exc)
 
     return {
         "platform_system": platform_system,
         "default_microphone_backend": default_backend,
         "selected_microphone_backend": selected_backend,
+        "selected_microphone_device": selected_device,
         "selected_microphone_backend_available": selected_available,
         "available_microphone_backends": available_backends,
         "arecord_available": shutil.which("arecord") is not None,
