@@ -15,6 +15,7 @@
     data-api-transcribe-browser-recording="{{ url_for('api_transcribe_browser_recording') }}"
     data-api-agent-handoff-latest="{{ url_for('api_agent_handoff_latest') }}"
     data-api-doctor="{{ url_for('api_doctor') }}"
+    data-api-input-gate="{{ url_for('api_input_gate_get') }}"
     data-api-token="{{ api_token }}"
   >
     <header class="app-header">
@@ -45,6 +46,10 @@
       <div class="diagnostic-item">
         <span>ffmpeg</span>
         <strong id="diag-ffmpeg">確認中</strong>
+      </div>
+      <div class="diagnostic-item">
+        <span>Input gate</span>
+        <strong id="diag-input-gate">確認中</strong>
       </div>
     </section>
 
@@ -124,6 +129,10 @@
               <span>使用マイク</span>
               <strong id="active-microphone">確認中</strong>
             </div>
+            <label class="checkbox" for="record_gate_auto">
+              <input id="record_gate_auto" type="checkbox" value="true">
+              入力ゲートで録音を制御する
+            </label>
             <div id="record-status" class="status-message" hidden></div>
           </div>
 

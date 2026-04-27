@@ -254,6 +254,17 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web
 ```
 
+外部 adapter から入力ゲートを更新:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/input-gate \
+  -H "Content-Type: application/json" \
+  -d '{"input_enabled": true, "reason": "sword_sign", "source": "sword_voice_agent"}'
+```
+
+Web UI のブラウザ録音で `入力ゲートで録音を制御する` を有効にすると、
+`/api/input-gate` の `input_enabled=true` で録音開始、`false` で録音停止とアップロード処理に進みます。
+
 ローカル CLI から最新 handoff を読む:
 
 ```bash

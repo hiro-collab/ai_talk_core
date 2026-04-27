@@ -17,6 +17,7 @@ from flask import (
 )
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from src.core.input_gate import InputGate, InputGateError, InputGateState
 from src.core.status_report import build_doctor_status
 from src.core.handoff_bridge import load_handoff_bundle
 from src.web.transcription_service import (
@@ -46,6 +47,7 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = WEB_MAX_UPLOAD_BYTES
     app.config[LOCAL_API_TOKEN_CONFIG] = secrets.token_urlsafe(32)
+    input_gate = InputGate()
 
     @app.before_request
     def enforce_local_request_policy() -> tuple[object, int] | None:
@@ -136,6 +138,21 @@ def create_app() -> Flask:
     def api_doctor() -> tuple[object, int]:
         return jsonify(build_doctor_status()), 200
 
+    @app.get("/api/input-gate")
+    def api_input_gate_get() -> tuple[object, int]:
+        return jsonify(build_input_gate_response(input_gate.state)), 200
+
+    @app.post("/api/input-gate")
+    def api_input_gate_post() -> tuple[object, int]:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "error": "request body must be a JSON object"}), 400
+        try:
+            state = input_gate.update_from_payload(payload)
+        except InputGateError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify(build_input_gate_response(state)), 200
+
     return app
 
 
@@ -203,6 +220,13 @@ def parse_hostname(host_value: str) -> str:
         return (urlsplit(f"//{host_value}").hostname or "").lower()
     except ValueError:
         return ""
+
+
+def build_input_gate_response(state: InputGateState) -> dict[str, object]:
+    return {
+        "ok": True,
+        "input_gate": state.to_payload(),
+    }
 
 
 def render_page(

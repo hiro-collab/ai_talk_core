@@ -16,15 +16,18 @@ const refreshHandoffButton = document.getElementById("refresh-handoff");
 const actionFeedback = document.getElementById("action-feedback");
 const statusPill = document.getElementById("record-status-pill");
 const activeMicrophone = document.getElementById("active-microphone");
+const gateAutoRecord = document.getElementById("record_gate_auto");
 const diagDevice = document.getElementById("diag-device");
 const diagMicrophone = document.getElementById("diag-microphone");
 const diagGpu = document.getElementById("diag-gpu");
 const diagFfmpeg = document.getElementById("diag-ffmpeg");
+const diagInputGate = document.getElementById("diag-input-gate");
 const endpoints = {
   transcribeUpload: appRoot?.dataset.apiTranscribeUpload || "/api/transcribe-upload",
   browserRecording: appRoot?.dataset.apiTranscribeBrowserRecording || "/api/transcribe-browser-recording",
   agentHandoffLatest: appRoot?.dataset.apiAgentHandoffLatest || "/api/agent-handoff-latest",
   doctor: appRoot?.dataset.apiDoctor || "/api/doctor",
+  inputGate: appRoot?.dataset.apiInputGate || "/api/input-gate",
 };
 const apiToken = appRoot?.dataset.apiToken || "";
 let mediaRecorder = null;
@@ -32,6 +35,8 @@ let activeStream = null;
 let recorderState = "idle";
 let chunks = [];
 let lastBlobSize = 0;
+let lastInputGateEnabled = null;
+let gateAutoStartBlocked = false;
 
 const showActionFeedback = (text) => {
   actionFeedback.textContent = text;
@@ -90,6 +95,20 @@ const loadDiagnostics = async () => {
     setText(diagGpu, "unknown");
     setText(diagFfmpeg, "unknown");
     setActiveMicrophone("未確認");
+  }
+};
+
+const loadInputGate = async () => {
+  try {
+    const response = await localFetch(endpoints.inputGate);
+    const payload = await response.json();
+    const gate = payload.input_gate || {};
+    const label = gate.input_enabled ? "enabled" : "disabled";
+    const reason = gate.reason ? ` (${gate.reason})` : "";
+    setText(diagInputGate, `${label}${reason}`);
+    await handleInputGateRecording(gate);
+  } catch (error) {
+    setText(diagInputGate, "unknown");
   }
 };
 
@@ -171,6 +190,31 @@ const resetRecorderState = () => {
   setRecorderButtons();
 };
 
+const isInputGateAutoRecordingEnabled = () => Boolean(gateAutoRecord?.checked);
+
+const handleInputGateRecording = async (gate) => {
+  const inputEnabled = Boolean(gate.input_enabled);
+  if (!isInputGateAutoRecordingEnabled()) {
+    lastInputGateEnabled = inputEnabled;
+    return;
+  }
+
+  if (!inputEnabled) {
+    gateAutoStartBlocked = false;
+  }
+
+  const changed = lastInputGateEnabled !== inputEnabled;
+  lastInputGateEnabled = inputEnabled;
+
+  if (inputEnabled && recorderState === "idle" && !gateAutoStartBlocked) {
+    await startRecording("input_gate");
+    return;
+  }
+  if (!inputEnabled && changed && recorderState === "recording") {
+    requestStopRecording("input_gate");
+  }
+};
+
 const updateOutput = ({ message = "", transcript = "", command = "", command_path = "", command_text_path = "", error = "" }) => {
   pageStatus.hidden = !message;
   pageStatus.textContent = message;
@@ -250,10 +294,10 @@ uploadForm?.addEventListener("submit", async (event) => {
   );
 });
 
-startButton?.addEventListener("click", async () => {
+const startRecording = async (trigger = "manual") => {
   if (recorderState !== "idle") {
     renderDebug("start ignored because recorder is not idle");
-    return;
+    return false;
   }
   chunks = [];
   lastBlobSize = 0;
@@ -314,17 +358,26 @@ startButton?.addEventListener("click", async () => {
     recorderState = "recording";
     setCurrentStatus("recording");
     setRecorderButtons();
-    setStatus("録音中です。停止後にアップロードして文字起こしします。");
-    renderDebug("recording started");
+    if (trigger === "input_gate") {
+      setStatus("入力ゲートにより録音中です。ゲートが閉じると送信します。");
+    } else {
+      setStatus("録音中です。停止後にアップロードして文字起こしします。");
+    }
+    renderDebug(`recording started trigger=${trigger}`);
+    return true;
   } catch (error) {
     resetRecorderState();
+    if (trigger === "input_gate") {
+      gateAutoStartBlocked = true;
+    }
     setStatus("録音開始に失敗しました: " + error);
     setCurrentStatus("error");
     renderDebug(`start failed: ${error}`);
+    return false;
   }
-});
+};
 
-stopButton?.addEventListener("click", () => {
+const requestStopRecording = (trigger = "manual") => {
   if (!mediaRecorder || mediaRecorder.state === "inactive" || recorderState !== "recording") {
     renderDebug("stop ignored because recorder is not active");
     return;
@@ -333,9 +386,27 @@ stopButton?.addEventListener("click", () => {
   setRecorderButtons();
   mediaRecorder.stop();
   stopButton.disabled = true;
-  setStatus("録音停止。アップロードの準備中です。");
+  if (trigger === "input_gate") {
+    setStatus("入力ゲートが閉じました。アップロードの準備中です。");
+  } else {
+    setStatus("録音停止。アップロードの準備中です。");
+  }
   setCurrentStatus("stopping");
-  renderDebug("stop requested");
+  renderDebug(`stop requested trigger=${trigger}`);
+};
+
+startButton?.addEventListener("click", async () => {
+  await startRecording("manual");
+});
+
+stopButton?.addEventListener("click", () => {
+  requestStopRecording("manual");
+});
+
+gateAutoRecord?.addEventListener("change", async () => {
+  lastInputGateEnabled = null;
+  gateAutoStartBlocked = false;
+  await loadInputGate();
 });
 
 const copyText = async (text, label) => {
@@ -392,3 +463,5 @@ copyTranscriptButton.disabled = !pageResult.textContent;
 copyCommandButton.disabled = !pageCommand.textContent;
 renderDebug("ready");
 loadDiagnostics();
+loadInputGate();
+setInterval(loadInputGate, 1000);

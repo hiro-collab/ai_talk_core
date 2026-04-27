@@ -83,7 +83,7 @@ from src.core.pipeline import AudioChunk, TranscriptionResult
 from src.core.session import MicLoopSession, MicLoopTuning
 from src.drivers import DriverRequest, DriverResponse, DriverResult, dispatch_driver_request
 from src.runners.common import emit_driver_result, execute_runner_command
-from src.web.app import create_app, render_page
+from src.web.app import build_input_gate_response, create_app, render_page
 from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
 
 
@@ -406,15 +406,18 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("ai_core Web UI", page)
         self.assertIn("upload_instruction_only", page)
         self.assertIn("record_instruction_only", page)
+        self.assertIn("record_gate_auto", page)
         self.assertIn("upload_save_handoff", page)
         self.assertIn("record_save_handoff", page)
         self.assertIn("data-api-doctor", page)
+        self.assertIn("data-api-input-gate", page)
         self.assertIn("data-api-token", page)
         self.assertIn("app.css", page)
         self.assertIn("app.js", page)
         self.assertIn("待機中", page)
         self.assertIn("active-microphone", page)
         self.assertIn("開発者向けデバッグ情報", page)
+        self.assertIn("diag-input-gate", page)
 
     def test_web_static_assets_load(self) -> None:
         """Web UI CSS and JS assets should be served separately."""
@@ -428,6 +431,8 @@ class SmokeTests(unittest.TestCase):
             js_text = js_response.get_data(as_text=True)
             self.assertNotIn("指示草案:\\\\n", js_text)
             self.assertNotIn('join("\\\\n")', js_text)
+            self.assertIn("handleInputGateRecording", js_text)
+            self.assertIn("startRecording", js_text)
         finally:
             css_response.close()
             js_response.close()
@@ -449,6 +454,47 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("microphone", payload)
         self.assertIn("dependencies", payload)
         self.assertIn("selected_microphone_device", payload["microphone"])
+
+    def test_api_input_gate_returns_current_state(self) -> None:
+        """Web UI should expose current input-gate state."""
+        response = self.client.get("/api/input-gate")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["ok"])
+        self.assertIn("input_enabled", payload["input_gate"])
+
+    def test_api_input_gate_updates_state(self) -> None:
+        """Web UI should accept backend-neutral input-gate payloads."""
+        response = self.client.post(
+            "/api/input-gate",
+            json={
+                "input_enabled": False,
+                "reason": "sword_sign",
+                "source": "sword_voice_agent",
+                "timestamp": 12.5,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertFalse(payload["input_gate"]["input_enabled"])
+        self.assertEqual(payload["input_gate"]["reason"], "sword_sign")
+        self.assertEqual(payload["input_gate"]["source"], "sword_voice_agent")
+
+    def test_api_input_gate_rejects_invalid_payload(self) -> None:
+        """Web UI should reject malformed input-gate payloads."""
+        response = self.client.post("/api/input-gate", json={"input_enabled": "yes"})
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertFalse(payload["ok"])
+
+    def test_build_input_gate_response_wraps_state_payload(self) -> None:
+        """Input-gate response helper should return a stable envelope."""
+        response = build_input_gate_response(InputGate(initially_enabled=False).state)
+        self.assertTrue(response["ok"])
+        self.assertFalse(response["input_gate"]["input_enabled"])
 
     def test_render_page_with_prompt_only_omits_empty_handoff_label(self) -> None:
         """Prompt-only results should not render an empty handoff label."""
