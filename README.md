@@ -125,6 +125,8 @@ Windows ネイティブで Web UI を起動:
 .\start_web.ps1 -Sync
 ```
 
+GPU セットアップ後に `-Sync` を使うと、CUDA 版 Torch が CPU 版に戻ることがあります。その場合は `.\setup_gpu_windows.ps1 -Cuda cu128` を再実行してください。
+
 Windows のマイク録音を試す:
 
 ```powershell
@@ -153,7 +155,14 @@ GPU は必須ではありません。CPU 版 Torch でも動作しますが、Wh
 .\setup_gpu_windows.ps1 -Cuda cu118
 ```
 
-helper は内部で `uv pip install --upgrade torch --index-url https://download.pytorch.org/whl/<cuda-family>` を実行し、最後に `uv run python -m src.main --doctor` で確認します。最新の対応 CUDA family は PyTorch の公式 selector (`https://pytorch.org/get-started/locally/`) も確認してください。システムの NVIDIA driver を先に変えるより、まず `uv run python -m src.main --doctor` と `uv run python -m src.main --show-torch-pin-plan` で状態を見てください。
+helper は内部で `uv pip install --upgrade torch --index-url https://download.pytorch.org/whl/<cuda-family>` を実行し、最後に `.venv\Scripts\python.exe` で確認します。CUDA 版 Torch を入れた直後に通常の `uv run` を使うと、ロックファイル基準の同期で CPU 版 Torch に戻ることがあります。確認には次のどちらかを使ってください。
+
+```powershell
+.\.venv\Scripts\python.exe -m src.main --doctor
+uv run --no-sync python -m src.main --doctor
+```
+
+最新の対応 CUDA family は PyTorch の公式 selector (`https://pytorch.org/get-started/locally/`) も確認してください。システムの NVIDIA driver を先に変えるより、まず `uv run python -m src.main --doctor` と `uv run python -m src.main --show-torch-pin-plan` で状態を見てください。
 
 ## Repository stance
 
@@ -163,9 +172,9 @@ helper は内部で `uv pip install --upgrade torch --index-url https://download
 
 ## Runtime notes
 
-- 現在の確認環境では `torch 2.10.0+cu128`, `torch.cuda.is_available() == True` でした
+- GPU 設定後は `torch` の version に `+cu...` が付き、`torch.cuda.is_available() == True` になることを確認します
 - GPU 利用は PyTorch の CUDA 対応ビルドと NVIDIA ドライバが正しく揃っていることが前提です
-- `pyproject.toml` では Torch の CUDA バリアントを固定していないため、別マシンでは CPU 版 Torch が入る可能性があります
+- `pyproject.toml` では Torch の CUDA バリアントを固定していないため、別マシンや通常の `uv sync` 後は CPU 版 Torch が入る可能性があります
 - CPU 版 Torch が入った場合でも CLI は動作しますが、Whisper は CPU fallback で遅くなります
 - CUDA デバイスが一時的に busy / unavailable の場合も、モデル読み込み時は CPU fallback を試みます
 

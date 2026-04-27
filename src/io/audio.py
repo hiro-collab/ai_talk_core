@@ -103,7 +103,8 @@ def get_runtime_status() -> dict[str, str | bool | None]:
         )
         suggested_action = (
             "Install a PyTorch CUDA wheel inside this project's .venv, then rerun "
-            "`uv run python -m src.main --doctor`."
+            "the doctor command with the project venv Python, or use "
+            "`uv run --no-sync python -m src.main --doctor`."
         )
     return {
         "ffmpeg_available": shutil.which("ffmpeg") is not None,

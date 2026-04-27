@@ -1353,6 +1353,8 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("uv_add_command", status)
         self.assertIn("setup_script_command", status)
         self.assertIn("uv_pip_install_command", status)
+        self.assertIn("venv_doctor_command", status)
+        self.assertIn("uv_run_no_sync_doctor_command", status)
 
     def test_get_torch_pin_plan_recommends_project_local_steps(self) -> None:
         """Torch pin plan should emphasize a project-local adjustment path."""
@@ -1370,6 +1372,25 @@ class SmokeTests(unittest.TestCase):
         """Windows startup and GPU helpers should be present at the repo root."""
         self.assertTrue((PROJECT_ROOT / "start_web.ps1").is_file())
         self.assertTrue((PROJECT_ROOT / "setup_gpu_windows.ps1").is_file())
+
+    def test_windows_gpu_helper_avoids_uv_run_resync_after_torch_install(self) -> None:
+        """GPU helper should verify with venv Python so uv does not restore CPU Torch."""
+        script = (PROJECT_ROOT / "setup_gpu_windows.ps1").read_text(encoding="utf-8")
+        self.assertIn("$projectPython", script)
+        self.assertIn("& $projectPython -c", script)
+        self.assertIn("& $projectPython -m src.main --doctor", script)
+        self.assertIn("setuptools>=82.0.1", script)
+        self.assertNotIn("& uv run python -c", script)
+        self.assertNotIn("& uv run python -m src.main --doctor", script)
+
+    def test_windows_startup_uses_venv_python_to_preserve_gpu_torch(self) -> None:
+        """Startup helper should not trigger uv sync through uv run after setup."""
+        script = (PROJECT_ROOT / "start_web.ps1").read_text(encoding="utf-8")
+        self.assertIn("$projectPython", script)
+        self.assertIn("& $projectPython -m src.main --doctor", script)
+        self.assertIn("& $projectPython -m src.web.app", script)
+        self.assertNotIn("& uv run python -m src.main --doctor", script)
+        self.assertNotIn("& uv run python -m src.web.app", script)
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""

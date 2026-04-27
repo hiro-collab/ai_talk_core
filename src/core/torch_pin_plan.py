@@ -74,17 +74,19 @@ def get_torch_pin_plan() -> dict[str, object]:
         if pytorch_index_url is not None
         else None
     )
+    venv_doctor_command = ".\\.venv\\Scripts\\python.exe -m src.main --doctor"
+    uv_run_no_sync_doctor_command = "uv run --no-sync python -m src.main --doctor"
     explicit_build_selection_needed = bool(
         recommended_cuda_family is not None
         and (build_suffix is not None or runtime.get("nvidia_smi_available"))
     )
 
     steps = [
-        "Confirm the current state with `uv run python -m src.main --doctor`.",
-        "Add torch as an explicit dependency inside pyproject.toml instead of relying on the transitive openai-whisper resolution.",
+        "Confirm the current state with `uv run python -m src.main --doctor` before changing Torch.",
         "Prefer a driver-compatible Torch CUDA build inside .venv before changing system NVIDIA drivers.",
-        "Re-lock and sync the environment with uv after pinning torch.",
-        "Verify `torch.cuda.is_available()` and `src.main --show-runtime-status` after the change.",
+        "Use the Windows GPU helper for a machine-local CUDA Torch install before deciding whether to codify a repository-level pin.",
+        "After installing a CUDA wheel, verify with the project venv Python or `uv run --no-sync`; plain `uv run` may resync the lock and restore CPU Torch.",
+        "Only add torch to pyproject.toml and re-lock if you want repository-level pinning; CUDA wheel source selection is still machine-specific.",
     ]
 
     if recommended_cuda_family is not None:
@@ -115,13 +117,14 @@ def get_torch_pin_plan() -> dict[str, object]:
 
     command_examples = [
         "uv run python -m src.main --doctor --doctor-format json",
-        ".\\setup_gpu_windows.ps1",
-        "uv add 'torch==<base-version>'",
+        ".\\setup_gpu_windows.ps1 -Cuda <cu-family>",
+        venv_doctor_command,
+        'uv run --no-sync python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"',
+        uv_run_no_sync_doctor_command,
         "uv pip install --upgrade torch --index-url https://download.pytorch.org/whl/<cu-family>",
+        "uv add 'torch==<base-version>'",
         "uv lock",
         "uv sync",
-        'uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"',
-        "uv run python -m src.main --show-runtime-status",
     ]
 
     return {
@@ -135,6 +138,8 @@ def get_torch_pin_plan() -> dict[str, object]:
         "recommended_cuda_family": recommended_cuda_family,
         "pytorch_index_url": pytorch_index_url,
         "uv_pip_install_command": uv_pip_install_command,
+        "venv_doctor_command": venv_doctor_command,
+        "uv_run_no_sync_doctor_command": uv_run_no_sync_doctor_command,
         "setup_script_command": (
             f".\\setup_gpu_windows.ps1 -Cuda {recommended_cuda_family}"
             if recommended_cuda_family is not None
@@ -151,7 +156,9 @@ def get_torch_pin_plan() -> dict[str, object]:
         "command_examples": command_examples,
         "plan_note": (
             "This plan is project-local. Adjust Torch inside .venv first and avoid "
-            "changing system-wide NVIDIA drivers unless the local pin still fails."
+            "changing system-wide NVIDIA drivers unless the local pin still fails. "
+            "After a machine-local CUDA install, avoid plain `uv run` verification "
+            "because it can sync against the lock and replace the CUDA Torch wheel."
         ),
     }
 
@@ -169,6 +176,12 @@ def format_torch_pin_plan(plan: dict[str, object]) -> str:
     lines.append(f"- recommended_cuda_family: {plan['recommended_cuda_family']}")
     lines.append(f"- pytorch_index_url: {plan['pytorch_index_url']}")
     lines.append(f"- uv_pip_install_command: {plan['uv_pip_install_command']}")
+    if plan.get("venv_doctor_command") is not None:
+        lines.append(f"- venv_doctor_command: {plan['venv_doctor_command']}")
+    if plan.get("uv_run_no_sync_doctor_command") is not None:
+        lines.append(
+            f"- uv_run_no_sync_doctor_command: {plan['uv_run_no_sync_doctor_command']}"
+        )
     lines.append(f"- setup_script_command: {plan['setup_script_command']}")
     lines.append(
         f"- explicit_build_selection_needed: {plan['explicit_build_selection_needed']}"

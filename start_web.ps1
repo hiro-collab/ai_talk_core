@@ -22,14 +22,23 @@ if (-not (Test-LocalCommand "ffmpeg")) {
     Write-Warning "ffmpeg is not available in PATH. File and microphone transcription will fail until ffmpeg is installed."
 }
 
-if ($Sync -or -not (Test-Path ".venv\Scripts\python.exe")) {
+$projectPython = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
+
+if ($Sync -or -not (Test-Path $projectPython)) {
+    if ($Sync) {
+        Write-Warning "uv sync may replace a machine-local CUDA Torch wheel. Rerun setup_gpu_windows.ps1 after sync if GPU transcription is needed."
+    }
     Write-Host "Syncing Python environment..."
     & uv sync
 }
 
+if (-not (Test-Path $projectPython)) {
+    throw "Project Python was not found at $projectPython after uv sync."
+}
+
 if (-not $SkipDoctor) {
     Write-Host "Runtime check..."
-    & uv run python -m src.main --doctor
+    & $projectPython -m src.main --doctor
 }
 
 $url = "http://127.0.0.1:8000"
@@ -52,4 +61,4 @@ if (-not $NoOpen) {
 
 Write-Host "Starting ai_core Web UI at $url"
 Write-Host "Press Ctrl+C to stop the server."
-& uv run python -m src.web.app
+& $projectPython -m src.web.app
