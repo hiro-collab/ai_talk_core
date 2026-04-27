@@ -67,7 +67,13 @@ const loadDiagnostics = async () => {
     setText(diagDevice, runtime.transcription_device || "unknown");
     setText(diagMicrophone, microphoneDevice || microphoneBackend);
     setActiveMicrophone(microphoneDevice || formatUnknownMicrophone(microphoneBackend));
-    setText(diagGpu, runtime.torch_cuda_available ? "cuda" : "cpu");
+    if (runtime.torch_cuda_available) {
+      setText(diagGpu, runtime.nvidia_gpu_name || "cuda");
+    } else if (runtime.nvidia_smi_available) {
+      setText(diagGpu, "GPU visible / Torch CPU");
+    } else {
+      setText(diagGpu, "cpu");
+    }
     setText(diagFfmpeg, runtime.ffmpeg_available ? "available" : "missing");
   } catch (error) {
     setText(diagDevice, "unknown");

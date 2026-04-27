@@ -1182,10 +1182,38 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("nvidia_driver_version", status)
         self.assertIn("nvidia_gpu_name", status)
         self.assertIn("torch_version", status)
+        self.assertIn("torch_cuda_build", status)
         self.assertIn("torch_cuda_available", status)
         self.assertIn("transcription_device", status)
         self.assertIn("runtime_note", status)
         self.assertIn("suggested_action", status)
+
+    def test_get_runtime_status_notes_cpu_torch_when_nvidia_is_visible(self) -> None:
+        """Runtime status should explain CPU-only Torch when an NVIDIA GPU is visible."""
+        def fake_which(name: str) -> str | None:
+            if name in {"ffmpeg", "ffprobe", "nvidia-smi"}:
+                return name
+            return None
+
+        completed = subprocess.CompletedProcess(
+            args=["nvidia-smi"],
+            returncode=0,
+            stdout="596.21, NVIDIA GeForce RTX 3070\n",
+            stderr="",
+        )
+        with (
+            mock.patch("src.io.audio.shutil.which", side_effect=fake_which),
+            mock.patch("src.io.audio.subprocess.run", return_value=completed),
+            mock.patch("src.io.audio.torch.cuda.is_available", return_value=False),
+            mock.patch("src.io.audio.torch.version.cuda", None),
+            mock.patch("src.io.audio.torch.__version__", "2.10.0+cpu"),
+        ):
+            status = get_runtime_status()
+
+        self.assertTrue(status["nvidia_smi_available"])
+        self.assertFalse(status["torch_cuda_build"])
+        self.assertIn("CPU-only", str(status["runtime_note"]))
+        self.assertIn(".venv", str(status["suggested_action"]))
 
     def test_format_dependency_status_mentions_torch_source(self) -> None:
         """Dependency formatter should explain how torch is resolved."""
@@ -1292,6 +1320,12 @@ class SmokeTests(unittest.TestCase):
                 "current_driver_version": "535.288.01",
                 "recommended_torch_spec": "torch==2.10.0",
                 "recommended_cuda_family": "cu121",
+                "pytorch_index_url": "https://download.pytorch.org/whl/cu121",
+                "uv_pip_install_command": (
+                    "uv pip install --upgrade torch "
+                    "--index-url https://download.pytorch.org/whl/cu121"
+                ),
+                "setup_script_command": ".\\setup_gpu_windows.ps1 -Cuda cu121",
                 "explicit_build_selection_needed": True,
                 "pyproject_dependency_entry": "torch==2.10.0",
                 "uv_add_command": "uv add 'torch==2.10.0'",
@@ -1302,6 +1336,8 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertIn("Torch pin plan:", text)
         self.assertIn("recommended_cuda_family: cu121", text)
+        self.assertIn("setup_gpu_windows.ps1", text)
+        self.assertIn("pytorch_index_url: https://download.pytorch.org/whl/cu121", text)
         self.assertIn("uv lock", text)
         self.assertIn("explicit_build_selection_needed: True", text)
         self.assertIn("uv_add_command: uv add 'torch==2.10.0'", text)
@@ -1315,6 +1351,8 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("steps", status)
         self.assertIn("command_examples", status)
         self.assertIn("uv_add_command", status)
+        self.assertIn("setup_script_command", status)
+        self.assertIn("uv_pip_install_command", status)
 
     def test_get_torch_pin_plan_recommends_project_local_steps(self) -> None:
         """Torch pin plan should emphasize a project-local adjustment path."""
@@ -1327,6 +1365,11 @@ class SmokeTests(unittest.TestCase):
         """Torch pin plan should flag version-only pinning as insufficient when a local CUDA suffix exists."""
         plan = get_torch_pin_plan()
         self.assertIn("explicit_build_selection_needed", plan)
+
+    def test_windows_helper_scripts_exist(self) -> None:
+        """Windows startup and GPU helpers should be present at the repo root."""
+        self.assertTrue((PROJECT_ROOT / "start_web.ps1").is_file())
+        self.assertTrue((PROJECT_ROOT / "setup_gpu_windows.ps1").is_file())
 
     def test_last_iteration_marks_blank_result_final(self) -> None:
         """Last mic-loop iteration should still become final."""

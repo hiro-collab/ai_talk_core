@@ -25,7 +25,7 @@ def _recommended_cuda_family(
     torch_cuda_version: str | None,
 ) -> str | None:
     """Infer a conservative CUDA family suggestion from local status."""
-    if driver_version is None or torch_cuda_version is None:
+    if driver_version is None:
         return None
 
     try:
@@ -33,6 +33,10 @@ def _recommended_cuda_family(
     except ValueError:
         return None
 
+    if driver_major >= 570:
+        return "cu128"
+    if driver_major >= 560:
+        return "cu126"
     if driver_major <= 535:
         return "cu121"
     return None
@@ -60,8 +64,19 @@ def get_torch_pin_plan() -> dict[str, object]:
     if base_version is not None:
         recommended_torch_spec = f"torch=={base_version}"
 
+    pytorch_index_url = (
+        f"https://download.pytorch.org/whl/{recommended_cuda_family}"
+        if recommended_cuda_family is not None
+        else None
+    )
+    uv_pip_install_command = (
+        f"uv pip install --upgrade torch --index-url {pytorch_index_url}"
+        if pytorch_index_url is not None
+        else None
+    )
     explicit_build_selection_needed = bool(
-        recommended_cuda_family is not None and build_suffix is not None
+        recommended_cuda_family is not None
+        and (build_suffix is not None or runtime.get("nvidia_smi_available"))
     )
 
     steps = [
@@ -73,19 +88,36 @@ def get_torch_pin_plan() -> dict[str, object]:
     ]
 
     if recommended_cuda_family is not None:
+        if torch_cuda_version is None:
+            cuda_step = (
+                f"For the current driver generation, try a {recommended_cuda_family}-class "
+                "Torch CUDA build instead of the installed CPU-only Torch build."
+            )
+        else:
+            cuda_step = (
+                f"For the current driver generation, try a {recommended_cuda_family}-class "
+                f"Torch build rather than the current CUDA {torch_cuda_version} build."
+            )
         steps.insert(
             3,
-            f"For the current driver generation, try a {recommended_cuda_family}-class Torch build rather than the current CUDA {torch_cuda_version} build.",
+            cuda_step,
         )
     if explicit_build_selection_needed:
         steps.insert(
             4,
-            "Because the installed Torch already carries a CUDA build suffix, an explicit build/source choice may be required instead of a version-only pin.",
+            "Use an explicit PyTorch build/source choice instead of a version-only pin when selecting a CUDA wheel.",
+        )
+    if runtime.get("nvidia_smi_available") and runtime.get("torch_cuda_version") is None:
+        steps.insert(
+            3,
+            "This machine can see an NVIDIA GPU, but the installed Torch build is CPU-only; use the project helper script or PyTorch selector to install a CUDA wheel in .venv.",
         )
 
     command_examples = [
         "uv run python -m src.main --doctor --doctor-format json",
+        ".\\setup_gpu_windows.ps1",
         "uv add 'torch==<base-version>'",
+        "uv pip install --upgrade torch --index-url https://download.pytorch.org/whl/<cu-family>",
         "uv lock",
         "uv sync",
         'uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"',
@@ -101,6 +133,13 @@ def get_torch_pin_plan() -> dict[str, object]:
         "current_driver_version": driver_version,
         "recommended_torch_spec": recommended_torch_spec,
         "recommended_cuda_family": recommended_cuda_family,
+        "pytorch_index_url": pytorch_index_url,
+        "uv_pip_install_command": uv_pip_install_command,
+        "setup_script_command": (
+            f".\\setup_gpu_windows.ps1 -Cuda {recommended_cuda_family}"
+            if recommended_cuda_family is not None
+            else ".\\setup_gpu_windows.ps1"
+        ),
         "explicit_build_selection_needed": explicit_build_selection_needed,
         "pyproject_dependency_entry": recommended_torch_spec,
         "uv_add_command": (
@@ -128,6 +167,9 @@ def format_torch_pin_plan(plan: dict[str, object]) -> str:
     lines.append(f"- current_driver_version: {plan['current_driver_version']}")
     lines.append(f"- recommended_torch_spec: {plan['recommended_torch_spec']}")
     lines.append(f"- recommended_cuda_family: {plan['recommended_cuda_family']}")
+    lines.append(f"- pytorch_index_url: {plan['pytorch_index_url']}")
+    lines.append(f"- uv_pip_install_command: {plan['uv_pip_install_command']}")
+    lines.append(f"- setup_script_command: {plan['setup_script_command']}")
     lines.append(
         f"- explicit_build_selection_needed: {plan['explicit_build_selection_needed']}"
     )

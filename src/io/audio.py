@@ -50,6 +50,8 @@ def get_runtime_status() -> dict[str, str | bool | None]:
     """Return a compact view of the local transcription runtime status."""
     cuda_available = torch.cuda.is_available()
     device = "cuda" if cuda_available else "cpu"
+    torch_cuda_version = torch.version.cuda
+    torch_cuda_build = torch_cuda_version is not None
     nvidia_driver_version: str | None = None
     nvidia_gpu_name: str | None = None
     nvidia_smi_available = shutil.which("nvidia-smi") is not None
@@ -75,7 +77,7 @@ def get_runtime_status() -> dict[str, str | bool | None]:
             nvidia_gpu_name = None
     note: str | None = None
     suggested_action: str | None = None
-    if not cuda_available and torch.version.cuda is not None:
+    if not cuda_available and torch_cuda_build:
         note = (
             "Torch CUDA build is present but unavailable; transcription will use CPU "
             "fallback."
@@ -94,6 +96,15 @@ def get_runtime_status() -> dict[str, str | bool | None]:
                 "Check local CUDA initialization and Torch runtime configuration "
                 "before relying on GPU transcription."
             )
+    elif not cuda_available and nvidia_smi_available:
+        note = (
+            "NVIDIA GPU is visible through nvidia-smi, but the installed Torch build "
+            "is CPU-only; transcription will use CPU fallback."
+        )
+        suggested_action = (
+            "Install a PyTorch CUDA wheel inside this project's .venv, then rerun "
+            "`uv run python -m src.main --doctor`."
+        )
     return {
         "ffmpeg_available": shutil.which("ffmpeg") is not None,
         "ffprobe_available": shutil.which("ffprobe") is not None,
@@ -101,7 +112,8 @@ def get_runtime_status() -> dict[str, str | bool | None]:
         "nvidia_driver_version": nvidia_driver_version,
         "nvidia_gpu_name": nvidia_gpu_name,
         "torch_version": torch.__version__,
-        "torch_cuda_version": torch.version.cuda,
+        "torch_cuda_version": torch_cuda_version,
+        "torch_cuda_build": torch_cuda_build,
         "torch_cuda_available": cuda_available,
         "transcription_device": device,
         "whisper_version": getattr(whisper, "__version__", None),

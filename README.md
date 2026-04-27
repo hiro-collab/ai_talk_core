@@ -42,6 +42,12 @@ Web UI を起動する:
 uv run python -m src.web.app
 ```
 
+Windows では次の helper を使うと、環境確認後に Web UI を起動してブラウザを開けます:
+
+```powershell
+.\start_web.ps1
+```
+
 保存済み handoff を agent 向けに読む:
 
 ```bash
@@ -107,6 +113,18 @@ uv run python -m src.main data\sample_audio.mp3 --language ja --model small
 uv run python smoke_test.py
 ```
 
+Windows ネイティブで Web UI を起動:
+
+```powershell
+.\start_web.ps1
+```
+
+初回だけ `.venv` を作り直したい場合:
+
+```powershell
+.\start_web.ps1 -Sync
+```
+
 Windows のマイク録音を試す:
 
 ```powershell
@@ -120,7 +138,22 @@ ffmpeg -hide_banner -list_devices true -f dshow -i dummy
 uv run python -m src.main --mic --duration 5 --language ja --mic-device "Microphone Array (Realtek(R) Audio)"
 ```
 
-GPU は必須ではありません。CPU 版 Torch でも動作しますが、Whisper は遅くなります。GPU を使う場合は PyTorch の公式 selector (`https://pytorch.org/get-started/locally/`) で Windows / pip / CUDA の組み合わせを確認し、プロジェクトの `.venv` 内で Torch を調整してください。システムの NVIDIA driver を先に変えるより、まず `uv run python -m src.main --doctor` と `uv run python -m src.main --show-torch-pin-plan` で状態を見てください。
+GPU は必須ではありません。CPU 版 Torch でも動作しますが、Whisper は遅くなります。NVIDIA GPU があり、`uv run python -m src.main --doctor` で `nvidia_smi_available: True` かつ `torch_cuda_available: False` の場合は、まずプロジェクトの `.venv` 内だけを調整します。
+
+この環境のように新しめの NVIDIA driver で CPU-only Torch が入っている場合は、次を試します:
+
+```powershell
+.\setup_gpu_windows.ps1 -Cuda cu128
+```
+
+別の CUDA family を試す場合:
+
+```powershell
+.\setup_gpu_windows.ps1 -Cuda cu126
+.\setup_gpu_windows.ps1 -Cuda cu118
+```
+
+helper は内部で `uv pip install --upgrade torch --index-url https://download.pytorch.org/whl/<cuda-family>` を実行し、最後に `uv run python -m src.main --doctor` で確認します。最新の対応 CUDA family は PyTorch の公式 selector (`https://pytorch.org/get-started/locally/`) も確認してください。システムの NVIDIA driver を先に変えるより、まず `uv run python -m src.main --doctor` と `uv run python -m src.main --show-torch-pin-plan` で状態を見てください。
 
 ## Repository stance
 
@@ -142,6 +175,12 @@ GPU は必須ではありません。CPU 版 Torch でも動作しますが、Wh
 
 ```bash
 uv run python -m src.web.app
+```
+
+Windows では:
+
+```powershell
+.\start_web.ps1
 ```
 
 起動後に `http://127.0.0.1:8000` を開きます。
