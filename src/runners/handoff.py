@@ -30,7 +30,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def render_handoff_output(source: str, output_format: str) -> str:
     """Render one view of the latest handoff bundle."""
-    handoff = load_handoff_bundle(source=source)
+    try:
+        handoff = load_handoff_bundle(source=source)
+    except ValueError as exc:
+        raise AudioInputError(str(exc)) from exc
     if handoff is None:
         raise AudioInputError(f"handoff not found for source: {source}")
     if output_format == "prompt":

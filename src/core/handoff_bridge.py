@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from src.core.agent_instruction import build_agent_instruction
+
+HANDOFF_SOURCE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 @dataclass(frozen=True)
@@ -36,16 +39,40 @@ class HandoffBundle:
     text_path: Path
 
 
+def normalize_handoff_source(source: str = "manual") -> str:
+    """Return a safe handoff source label for project-local cache paths."""
+    normalized = (source or "manual").strip() or "manual"
+    if not HANDOFF_SOURCE_PATTERN.fullmatch(normalized):
+        raise ValueError(
+            "handoff source must contain only letters, numbers, hyphen, or underscore"
+        )
+    return normalized
+
+
+def get_handoff_cache_dir() -> Path:
+    """Return the project-local cache directory for handoff bundles."""
+    project_root = Path(__file__).resolve().parents[2]
+    return project_root / ".cache" / "codex"
+
+
+def build_handoff_cache_path(source: str, suffix: str) -> Path:
+    """Return a validated path for one source-specific handoff artifact."""
+    safe_source = normalize_handoff_source(source)
+    cache_dir = get_handoff_cache_dir().resolve()
+    path = (cache_dir / f"{safe_source}_latest{suffix}").resolve()
+    if not path.is_relative_to(cache_dir):
+        raise ValueError("handoff path escaped the project cache directory")
+    return path
+
+
 def get_default_handoff_output_path(source: str = "manual") -> Path:
     """Return a project-local default path for saved handoff JSON."""
-    project_root = Path(__file__).resolve().parents[2]
-    return project_root / ".cache" / "codex" / f"{source}_latest.json"
+    return build_handoff_cache_path(source, ".json")
 
 
 def get_default_handoff_text_path(source: str = "manual") -> Path:
     """Return a project-local default path for saved handoff prompt text."""
-    project_root = Path(__file__).resolve().parents[2]
-    return project_root / ".cache" / "codex" / f"{source}_latest.txt"
+    return build_handoff_cache_path(source, ".txt")
 
 
 def build_handoff_payload(transcript: str) -> HandoffPayload | None:

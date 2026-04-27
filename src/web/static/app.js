@@ -26,6 +26,7 @@ const endpoints = {
   agentHandoffLatest: appRoot?.dataset.apiAgentHandoffLatest || "/api/agent-handoff-latest",
   doctor: appRoot?.dataset.apiDoctor || "/api/doctor",
 };
+const apiToken = appRoot?.dataset.apiToken || "";
 let mediaRecorder = null;
 let activeStream = null;
 let recorderState = "idle";
@@ -54,9 +55,17 @@ const setActiveMicrophone = (label) => {
   setText(activeMicrophone, label || "未確認");
 };
 
+const localFetch = (url, options = {}) => {
+  const headers = new Headers(options.headers || {});
+  if (apiToken) {
+    headers.set("X-AI-Core-Token", apiToken);
+  }
+  return fetch(url, { ...options, headers });
+};
+
 const loadDiagnostics = async () => {
   try {
-    const response = await fetch(endpoints.doctor);
+    const response = await localFetch(endpoints.doctor);
     const payload = await response.json();
     const runtime = payload.runtime || {};
     const microphone = payload.microphone || {};
@@ -196,7 +205,7 @@ const submitForTranscription = async (url, formData, processingText, { updateRec
     if (updateRecorderStatus) {
       setCurrentStatus("processing");
     }
-    const response = await fetch(url, {
+    const response = await localFetch(url, {
       method: "POST",
       body: formData,
       headers: { "X-Requested-With": "fetch" },
@@ -357,7 +366,7 @@ refreshHandoffButton?.addEventListener("click", async () => {
     return;
   }
   try {
-    const response = await fetch(`${endpoints.agentHandoffLatest}?source=web`);
+    const response = await localFetch(`${endpoints.agentHandoffLatest}?source=web`);
     const payload = await response.json();
     if (!response.ok) {
       showActionFeedback(payload.error || "handoff 保存先を取得できませんでした。");

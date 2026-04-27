@@ -2,11 +2,28 @@
 
 from __future__ import annotations
 
-from flask import Flask, Response, jsonify, render_template, request
+import hmac
+import secrets
+from urllib.parse import urlsplit
+
+from flask import (
+    Flask,
+    Response,
+    current_app,
+    has_app_context,
+    jsonify,
+    render_template,
+    request,
+)
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from src.core.status_report import build_doctor_status
 from src.core.handoff_bridge import load_handoff_bundle
-from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
+from src.web.transcription_service import (
+    WEB_MAX_UPLOAD_BYTES,
+    WebTranscriptionRequest,
+    process_web_transcription,
+)
 
 
 FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
@@ -14,11 +31,38 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 <path d="M9 20.5h14v3H9zM11 8.5h10a4 4 0 0 1 0 8H11z" fill="#f8fafc"/>
 <circle cx="21" cy="12.5" r="1.6" fill="#0f766e"/>
 </svg>"""
+LOCAL_API_TOKEN_HEADER = "X-AI-Core-Token"
+LOCAL_API_TOKEN_CONFIG = "LOCAL_API_TOKEN"
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+TOKEN_PROTECTED_ENDPOINTS = {
+    "api_agent_handoff_latest",
+    "api_codex_handoff_latest",
+}
 
 
 def create_app() -> Flask:
     """Create the local Flask application."""
     app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = WEB_MAX_UPLOAD_BYTES
+    app.config[LOCAL_API_TOKEN_CONFIG] = secrets.token_urlsafe(32)
+
+    @app.before_request
+    def enforce_local_request_policy() -> tuple[object, int] | None:
+        if not is_allowed_local_host(request.host):
+            return build_error_response("このローカル UI では許可されていない Host です。", 403)
+        if request.method in UNSAFE_METHODS and not has_trusted_origin():
+            return build_error_response("このローカル UI では許可されていない送信元です。", 403)
+        if request.endpoint in TOKEN_PROTECTED_ENDPOINTS and not has_valid_local_api_token():
+            return build_error_response("handoff API token が不正です。", 403)
+        return None
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def handle_request_too_large(_: RequestEntityTooLarge) -> tuple[object, int]:
+        return build_error_response(
+            "音声ファイルが大きすぎます。25MB 以下のファイルを指定してください。",
+            413,
+        )
 
     @app.get("/")
     def index() -> str:
@@ -63,7 +107,10 @@ def create_app() -> Flask:
     def build_handoff_response() -> tuple[object, int]:
         """Return the latest saved handoff bundle as JSON."""
         source = request.args.get("source", "web").strip() or "web"
-        handoff = load_handoff_bundle(source=source)
+        try:
+            handoff = load_handoff_bundle(source=source)
+        except ValueError:
+            return jsonify({"error": "invalid handoff source"}), 400
         if handoff is None:
             return jsonify({"error": f"handoff not found for source: {source}"}), 404
         return jsonify(
@@ -92,6 +139,72 @@ def create_app() -> Flask:
     return app
 
 
+def build_error_response(message: str, status_code: int) -> tuple[object, int]:
+    """Return a local-policy error in the response shape expected by the caller."""
+    if wants_json_response():
+        return jsonify({"message": "", "transcript": "", "error": message}), status_code
+    return render_page(error=message), status_code
+
+
+def wants_json_response() -> bool:
+    """Return whether the current request expects a JSON-style API response."""
+    return request.path.startswith("/api/") or request.headers.get("X-Requested-With") == "fetch"
+
+
+def get_local_api_token() -> str:
+    """Return the per-process token used by the local Web UI."""
+    if not has_app_context():
+        return ""
+    return str(current_app.config.get(LOCAL_API_TOKEN_CONFIG, ""))
+
+
+def has_valid_local_api_token() -> bool:
+    """Return whether the request carries the per-process local API token."""
+    expected = get_local_api_token()
+    provided = (
+        request.headers.get(LOCAL_API_TOKEN_HEADER, "")
+        or request.args.get("api_token", "")
+    )
+    return bool(expected and provided and hmac.compare_digest(provided, expected))
+
+
+def is_allowed_local_host(host_header: str) -> bool:
+    """Return whether the Host header targets a loopback browser origin."""
+    hostname = parse_hostname(host_header)
+    return hostname in LOCAL_HOSTS
+
+
+def has_trusted_origin() -> bool:
+    """Validate Origin/Referer when a browser sends one for a local request."""
+    origin = request.headers.get("Origin")
+    if origin:
+        return origin_matches_request(origin)
+    referer = request.headers.get("Referer")
+    if referer:
+        return origin_matches_request(referer)
+    return True
+
+
+def origin_matches_request(origin: str) -> bool:
+    """Return whether an Origin/Referer value matches the current local origin."""
+    parsed_origin = urlsplit(origin)
+    parsed_request = urlsplit(request.host_url)
+    return (
+        parsed_origin.scheme == parsed_request.scheme
+        and parsed_origin.hostname == parsed_request.hostname
+        and parsed_origin.hostname in LOCAL_HOSTS
+        and parsed_origin.port == parsed_request.port
+    )
+
+
+def parse_hostname(host_value: str) -> str:
+    """Parse a Host or Origin host component into a lowercase hostname."""
+    try:
+        return (urlsplit(f"//{host_value}").hostname or "").lower()
+    except ValueError:
+        return ""
+
+
 def render_page(
     transcript: str | None = None,
     command: str | None = None,
@@ -109,6 +222,7 @@ def render_page(
         command_text_path=command_text_path,
         error=error,
         message=message,
+        api_token=get_local_api_token(),
     )
 
 

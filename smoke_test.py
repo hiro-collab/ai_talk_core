@@ -17,6 +17,7 @@ from src.core.handoff_bridge import (
     get_default_handoff_output_path,
     get_default_handoff_text_path,
     load_handoff_bundle,
+    normalize_handoff_source,
     render_handoff_prompt,
     save_handoff_bundle,
     save_handoff_payload,
@@ -61,6 +62,7 @@ from src.main import (
 )
 from src.io.audio import should_retry_model_load_on_cpu
 from src.io.audio import AudioInputError
+from src.io.audio import AudioEnvironmentError
 from src.io.audio import get_runtime_status
 from src.io.microphone import (
     get_microphone_runtime_status,
@@ -164,6 +166,9 @@ class SmokeTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = create_app()
         cls.client = cls.app.test_client()
+
+    def local_api_headers(self) -> dict[str, str]:
+        return {"X-AI-Core-Token": self.app.config["LOCAL_API_TOKEN"]}
 
     def test_sample_audio_succeeds(self) -> None:
         """Sample audio should transcribe successfully."""
@@ -404,6 +409,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("upload_save_handoff", page)
         self.assertIn("record_save_handoff", page)
         self.assertIn("data-api-doctor", page)
+        self.assertIn("data-api-token", page)
         self.assertIn("app.css", page)
         self.assertIn("app.js", page)
         self.assertIn("待機中", page)
@@ -805,7 +811,10 @@ class SmokeTests(unittest.TestCase):
             json_path=output_path,
             text_path=text_path,
         )
-        response = self.client.get("/api/codex-handoff-latest?source=web")
+        response = self.client.get(
+            "/api/codex-handoff-latest?source=web",
+            headers=self.local_api_headers(),
+        )
         self.assertEqual(response.status_code, 200)
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
@@ -823,7 +832,10 @@ class SmokeTests(unittest.TestCase):
             json_path=output_path,
             text_path=text_path,
         )
-        response = self.client.get("/api/agent-handoff-latest?source=web")
+        response = self.client.get(
+            "/api/agent-handoff-latest?source=web",
+            headers=self.local_api_headers(),
+        )
         self.assertEqual(response.status_code, 200)
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
@@ -840,7 +852,10 @@ class SmokeTests(unittest.TestCase):
             output_path.unlink()
         if text_path.exists():
             text_path.unlink()
-        response = self.client.get("/api/codex-handoff-latest?source=missing")
+        response = self.client.get(
+            "/api/codex-handoff-latest?source=missing",
+            headers=self.local_api_headers(),
+        )
         self.assertEqual(response.status_code, 404)
 
     def test_api_agent_handoff_latest_returns_404_without_bundle(self) -> None:
@@ -851,8 +866,24 @@ class SmokeTests(unittest.TestCase):
             output_path.unlink()
         if text_path.exists():
             text_path.unlink()
-        response = self.client.get("/api/agent-handoff-latest?source=missing")
+        response = self.client.get(
+            "/api/agent-handoff-latest?source=missing",
+            headers=self.local_api_headers(),
+        )
         self.assertEqual(response.status_code, 404)
+
+    def test_api_handoff_latest_requires_local_token(self) -> None:
+        """Latest handoff API should require the local per-process token."""
+        response = self.client.get("/api/agent-handoff-latest?source=web")
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_handoff_latest_rejects_invalid_source(self) -> None:
+        """Latest handoff API should reject path-like source values."""
+        response = self.client.get(
+            "/api/agent-handoff-latest?source=../web",
+            headers=self.local_api_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_handoff_cli_reads_latest_prompt(self) -> None:
         """Handoff CLI should print the saved prompt text."""
@@ -868,6 +899,19 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("Voice transcript:", result.stdout)
         json_path.unlink()
         text_path.unlink()
+
+    def test_handoff_source_rejects_path_segments(self) -> None:
+        """Handoff source labels should not be usable as path components."""
+        with self.assertRaises(ValueError):
+            normalize_handoff_source("../web")
+        with self.assertRaises(ValueError):
+            get_default_codex_output_path(source="../web")
+
+    def test_handoff_cli_rejects_invalid_source(self) -> None:
+        """Handoff CLI should return a normal input error for invalid sources."""
+        result = run_agent_handoff_cli("--source", "../web", "--format", "prompt")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Input error:", result.stdout)
 
     def test_agent_handoff_cli_reads_latest_prompt(self) -> None:
         """Generic agent handoff CLI should print the saved prompt text."""
@@ -989,6 +1033,35 @@ class SmokeTests(unittest.TestCase):
         payload_json = response.get_json()
         self.assertIsNotNone(payload_json)
         self.assertIn("音声ファイルを選択してください", payload_json["error"])
+
+    def test_api_upload_rejects_cross_origin_post(self) -> None:
+        """Local Web API should reject browser posts from another origin."""
+        response = self.client.post(
+            "/api/transcribe-upload",
+            data={},
+            content_type="multipart/form-data",
+            headers={"Origin": "http://example.com"},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_upload_rejects_oversized_request(self) -> None:
+        """Flask should reject uploads that exceed the configured byte limit."""
+        original_limit = self.app.config["MAX_CONTENT_LENGTH"]
+        self.app.config["MAX_CONTENT_LENGTH"] = 128
+        try:
+            response = self.client.post(
+                "/api/transcribe-upload",
+                data={
+                    "audio_file": (io.BytesIO(b"x" * 1024), "sample.wav"),
+                },
+                content_type="multipart/form-data",
+            )
+        finally:
+            self.app.config["MAX_CONTENT_LENGTH"] = original_limit
+        self.assertEqual(response.status_code, 413)
+        payload_json = response.get_json()
+        self.assertIsNotNone(payload_json)
+        self.assertIn("大きすぎます", payload_json["error"])
 
     def test_api_browser_recording_returns_json(self) -> None:
         """Dedicated browser-recording API route should return JSON."""
@@ -1662,6 +1735,8 @@ class SmokeTests(unittest.TestCase):
             "src.web.transcription_service.ensure_ffmpeg_available"
         ), mock.patch(
             "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.validate_uploaded_audio_content"
         ):
             pipeline_cls.return_value.transcribe_chunk.return_value = "依存関係を確認して"
             response = process_web_transcription(
@@ -1690,6 +1765,8 @@ class SmokeTests(unittest.TestCase):
         ), mock.patch(
             "src.web.transcription_service.validate_model_name"
         ), mock.patch(
+            "src.web.transcription_service.validate_uploaded_audio_content"
+        ), mock.patch(
             "src.web.transcription_service.save_handoff_bundle",
             return_value=saved_paths,
         ):
@@ -1704,6 +1781,40 @@ class SmokeTests(unittest.TestCase):
             )
         self.assertEqual(response.command_path, str(saved_paths.json_path))
         self.assertEqual(response.command_text_path, str(saved_paths.text_path))
+
+    def test_process_web_transcription_rejects_unsupported_extension(self) -> None:
+        """Web transcription service should reject non-audio upload extensions."""
+        response = process_web_transcription(
+            WebTranscriptionRequest(
+                raw_bytes=b"fake-audio",
+                filename="notes.txt",
+                model_name="small",
+            )
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ファイル形式", response.error)
+
+    def test_process_web_transcription_hides_environment_details(self) -> None:
+        """Web transcription errors should not expose internal exception details."""
+        with mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available",
+            side_effect=AudioEnvironmentError(r"secret path C:\internal\ffmpeg"),
+        ), mock.patch(
+            "src.web.transcription_service.LOGGER.exception"
+        ):
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-audio",
+                    filename="sample.wav",
+                    model_name="small",
+                )
+            )
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("サーバー側", response.error)
+        self.assertNotIn("secret path", response.error)
+        self.assertNotIn("C:\\internal", response.error)
 
     def test_build_codex_instruction_returns_none_for_blank(self) -> None:
         """Blank transcripts should not produce instruction drafts."""
@@ -1901,6 +2012,25 @@ class SmokeTests(unittest.TestCase):
                         payload="hello",
                     )
                 )
+
+    def test_dispatch_driver_request_returns_timeout_result(self) -> None:
+        """Driver dispatch should bound external runner execution time."""
+        with mock.patch(
+            "src.drivers.base.validate_driver_command_available"
+        ), mock.patch(
+            "src.drivers.base.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["codex", "exec"], timeout=1),
+        ):
+            result = dispatch_driver_request(
+                DriverRequest(
+                    backend_name="agent",
+                    command=["codex", "exec"],
+                    payload="hello",
+                    timeout_seconds=1,
+                )
+            )
+        self.assertEqual(result.returncode, 124)
+        self.assertIn("timed out", result.stderr)
 
     def test_driver_result_response_returns_backend_neutral_view(self) -> None:
         """Driver results should expose a backend-neutral response view."""
