@@ -35,6 +35,34 @@ const endpoints = {
   inputGate: appRoot?.dataset.apiInputGate || "/api/input-gate",
 };
 const apiToken = appRoot?.dataset.apiToken || "";
+const WEB_OPTIONS_STORAGE_KEY = "ai_talk_core.web_options.v1";
+const TRUE_OPTION_VALUES = new Set(["1", "true", "yes", "on"]);
+const FALSE_OPTION_VALUES = new Set(["0", "false", "no", "off"]);
+const OPTION_PROFILES = {
+  dify: {
+    record_gate_auto: "1",
+    record_save_handoff: "1",
+    upload_save_handoff: "1",
+  },
+};
+const MANAGED_OPTION_IDS = [
+  "upload_model",
+  "upload_language",
+  "upload_save_handoff",
+  "record_model",
+  "record_language",
+  "record_gate_auto",
+  "record_save_handoff",
+  "record_echo_cancellation",
+  "record_noise_suppression",
+  "record_auto_gain_control",
+];
+const QUERY_OPTION_ALIASES = {
+  gate_auto: "record_gate_auto",
+  input_gate: "record_gate_auto",
+  input_gate_auto: "record_gate_auto",
+  save_handoff: ["upload_save_handoff", "record_save_handoff"],
+};
 let mediaRecorder = null;
 let activeStream = null;
 let recorderState = "idle";
@@ -47,6 +75,14 @@ let lastSupportedAudioConstraints = {};
 let lastRequestedAudioConstraints = true;
 let lastTrackSettings = {};
 let lastTrackConstraints = {};
+let lastOptionDefaultDebug = {
+  profile: "",
+  noPersist: false,
+  reset: false,
+  fallback: "html",
+  sources: {},
+};
+let optionPersistenceEnabled = true;
 
 const showActionFeedback = (text) => {
   actionFeedback.textContent = text;
@@ -86,6 +122,159 @@ const appendDebugValue = (lines, key, value) => {
     return;
   }
   lines.push(`${key}=${value ?? ""}`);
+};
+
+const normalizeProfileName = (profile) => (profile || "").trim().toLowerCase();
+
+const parseOptionBool = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  if (TRUE_OPTION_VALUES.has(normalized)) {
+    return true;
+  }
+  if (FALSE_OPTION_VALUES.has(normalized)) {
+    return false;
+  }
+  return null;
+};
+
+const getManagedOptionElement = (id) => document.getElementById(id);
+
+const setManagedOption = (id, value, source) => {
+  const element = getManagedOptionElement(id);
+  if (!element) {
+    return;
+  }
+  if (element.type === "checkbox") {
+    const parsed = parseOptionBool(value);
+    if (parsed === null) {
+      return;
+    }
+    element.checked = parsed;
+  } else if (element.tagName === "SELECT") {
+    const options = Array.from(element.options || []);
+    if (!options.some((option) => option.value === value)) {
+      return;
+    }
+    element.value = value;
+  } else {
+    element.value = String(value ?? "");
+  }
+  lastOptionDefaultDebug.sources[id] = source;
+};
+
+const getManagedOptionValue = (id) => {
+  const element = getManagedOptionElement(id);
+  if (!element) {
+    return "";
+  }
+  if (element.type === "checkbox") {
+    return element.checked ? "1" : "0";
+  }
+  return element.value;
+};
+
+const getCurrentManagedOptions = () => {
+  const options = {};
+  MANAGED_OPTION_IDS.forEach((id) => {
+    const element = getManagedOptionElement(id);
+    if (element) {
+      options[id] = getManagedOptionValue(id);
+    }
+  });
+  return options;
+};
+
+const loadPersistedOptions = () => {
+  try {
+    const rawOptions = localStorage.getItem(WEB_OPTIONS_STORAGE_KEY);
+    return rawOptions ? JSON.parse(rawOptions) : {};
+  } catch (error) {
+    return {};
+  }
+};
+
+const persistManagedOptions = () => {
+  if (!optionPersistenceEnabled) {
+    return;
+  }
+  try {
+    localStorage.setItem(WEB_OPTIONS_STORAGE_KEY, JSON.stringify(getCurrentManagedOptions()));
+  } catch (error) {
+    renderDebug(`option persist failed: ${error}`);
+  }
+};
+
+const removePersistedOptions = () => {
+  try {
+    localStorage.removeItem(WEB_OPTIONS_STORAGE_KEY);
+  } catch (error) {
+    renderDebug(`option reset failed: ${error}`);
+  }
+};
+
+const applyOptionMap = (options, source) => {
+  Object.entries(options || {}).forEach(([id, value]) => {
+    if (MANAGED_OPTION_IDS.includes(id)) {
+      setManagedOption(id, value, source);
+    }
+  });
+};
+
+const applyQueryOptions = (searchParams) => {
+  MANAGED_OPTION_IDS.forEach((id) => {
+    if (searchParams.has(id)) {
+      setManagedOption(id, searchParams.get(id), "query");
+    }
+  });
+  Object.entries(QUERY_OPTION_ALIASES).forEach(([alias, target]) => {
+    if (!searchParams.has(alias)) {
+      return;
+    }
+    const value = searchParams.get(alias);
+    const targets = Array.isArray(target) ? target : [target];
+    targets.forEach((id) => setManagedOption(id, value, `query:${alias}`));
+  });
+};
+
+const applyStartupOptions = () => {
+  const searchParams = new URLSearchParams(window.location.search);
+  const profile = normalizeProfileName(searchParams.get("profile"));
+  const noPersist = parseOptionBool(searchParams.get("no_persist")) === true;
+  const reset = parseOptionBool(searchParams.get("reset_options")) === true;
+  optionPersistenceEnabled = !noPersist;
+  lastOptionDefaultDebug = {
+    profile,
+    noPersist,
+    reset,
+    fallback: "html",
+    sources: {},
+  };
+  if (reset) {
+    removePersistedOptions();
+  }
+  if (!noPersist && !reset) {
+    applyOptionMap(loadPersistedOptions(), "localStorage");
+  }
+  if (profile && OPTION_PROFILES[profile]) {
+    applyOptionMap(OPTION_PROFILES[profile], `profile:${profile}`);
+  }
+  applyQueryOptions(searchParams);
+};
+
+const bindManagedOptionPersistence = () => {
+  MANAGED_OPTION_IDS.forEach((id) => {
+    const element = getManagedOptionElement(id);
+    if (!element) {
+      return;
+    }
+    element.addEventListener("change", persistManagedOptions);
+  });
 };
 
 const setSelectOptions = (select, options, selectedValue = "") => {
@@ -242,6 +431,7 @@ const renderDebug = (note = "") => {
   if (note) {
     lines.push(`note=${note}`);
   }
+  appendDebugValue(lines, "options.startup", lastOptionDefaultDebug);
   appendDebugValue(lines, "browser.supportedAudioConstraints", lastSupportedAudioConstraints);
   appendDebugValue(lines, "browser.requestedAudioConstraints", lastRequestedAudioConstraints);
   appendDebugValue(lines, "browser.trackSettings", lastTrackSettings);
@@ -606,6 +796,9 @@ refreshHandoffButton?.addEventListener("click", async () => {
   }
 });
 
+applyStartupOptions();
+bindManagedOptionPersistence();
+buildAudioConstraints();
 setCurrentStatus("idle");
 setRecorderButtons();
 copyTranscriptButton.disabled = !pageResult.textContent;
