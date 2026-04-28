@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import _thread
 import hmac
+import os
 import secrets
+import shutil
+import threading
 from urllib.parse import urlsplit
 
 from flask import (
@@ -19,7 +23,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from src.core.input_gate import InputGate, InputGateError, InputGateState
 from src.core.status_report import build_doctor_status
-from src.core.handoff_bridge import load_handoff_bundle
+from src.core.handoff_bridge import build_handoff_metadata, load_handoff_bundle
 from src.web.transcription_service import (
     WEB_MAX_UPLOAD_BYTES,
     WebTranscriptionRequest,
@@ -34,12 +38,81 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 </svg>"""
 LOCAL_API_TOKEN_HEADER = "X-AI-Core-Token"
 LOCAL_API_TOKEN_CONFIG = "LOCAL_API_TOKEN"
+ENABLE_PROCESS_SHUTDOWN_CONFIG = "ENABLE_PROCESS_SHUTDOWN"
+WEB_PRESET_CONFIG = "WEB_PRESET"
+WEB_PRESET_ENV = "AI_TALK_CORE_WEB_PRESET"
+WEB_RUNTIME_STATE_CONFIG = "WEB_RUNTIME_STATE"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 TOKEN_PROTECTED_ENDPOINTS = {
     "api_agent_handoff_latest",
     "api_codex_handoff_latest",
+    "api_shutdown",
 }
+
+
+class WebRuntimeState:
+    """Track in-flight Web transcription work and shutdown requests."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._active_transcriptions = 0
+        self._shutdown_requested = False
+        self._shutdown_reason = ""
+        self._shutdown_scheduled = False
+
+    def begin_transcription(self) -> bool:
+        """Reserve one transcription slot unless shutdown has started."""
+        with self._lock:
+            if self._shutdown_requested:
+                return False
+            self._active_transcriptions += 1
+            return True
+
+    def end_transcription(self) -> bool:
+        """Release one transcription slot and report whether shutdown can run."""
+        with self._lock:
+            if self._active_transcriptions > 0:
+                self._active_transcriptions -= 1
+            return (
+                self._shutdown_requested
+                and self._active_transcriptions == 0
+                and not self._shutdown_scheduled
+            )
+
+    def request_shutdown(
+        self,
+        reason: str = "",
+        *,
+        force: bool = False,
+    ) -> tuple[dict[str, object], bool]:
+        """Request shutdown and return a state snapshot plus scheduling decision."""
+        with self._lock:
+            self._shutdown_requested = True
+            self._shutdown_reason = (reason or "api_request").strip() or "api_request"
+            should_schedule = (
+                force or self._active_transcriptions == 0
+            ) and not self._shutdown_scheduled
+            return self._snapshot_unlocked(), should_schedule
+
+    def mark_shutdown_scheduled(self) -> dict[str, object]:
+        """Mark that the process shutdown timer has been scheduled."""
+        with self._lock:
+            self._shutdown_scheduled = True
+            return self._snapshot_unlocked()
+
+    def snapshot(self) -> dict[str, object]:
+        """Return a thread-safe runtime state snapshot."""
+        with self._lock:
+            return self._snapshot_unlocked()
+
+    def _snapshot_unlocked(self) -> dict[str, object]:
+        return {
+            "active_transcriptions": self._active_transcriptions,
+            "shutdown_requested": self._shutdown_requested,
+            "shutdown_reason": self._shutdown_reason,
+            "shutdown_scheduled": self._shutdown_scheduled,
+        }
 
 
 def create_app() -> Flask:
@@ -47,6 +120,9 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = WEB_MAX_UPLOAD_BYTES
     app.config[LOCAL_API_TOKEN_CONFIG] = secrets.token_urlsafe(32)
+    app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = True
+    app.config[WEB_PRESET_CONFIG] = os.environ.get(WEB_PRESET_ENV, "").strip()
+    app.config[WEB_RUNTIME_STATE_CONFIG] = WebRuntimeState()
     input_gate = InputGate()
 
     @app.before_request
@@ -55,8 +131,11 @@ def create_app() -> Flask:
             return build_error_response("このローカル UI では許可されていない Host です。", 403)
         if request.method in UNSAFE_METHODS and not has_trusted_origin():
             return build_error_response("このローカル UI では許可されていない送信元です。", 403)
-        if request.endpoint in TOKEN_PROTECTED_ENDPOINTS and not has_valid_local_api_token():
-            return build_error_response("handoff API token が不正です。", 403)
+        if (
+            request.endpoint in TOKEN_PROTECTED_ENDPOINTS
+            and not has_valid_local_api_token()
+        ):
+            return build_error_response("local API token が不正です。", 403)
         return None
 
     @app.errorhandler(RequestEntityTooLarge)
@@ -85,7 +164,13 @@ def create_app() -> Flask:
     def api_transcribe_upload() -> tuple[object, int]:
         file_storage = request.files.get("audio_file")
         if file_storage is None or file_storage.filename == "":
-            return jsonify({"message": "", "transcript": "", "error": "音声ファイルを選択してください。"}), 400
+            return jsonify(
+                {
+                    "message": "",
+                    "transcript": "",
+                    "error": "音声ファイルを選択してください。",
+                }
+            ), 400
         return handle_transcription_api(file_storage.read(), file_storage.filename)
 
     @app.post("/transcribe-browser-recording")
@@ -93,13 +178,23 @@ def create_app() -> Flask:
         file_storage = request.files.get("audio_blob")
         if file_storage is None or file_storage.filename == "":
             return render_page(error="録音データを受け取れませんでした。")
-        return handle_transcription(file_storage.read(), file_storage.filename, message="ブラウザ録音を処理しました。")
+        return handle_transcription(
+            file_storage.read(),
+            file_storage.filename,
+            message="ブラウザ録音を処理しました。",
+        )
 
     @app.post("/api/transcribe-browser-recording")
     def api_transcribe_browser_recording() -> tuple[object, int]:
         file_storage = request.files.get("audio_blob")
         if file_storage is None or file_storage.filename == "":
-            return jsonify({"message": "", "transcript": "", "error": "録音データを受け取れませんでした。"}), 400
+            return jsonify(
+                {
+                    "message": "",
+                    "transcript": "",
+                    "error": "録音データを受け取れませんでした。",
+                }
+            ), 400
         return handle_transcription_api(
             file_storage.read(),
             file_storage.filename,
@@ -123,6 +218,9 @@ def create_app() -> Flask:
                 "command_path": str(handoff.json_path),
                 "command_text_path": str(handoff.text_path),
                 "source": source,
+                "handoff_id": handoff.metadata.get("handoff_id", ""),
+                "updated_at": handoff.metadata.get("updated_at", ""),
+                "metadata": handoff.metadata,
             }
         ), 200
 
@@ -153,6 +251,55 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": str(exc)}), 400
         return jsonify(build_input_gate_response(state)), 200
 
+    @app.get("/api/health")
+    def api_health() -> tuple[object, int]:
+        return jsonify(
+            build_health_response(
+                input_gate_state=input_gate.state,
+                runtime_state=get_web_runtime_state(),
+                source=request.args.get("source", "web"),
+            )
+        ), 200
+
+    @app.get("/api/status")
+    def api_status() -> tuple[object, int]:
+        return api_health()
+
+    @app.post("/api/shutdown")
+    def api_shutdown() -> tuple[object, int]:
+        runtime_state = get_web_runtime_state()
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            payload = {}
+        reason = str(
+            payload.get("reason") or request.args.get("reason") or "api_request"
+        )
+        force_value = (
+            payload["force"] if "force" in payload else request.args.get("force")
+        )
+        force = parse_boolish(force_value) is True
+        shutdown_state, should_schedule = runtime_state.request_shutdown(
+            reason=reason,
+            force=force,
+        )
+        if should_schedule and current_app.config.get(
+            ENABLE_PROCESS_SHUTDOWN_CONFIG,
+            True,
+        ):
+            shutdown_state = runtime_state.mark_shutdown_scheduled()
+            schedule_server_shutdown(request.environ.get("werkzeug.server.shutdown"))
+        return jsonify(
+            {
+                "ok": True,
+                "shutdown": shutdown_state,
+                "message": (
+                    "shutdown scheduled"
+                    if shutdown_state["shutdown_scheduled"]
+                    else "shutdown requested"
+                ),
+            }
+        ), 202
+
     return app
 
 
@@ -165,7 +312,10 @@ def build_error_response(message: str, status_code: int) -> tuple[object, int]:
 
 def wants_json_response() -> bool:
     """Return whether the current request expects a JSON-style API response."""
-    return request.path.startswith("/api/") or request.headers.get("X-Requested-With") == "fetch"
+    return (
+        request.path.startswith("/api/")
+        or request.headers.get("X-Requested-With") == "fetch"
+    )
 
 
 def get_local_api_token() -> str:
@@ -173,6 +323,22 @@ def get_local_api_token() -> str:
     if not has_app_context():
         return ""
     return str(current_app.config.get(LOCAL_API_TOKEN_CONFIG, ""))
+
+
+def get_web_preset() -> str:
+    """Return the configured Web UI startup preset name."""
+    if has_app_context():
+        return str(current_app.config.get(WEB_PRESET_CONFIG, "")).strip()
+    return os.environ.get(WEB_PRESET_ENV, "").strip()
+
+
+def get_web_runtime_state() -> WebRuntimeState:
+    """Return the per-process Web runtime state."""
+    state = current_app.config.get(WEB_RUNTIME_STATE_CONFIG)
+    if not isinstance(state, WebRuntimeState):
+        state = WebRuntimeState()
+        current_app.config[WEB_RUNTIME_STATE_CONFIG] = state
+    return state
 
 
 def has_valid_local_api_token() -> bool:
@@ -229,6 +395,43 @@ def build_input_gate_response(state: InputGateState) -> dict[str, object]:
     }
 
 
+def build_health_response(
+    input_gate_state: InputGateState,
+    runtime_state: WebRuntimeState,
+    source: str = "web",
+) -> dict[str, object]:
+    """Return a generic status payload for integration supervisors."""
+    safe_source = (source or "web").strip() or "web"
+    ffmpeg_available = shutil.which("ffmpeg") is not None
+    ffprobe_available = shutil.which("ffprobe") is not None
+    runtime = runtime_state.snapshot()
+    try:
+        latest_handoff = build_handoff_metadata(source=safe_source)
+    except ValueError:
+        latest_handoff = {
+            "source": safe_source,
+            "exists": False,
+            "error": "invalid handoff source",
+        }
+    return {
+        "ok": True,
+        "ready": not runtime["shutdown_requested"],
+        "server": runtime,
+        "stt": {
+            "ready": ffmpeg_available and ffprobe_available,
+            "ffmpeg_available": ffmpeg_available,
+            "ffprobe_available": ffprobe_available,
+        },
+        "recording": {
+            "ready": ffmpeg_available,
+            "max_upload_bytes": WEB_MAX_UPLOAD_BYTES,
+        },
+        "input_gate": input_gate_state.to_payload(),
+        "latest_handoff": latest_handoff,
+        "web_preset": get_web_preset(),
+    }
+
+
 def render_page(
     transcript: str | None = None,
     command: str | None = None,
@@ -247,6 +450,7 @@ def render_page(
         error=error,
         message=message,
         api_token=get_local_api_token(),
+        web_preset=get_web_preset(),
     )
 
 
@@ -256,6 +460,23 @@ def process_transcription_request(
     message: str | None = None,
 ) -> tuple[dict[str, object], int]:
     """Run one transcription request and normalize the response payload."""
+    runtime_state = get_web_runtime_state()
+    if not runtime_state.begin_transcription():
+        return {
+            "message": "",
+            "transcript": "",
+            "command": "",
+            "command_path": "",
+            "command_text_path": "",
+            "error": "シャットダウン要求中のため新しい文字起こしは受け付けません。",
+            "debug": {
+                "server": runtime_state.snapshot(),
+                "whisper_invoked": False,
+                "whisper_skipped": True,
+                "skip_reason": "shutdown_requested",
+            },
+        }, 503
+
     def read_bool_flag(*names: str) -> bool:
         for name in names:
             value = request.form.get(name, "").strip().lower()
@@ -263,19 +484,28 @@ def process_transcription_request(
                 return True
         return False
 
-    response = process_web_transcription(
-        WebTranscriptionRequest(
-            raw_bytes=raw_bytes,
-            filename=filename,
-            model_name=request.form.get("model", "small").strip() or "small",
-            language=request.form.get("language", "").strip() or None,
-            command_only=read_bool_flag("instruction_only", "command_only"),
-            save_handoff=read_bool_flag("save_handoff", "save_command"),
-            source="web",
-            success_message=message,
+    try:
+        response = process_web_transcription(
+            WebTranscriptionRequest(
+                raw_bytes=raw_bytes,
+                filename=filename,
+                model_name=request.form.get("model", "small").strip() or "small",
+                language=request.form.get("language", "").strip() or None,
+                command_only=read_bool_flag("instruction_only", "command_only"),
+                save_handoff=read_bool_flag("save_handoff", "save_command"),
+                source="web",
+                success_message=message,
+            )
         )
-    )
-    return response.to_payload(), response.status_code
+        return response.to_payload(), response.status_code
+    finally:
+        should_shutdown = runtime_state.end_transcription()
+        if should_shutdown and current_app.config.get(
+            ENABLE_PROCESS_SHUTDOWN_CONFIG,
+            True,
+        ):
+            runtime_state.mark_shutdown_scheduled()
+            schedule_server_shutdown(request.environ.get("werkzeug.server.shutdown"))
 
 
 def handle_transcription(
@@ -318,10 +548,40 @@ def handle_transcription_api(
     return jsonify(payload), status_code
 
 
+def parse_boolish(value: object) -> bool | None:
+    """Parse common bool-like request values."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def schedule_server_shutdown(werkzeug_shutdown: object | None = None) -> None:
+    """Schedule local development server shutdown outside the request thread."""
+    def shutdown() -> None:
+        if callable(werkzeug_shutdown):
+            werkzeug_shutdown()
+            return
+        _thread.interrupt_main()
+
+    timer = threading.Timer(0.2, shutdown)
+    timer.daemon = True
+    timer.start()
+
+
 def main() -> int:
     """Run the local Flask development server."""
     app = create_app()
-    app.run(host="127.0.0.1", port=8000, debug=False)
+    try:
+        app.run(host="127.0.0.1", port=8000, debug=False)
+    finally:
+        print("ai_core Web UI stopped.")
     return 0
 
 

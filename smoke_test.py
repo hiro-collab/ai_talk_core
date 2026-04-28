@@ -13,6 +13,7 @@ import unittest
 from unittest import mock
 
 from src.core.handoff_bridge import (
+    build_handoff_metadata,
     build_handoff_payload,
     get_default_handoff_output_path,
     get_default_handoff_text_path,
@@ -65,7 +66,9 @@ from src.io.audio import AudioInputError
 from src.io.audio import AudioEnvironmentError
 from src.io.audio import get_runtime_status
 from src.io.microphone import (
+    MICROPHONE_DEVICE_LIST_TIMEOUT_SECONDS,
     get_microphone_runtime_status,
+    get_recording_timeout_seconds,
     list_ffmpeg_dshow_audio_devices,
     record_microphone_audio,
     resolve_microphone_backend,
@@ -83,7 +86,13 @@ from src.core.pipeline import AudioChunk, TranscriptionResult
 from src.core.session import MicLoopSession, MicLoopTuning
 from src.drivers import DriverRequest, DriverResponse, DriverResult, dispatch_driver_request
 from src.runners.common import emit_driver_result, execute_runner_command
-from src.web.app import build_input_gate_response, create_app, render_page
+from src.web.app import (
+    ENABLE_PROCESS_SHUTDOWN_CONFIG,
+    WEB_PRESET_CONFIG,
+    build_input_gate_response,
+    create_app,
+    render_page,
+)
 from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
 
 
@@ -165,6 +174,7 @@ class SmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = create_app()
+        cls.app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = False
         cls.client = cls.app.test_client()
 
     def local_api_headers(self) -> dict[str, str]:
@@ -416,6 +426,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("data-api-doctor", page)
         self.assertIn("data-api-input-gate", page)
         self.assertIn("data-api-token", page)
+        self.assertIn("data-web-preset", page)
         self.assertIn("app.css", page)
         self.assertIn("app.js", page)
         self.assertIn("待機中", page)
@@ -442,6 +453,8 @@ class SmokeTests(unittest.TestCase):
             self.assertIn("getSettings", js_text)
             self.assertIn("getUserMedia({ audio: audioConstraints })", js_text)
             self.assertIn("OPTION_PROFILES", js_text)
+            self.assertIn("OPTION_PROFILE_ALIASES", js_text)
+            self.assertIn("integration", js_text)
             self.assertIn("dify", js_text)
             self.assertIn("record_gate_auto", js_text)
             self.assertIn("WEB_OPTIONS_STORAGE_KEY", js_text)
@@ -470,6 +483,58 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("microphone", payload)
         self.assertIn("dependencies", payload)
         self.assertIn("selected_microphone_device", payload["microphone"])
+
+    def test_api_health_returns_integration_status(self) -> None:
+        """Health endpoint should expose generic integration readiness state."""
+        response = self.client.get("/api/health")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["ok"])
+        self.assertIn("server", payload)
+        self.assertIn("active_transcriptions", payload["server"])
+        self.assertIn("stt", payload)
+        self.assertIn("ffmpeg_available", payload["stt"])
+        self.assertIn("input_gate", payload)
+        self.assertIn("latest_handoff", payload)
+
+    def test_api_status_alias_returns_health_payload(self) -> None:
+        """Status endpoint should mirror the health shape."""
+        response = self.client.get("/api/status")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["ok"])
+        self.assertIn("server", payload)
+        self.assertIn("stt", payload)
+
+    def test_api_shutdown_requires_local_token(self) -> None:
+        """Shutdown endpoint should not be callable without the local UI token."""
+        app = create_app()
+        app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = False
+        client = app.test_client()
+        response = client.post("/api/shutdown", json={"reason": "test"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_shutdown_sets_runtime_state_without_process_exit(self) -> None:
+        """Shutdown endpoint should expose graceful shutdown state."""
+        app = create_app()
+        app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = False
+        client = app.test_client()
+        response = client.post(
+            "/api/shutdown",
+            json={"reason": "test"},
+            headers={"X-AI-Core-Token": app.config["LOCAL_API_TOKEN"]},
+        )
+        self.assertEqual(response.status_code, 202)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["shutdown"]["shutdown_requested"])
+        self.assertEqual(payload["shutdown"]["shutdown_reason"], "test")
+        status_response = client.get("/api/status")
+        status_payload = status_response.get_json()
+        self.assertIsNotNone(status_payload)
+        self.assertFalse(status_payload["ready"])
 
     def test_api_input_gate_returns_current_state(self) -> None:
         """Web UI should expose current input-gate state."""
@@ -518,6 +583,17 @@ class SmokeTests(unittest.TestCase):
             page = render_page(command_text_path="/tmp/web_latest.txt")
         self.assertIn("プロンプト保存先:\n/tmp/web_latest.txt", page)
         self.assertNotIn("handoff 保存先:\n\nプロンプト保存先", page)
+
+    def test_render_page_can_embed_web_preset(self) -> None:
+        """Server-side presets should be available to the browser startup logic."""
+        original_preset = self.app.config[WEB_PRESET_CONFIG]
+        self.app.config[WEB_PRESET_CONFIG] = "integration"
+        try:
+            with self.app.test_request_context("/"):
+                page = render_page()
+        finally:
+            self.app.config[WEB_PRESET_CONFIG] = original_preset
+        self.assertIn('data-web-preset="integration"', page)
 
     def test_render_page_places_handoff_paths_after_result_actions(self) -> None:
         """Handoff paths should sit directly after the related action buttons."""
@@ -580,6 +656,10 @@ class SmokeTests(unittest.TestCase):
                 list_ffmpeg_dshow_audio_devices(),
                 ["Microphone Array (Realtek(R) Audio)"],
             )
+            self.assertEqual(
+                subprocess_run.call_args.kwargs["timeout"],
+                MICROPHONE_DEVICE_LIST_TIMEOUT_SECONDS,
+            )
 
     def test_list_ffmpeg_dshow_audio_devices_parses_typed_lines(self) -> None:
         """DirectShow parsing should support ffmpeg lines marked with (audio)."""
@@ -607,6 +687,10 @@ class SmokeTests(unittest.TestCase):
             self.assertEqual(
                 list_ffmpeg_dshow_audio_devices(),
                 ["Webcam 4 (NDI Webcam Audio)"],
+            )
+            self.assertEqual(
+                subprocess_run.call_args.kwargs["timeout"],
+                MICROPHONE_DEVICE_LIST_TIMEOUT_SECONDS,
             )
 
     def test_record_microphone_audio_uses_arecord_backend(self) -> None:
@@ -636,6 +720,10 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(result, output_path)
         self.assertEqual(command[:2], ["arecord", "-D"])
         self.assertIn("plughw:1,0", command)
+        self.assertEqual(
+            subprocess_run.call_args.kwargs["timeout"],
+            get_recording_timeout_seconds(2),
+        )
 
     def test_record_microphone_audio_uses_ffmpeg_dshow_backend(self) -> None:
         """Windows microphone backend should record through ffmpeg DirectShow."""
@@ -666,6 +754,31 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(command[:4], ["ffmpeg", "-y", "-f", "dshow"])
         self.assertIn("audio=Microphone Array (Realtek(R) Audio)", command)
         self.assertIn("pcm_s16le", command)
+        self.assertEqual(
+            subprocess_run.call_args.kwargs["timeout"],
+            get_recording_timeout_seconds(2),
+        )
+
+    def test_record_microphone_audio_converts_dshow_timeout(self) -> None:
+        """Hung DirectShow recording should become a normal environment error."""
+        output_path = PROJECT_ROOT / ".cache" / "tests" / "mic_dshow_timeout.wav"
+        with mock.patch(
+            "src.io.microphone.platform.system",
+            return_value="Windows",
+        ), mock.patch(
+            "src.io.microphone.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.io.microphone.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["ffmpeg"], timeout=12),
+        ):
+            with self.assertRaises(AudioEnvironmentError):
+                record_microphone_audio(
+                    output_path=output_path,
+                    duration=2,
+                    device="Microphone Array (Realtek(R) Audio)",
+                    backend="ffmpeg-dshow",
+                    trim_silence_enabled=False,
+                )
 
     def test_get_microphone_runtime_status_reports_backend_availability(self) -> None:
         """Microphone status should expose OS defaults and backend availability."""
@@ -882,6 +995,9 @@ class SmokeTests(unittest.TestCase):
         self.assertIsNotNone(payload_json)
         self.assertEqual(payload_json["command"], "依存関係を確認して")
         self.assertIn("Voice transcript:", payload_json["prompt_text"])
+        self.assertTrue(payload_json["handoff_id"])
+        self.assertTrue(payload_json["updated_at"])
+        self.assertTrue(payload_json["metadata"]["exists"])
         output_path.unlink()
         text_path.unlink()
 
@@ -903,6 +1019,9 @@ class SmokeTests(unittest.TestCase):
         self.assertIsNotNone(payload_json)
         self.assertEqual(payload_json["command"], "依存関係を確認して")
         self.assertIn("Voice transcript:", payload_json["prompt_text"])
+        self.assertTrue(payload_json["handoff_id"])
+        self.assertTrue(payload_json["updated_at"])
+        self.assertTrue(payload_json["metadata"]["exists"])
         output_path.unlink()
         text_path.unlink()
 
@@ -946,6 +1065,30 @@ class SmokeTests(unittest.TestCase):
             headers=self.local_api_headers(),
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_handoff_metadata_reports_latest_saved_bundle(self) -> None:
+        """Handoff metadata should give watchers an id and update timestamp."""
+        json_path = get_default_codex_output_path(source="metadata_test")
+        text_path = get_default_codex_text_path(source="metadata_test")
+        if json_path.exists():
+            json_path.unlink()
+        if text_path.exists():
+            text_path.unlink()
+        missing = build_handoff_metadata(source="metadata_test")
+        self.assertFalse(missing["exists"])
+        save_codex_handoff_bundle(
+            "依存関係を確認して",
+            json_path=json_path,
+            text_path=text_path,
+        )
+        metadata = build_handoff_metadata(source="metadata_test")
+        self.assertTrue(metadata["exists"])
+        self.assertTrue(metadata["handoff_id"])
+        self.assertTrue(metadata["updated_at"])
+        self.assertGreater(metadata["json_size_bytes"], 0)
+        self.assertGreater(metadata["text_size_bytes"], 0)
+        json_path.unlink()
+        text_path.unlink()
 
     def test_handoff_cli_reads_latest_prompt(self) -> None:
         """Handoff CLI should print the saved prompt text."""
@@ -1524,6 +1667,9 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("$projectPython", script)
         self.assertIn("& $projectPython -m src.main --doctor", script)
         self.assertIn("& $projectPython -m src.web.app", script)
+        self.assertIn("[string]$Preset", script)
+        self.assertIn("AI_TALK_CORE_WEB_PRESET", script)
+        self.assertIn("profile=", script)
         self.assertNotIn("& uv run python -m src.main --doctor", script)
         self.assertNotIn("& uv run python -m src.web.app", script)
 
@@ -2058,6 +2204,8 @@ class SmokeTests(unittest.TestCase):
         assert handoff is not None
         self.assertEqual(handoff.command, "依存関係を確認して")
         self.assertIn("Requested task:", handoff.prompt_text)
+        self.assertTrue(handoff.metadata["exists"])
+        self.assertTrue(handoff.metadata["handoff_id"])
         json_path.unlink()
         text_path.unlink()
 

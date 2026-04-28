@@ -20,6 +20,9 @@ from src.io.audio import (
 
 SUPPORTED_MICROPHONE_BACKENDS = ("auto", "arecord", "ffmpeg-dshow")
 RECORDING_MICROPHONE_BACKENDS = ("arecord", "ffmpeg-dshow")
+MICROPHONE_DEVICE_LIST_TIMEOUT_SECONDS = 10
+MICROPHONE_TRIM_TIMEOUT_SECONDS = 30
+MICROPHONE_RECORDING_EXTRA_TIMEOUT_SECONDS = 10
 
 
 class WebRtcVadAdapter:
@@ -115,7 +118,10 @@ def get_default_arecord_microphone_device() -> str:
             check=True,
             capture_output=True,
             text=True,
+            timeout=MICROPHONE_DEVICE_LIST_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise AudioEnvironmentError("microphone device listing timed out") from exc
     except subprocess.CalledProcessError as exc:
         message = exc.stderr.strip() or exc.stdout.strip() or str(exc)
         raise AudioEnvironmentError(f"failed to list microphone devices: {message}") from exc
@@ -132,14 +138,27 @@ def get_default_arecord_microphone_device() -> str:
 def list_ffmpeg_dshow_audio_devices() -> list[str]:
     """Return DirectShow audio device names reported by ffmpeg."""
     ensure_ffmpeg_dshow_available()
-    result = subprocess.run(
-        ["ffmpeg", "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-list_devices",
+                "true",
+                "-f",
+                "dshow",
+                "-i",
+                "dummy",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            check=False,
+            timeout=MICROPHONE_DEVICE_LIST_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise AudioEnvironmentError("DirectShow audio device listing timed out") from exc
     output = "\n".join(part for part in (result.stderr, result.stdout) if part)
     devices: list[str] = []
     in_audio_section = False
@@ -227,7 +246,10 @@ def _is_microphone_backend_available(backend: str) -> bool:
     if backend == "arecord":
         return shutil.which("arecord") is not None
     if backend == "ffmpeg-dshow":
-        return platform.system().lower() == "windows" and shutil.which("ffmpeg") is not None
+        return (
+            platform.system().lower() == "windows"
+            and shutil.which("ffmpeg") is not None
+        )
     return False
 
 
@@ -274,7 +296,10 @@ def trim_silence(
             encoding="utf-8",
             errors="replace",
             text=True,
+            timeout=MICROPHONE_TRIM_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise AudioEnvironmentError("silence trimming timed out") from exc
     except subprocess.CalledProcessError as exc:
         message = _subprocess_error_message(exc)
         raise AudioEnvironmentError(f"silence trimming failed: {message}") from exc
@@ -366,7 +391,10 @@ def record_microphone_audio(
         raise AudioEnvironmentError(f"unsupported microphone backend: {resolved_backend}")
 
     if trim_silence_enabled:
-        return trim_silence(input_path=output_path, output_path=get_trimmed_recording_path())
+        return trim_silence(
+            input_path=output_path,
+            output_path=get_trimmed_recording_path(),
+        )
 
     return output_path
 
@@ -399,7 +427,15 @@ def _record_arecord_audio(
     ]
 
     try:
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=get_recording_timeout_seconds(duration),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise AudioEnvironmentError("microphone recording timed out") from exc
     except subprocess.CalledProcessError as exc:
         message = _subprocess_error_message(exc)
         raise AudioEnvironmentError(f"microphone recording failed: {message}") from exc
@@ -445,7 +481,12 @@ def _record_ffmpeg_dshow_audio(
             encoding="utf-8",
             errors="replace",
             text=True,
+            timeout=get_recording_timeout_seconds(duration),
         )
+    except subprocess.TimeoutExpired as exc:
+        raise AudioEnvironmentError(
+            f"microphone recording timed out with ffmpeg-dshow device '{resolved_device}'"
+        ) from exc
     except subprocess.CalledProcessError as exc:
         message = _subprocess_error_message(exc)
         raise AudioEnvironmentError(
@@ -474,6 +515,11 @@ def capture_microphone_chunk(
         backend=backend,
     )
     return AudioChunk(path=audio_path, source="microphone")
+
+
+def get_recording_timeout_seconds(duration: int) -> int:
+    """Return a bounded subprocess timeout for one fixed-duration recording."""
+    return duration + MICROPHONE_RECORDING_EXTRA_TIMEOUT_SECONDS
 
 
 def _subprocess_error_message(exc: subprocess.CalledProcessError) -> str:

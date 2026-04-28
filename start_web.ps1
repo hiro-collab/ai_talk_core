@@ -2,7 +2,9 @@
 param(
     [switch]$Sync,
     [switch]$NoOpen,
-    [switch]$SkipDoctor
+    [switch]$SkipDoctor,
+    [string]$Preset = $env:AI_TALK_CORE_WEB_PRESET,
+    [string]$Query = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,6 +44,31 @@ if (-not $SkipDoctor) {
 }
 
 $url = "http://127.0.0.1:8000"
+$queryParts = @()
+
+if ($null -eq $Preset) {
+    $Preset = ""
+}
+$webPreset = $Preset.Trim()
+if ($webPreset) {
+    $env:AI_TALK_CORE_WEB_PRESET = $webPreset
+    $queryParts += "profile=$([System.Uri]::EscapeDataString($webPreset))"
+}
+
+if ($null -eq $Query) {
+    $Query = ""
+}
+$extraQuery = $Query.Trim()
+while ($extraQuery.StartsWith("?") -or $extraQuery.StartsWith("&")) {
+    $extraQuery = $extraQuery.Substring(1)
+}
+if ($extraQuery) {
+    $queryParts += $extraQuery
+}
+
+if ($queryParts.Count -gt 0) {
+    $url = "$url?$($queryParts -join '&')"
+}
 
 if (-not $NoOpen) {
     Start-Job -ScriptBlock {

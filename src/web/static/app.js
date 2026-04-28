@@ -39,11 +39,14 @@ const WEB_OPTIONS_STORAGE_KEY = "ai_talk_core.web_options.v1";
 const TRUE_OPTION_VALUES = new Set(["1", "true", "yes", "on"]);
 const FALSE_OPTION_VALUES = new Set(["0", "false", "no", "off"]);
 const OPTION_PROFILES = {
-  dify: {
+  integration: {
     record_gate_auto: "1",
     record_save_handoff: "1",
     upload_save_handoff: "1",
   },
+};
+const OPTION_PROFILE_ALIASES = {
+  dify: "integration",
 };
 const MANAGED_OPTION_IDS = [
   "upload_model",
@@ -124,7 +127,10 @@ const appendDebugValue = (lines, key, value) => {
   lines.push(`${key}=${value ?? ""}`);
 };
 
-const normalizeProfileName = (profile) => (profile || "").trim().toLowerCase();
+const normalizeProfileName = (profile) => {
+  const normalized = (profile || "").trim().toLowerCase();
+  return OPTION_PROFILE_ALIASES[normalized] || normalized;
+};
 
 const parseOptionBool = (value) => {
   if (value === null || value === undefined) {
@@ -244,7 +250,10 @@ const applyQueryOptions = (searchParams) => {
 
 const applyStartupOptions = () => {
   const searchParams = new URLSearchParams(window.location.search);
-  const profile = normalizeProfileName(searchParams.get("profile"));
+  const requestedProfile = searchParams.has("profile")
+    ? searchParams.get("profile")
+    : appRoot?.dataset.webPreset || "";
+  const profile = normalizeProfileName(requestedProfile);
   const noPersist = parseOptionBool(searchParams.get("no_persist")) === true;
   const reset = parseOptionBool(searchParams.get("reset_options")) === true;
   optionPersistenceEnabled = !noPersist;

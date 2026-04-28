@@ -197,7 +197,35 @@ Windows では:
 - maintenance UI として、ファイルアップロードとブラウザ録音を扱えます
 - `指示草案を優先して返す` で transcript ではなく instruction を主に返せます
 - `handoff payload を保存する` で `.cache/codex/web_latest.json` と `.cache/codex/web_latest.txt` に保存します
-- 現状は保守用 UI であり、今後は状態表示を強化していく方針です
+- 単体起動時は `入力ゲートで録音を制御する` や `handoff を保存する` は手動で有効化します
+
+統合システムやバッチ起動では、Web UI の初期値だけを外から指定できます。
+`integration` プリセットは `入力ゲートで録音を制御する`、アップロード/ブラウザ録音の `handoff を保存する` を起動時に有効化します。
+モジュール単体の既定値は変えません。
+
+```powershell
+.\start_web.ps1 -Preset integration
+.\start_web.ps1 -Preset integration -Query "no_persist=1"
+```
+
+```bash
+AI_TALK_CORE_WEB_PRESET=integration uv run python -m src.web.app
+```
+
+URL で直接指定する場合:
+
+```text
+http://127.0.0.1:8000/?profile=integration&no_persist=1
+```
+
+補足:
+
+- `profile=integration`: 統合起動向けの初期値を適用
+- `save_handoff=1`: アップロード/ブラウザ録音の handoff 保存を同時に有効化
+- `input_gate=1` または `gate_auto=1`: ブラウザ録音を入力ゲート制御にする
+- `reset_options=1`: ブラウザの保存済み UI 設定を消してから適用
+- `no_persist=1`: 今回の起動で UI 設定を localStorage に保存しない
+- `profile=dify` は互換 alias です。新しい連携では `integration` を使ってください
 
 ## API / CLI Setup
 
@@ -251,8 +279,21 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 保存済み handoff を取得:
 
 ```bash
-curl http://127.0.0.1:8000/api/agent-handoff-latest?source=web
+curl -H "X-AI-Core-Token: <page data-api-token value>" \
+  http://127.0.0.1:8000/api/agent-handoff-latest?source=web
 ```
+
+応答には `handoff_id`, `updated_at`, `metadata` も含まれます。
+外部 watcher はファイルの存在確認だけでなく、この ID と更新時刻を使って最新 handoff の変化を見られます。
+
+起動状態を確認:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:8000/api/status
+```
+
+`/api/health` と `/api/status` は同じ形で、`server.active_transcriptions`, `server.shutdown_requested`, `stt.ffmpeg_available`, `stt.ffprobe_available`, `input_gate`, `latest_handoff` を返します。
 
 外部 adapter から入力ゲートを更新:
 
@@ -264,6 +305,20 @@ curl -X POST http://127.0.0.1:8000/api/input-gate \
 
 Web UI のブラウザ録音で `入力ゲートで録音を制御する` を有効にすると、
 `/api/input-gate` の `input_enabled=true` で録音開始、`false` で録音停止とアップロード処理に進みます。
+このモードでは誤操作を避けるため、手動の `録音開始` ボタンは無効になります。
+
+ローカル Web サーバーの停止要求:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/shutdown \
+  -H "X-AI-Core-Token: <page data-api-token value>" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "batch finished"}'
+```
+
+`/api/shutdown` はローカル UI の per-process token が必要です。
+進行中の転写がある場合は新規転写を受け付けず、処理完了後に停止へ進みます。
+すぐ停止したい場合は `{"force": true}` を渡せますが、Whisper/Torch の実行中処理そのものを安全に中断するものではありません。
 
 ローカル CLI から最新 handoff を読む:
 
@@ -710,8 +765,12 @@ flowchart LR
   `arecord -l` が成功するか確認してください
 - `Environment error: microphone recording failed: ...`
   デバイス名やマイク接続状態を確認してください
+- `Environment error: microphone recording timed out`
+  `ffmpeg-dshow` / `arecord` が戻らない状態です。マイクデバイス名、OS の録音権限、別アプリによる占有を確認してください
 - `Environment error: silence trimming failed: ...`
   `ffmpeg` が利用可能か、入力 wav が壊れていないか確認してください
+- Web UI 終了時に固まる場合
+  `/api/status` の `server.active_transcriptions` を確認してください。Whisper 実行中は停止要求が完了まで待つことがあります。今回の Web UI は新規転写を止め、録音/トリム系 subprocess にはタイムアウトを設定しています。
 - `Environment error: failed to load Whisper model ...`
   モデル取得や CUDA 実行環境を確認してください
 - `Ctrl+C`

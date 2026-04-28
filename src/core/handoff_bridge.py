@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 
 from src.core.agent_instruction import build_agent_instruction
@@ -37,6 +39,7 @@ class HandoffBundle:
     prompt_text: str
     json_path: Path
     text_path: Path
+    metadata: dict[str, object]
 
 
 def normalize_handoff_source(source: str = "manual") -> str:
@@ -138,6 +141,50 @@ def save_handoff_bundle(
     )
 
 
+def build_handoff_metadata(source: str = "manual") -> dict[str, object]:
+    """Return stable metadata for the latest saved handoff bundle."""
+    safe_source = normalize_handoff_source(source)
+    json_path = get_default_handoff_output_path(source=safe_source)
+    text_path = get_default_handoff_text_path(source=safe_source)
+    metadata: dict[str, object] = {
+        "source": safe_source,
+        "exists": json_path.exists() and text_path.exists(),
+        "json_path": str(json_path),
+        "text_path": str(text_path),
+        "handoff_id": "",
+        "updated_at": "",
+        "json_mtime": "",
+        "text_mtime": "",
+        "json_size_bytes": json_path.stat().st_size if json_path.exists() else 0,
+        "text_size_bytes": text_path.stat().st_size if text_path.exists() else 0,
+    }
+    if not metadata["exists"]:
+        return metadata
+
+    json_stat = json_path.stat()
+    text_stat = text_path.stat()
+    latest_mtime = max(json_stat.st_mtime, text_stat.st_mtime)
+    metadata.update(
+        {
+            "handoff_id": sha256(
+                (
+                    f"{safe_source}:"
+                    f"{json_stat.st_mtime_ns}:"
+                    f"{text_stat.st_mtime_ns}:"
+                    f"{json_stat.st_size}:"
+                    f"{text_stat.st_size}"
+                ).encode("utf-8")
+            ).hexdigest()[:16],
+            "updated_at": _format_timestamp(latest_mtime),
+            "json_mtime": _format_timestamp(json_stat.st_mtime),
+            "text_mtime": _format_timestamp(text_stat.st_mtime),
+            "json_size_bytes": json_stat.st_size,
+            "text_size_bytes": text_stat.st_size,
+        }
+    )
+    return metadata
+
+
 def load_handoff_bundle(source: str = "manual") -> HandoffBundle | None:
     """Load the latest saved handoff bundle for a source."""
     json_path = get_default_handoff_output_path(source=source)
@@ -152,4 +199,10 @@ def load_handoff_bundle(source: str = "manual") -> HandoffBundle | None:
         prompt_text=prompt_text,
         json_path=json_path,
         text_path=text_path,
+        metadata=build_handoff_metadata(source=source),
     )
+
+
+def _format_timestamp(timestamp: float) -> str:
+    """Return a compact UTC timestamp for file metadata."""
+    return datetime.fromtimestamp(timestamp, tz=UTC).isoformat().replace("+00:00", "Z")
