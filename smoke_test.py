@@ -9,6 +9,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -107,6 +108,20 @@ load_codex_handoff_bundle = load_handoff_bundle
 render_codex_prompt = render_handoff_prompt
 save_codex_handoff_bundle = save_handoff_bundle
 save_codex_payload = save_handoff_payload
+
+
+def remove_path_with_retry(path: Path, *, attempts: int = 5, delay: float = 0.05) -> None:
+    """Remove a test artifact, retrying briefly for transient Windows file locks."""
+    for attempt in range(attempts):
+        try:
+            path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay * (attempt + 1))
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -227,9 +242,9 @@ class SmokeTests(unittest.TestCase):
         output_path = PROJECT_ROOT / ".cache" / "tests" / "command_payload.json"
         text_path = output_path.with_suffix(".txt")
         if output_path.exists():
-            output_path.unlink()
+            remove_path_with_retry(output_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         result = run_cli(
             "data/sample_audio.mp3",
             "--language",
@@ -243,17 +258,17 @@ class SmokeTests(unittest.TestCase):
         payload_json = json.loads(output_path.read_text(encoding="utf-8"))
         self.assertIn("こんにちは", payload_json["transcript"])
         self.assertEqual(payload_json["command"], payload_json["transcript"].strip())
-        output_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(output_path)
+        remove_path_with_retry(text_path)
 
     def test_handoff_output_alias_writes_payload_json(self) -> None:
         """handoff-output alias should save the same payload bundle."""
         output_path = PROJECT_ROOT / ".cache" / "tests" / "handoff_payload.json"
         text_path = output_path.with_suffix(".txt")
         if output_path.exists():
-            output_path.unlink()
+            remove_path_with_retry(output_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         result = run_cli(
             "data/sample_audio.mp3",
             "--language",
@@ -264,8 +279,8 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(output_path.exists())
         self.assertTrue(text_path.exists())
-        output_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(output_path)
+        remove_path_with_retry(text_path)
 
     def test_iterations_requires_mic_loop(self) -> None:
         """Iterations should only be accepted with mic-loop."""
@@ -950,9 +965,9 @@ class SmokeTests(unittest.TestCase):
         output_path = get_default_codex_output_path(source="web")
         text_path = get_default_codex_text_path(source="web")
         if output_path.exists():
-            output_path.unlink()
+            remove_path_with_retry(output_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
         payload = {
             "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
@@ -972,17 +987,17 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(payload_json["command_text_path"], str(text_path))
         self.assertTrue(output_path.exists())
         self.assertTrue(text_path.exists())
-        output_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(output_path)
+        remove_path_with_retry(text_path)
 
     def test_api_upload_can_save_handoff_alias(self) -> None:
         """API upload route should also accept save_handoff."""
         output_path = get_default_codex_output_path(source="web")
         text_path = get_default_codex_text_path(source="web")
         if output_path.exists():
-            output_path.unlink()
+            remove_path_with_retry(output_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         sample_path = PROJECT_ROOT / "data" / "sample_audio.mp3"
         payload = {
             "audio_file": (io.BytesIO(sample_path.read_bytes()), "sample_audio.mp3"),
@@ -1002,8 +1017,8 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(payload_json["command_text_path"], str(text_path))
         self.assertTrue(output_path.exists())
         self.assertTrue(text_path.exists())
-        output_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(output_path)
+        remove_path_with_retry(text_path)
 
     def test_api_codex_handoff_latest_returns_saved_bundle(self) -> None:
         """Latest handoff API should return saved prompt bundle contents."""
@@ -1026,8 +1041,8 @@ class SmokeTests(unittest.TestCase):
         self.assertTrue(payload_json["handoff_id"])
         self.assertTrue(payload_json["updated_at"])
         self.assertTrue(payload_json["metadata"]["exists"])
-        output_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(output_path)
+        remove_path_with_retry(text_path)
 
     def test_api_agent_handoff_latest_returns_saved_bundle(self) -> None:
         """Agent handoff API alias should return saved prompt bundle contents."""
@@ -1050,17 +1065,17 @@ class SmokeTests(unittest.TestCase):
         self.assertTrue(payload_json["handoff_id"])
         self.assertTrue(payload_json["updated_at"])
         self.assertTrue(payload_json["metadata"]["exists"])
-        output_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(output_path)
+        remove_path_with_retry(text_path)
 
     def test_api_codex_handoff_latest_returns_404_without_bundle(self) -> None:
         """Latest handoff API should return 404 when no bundle exists."""
         output_path = get_default_codex_output_path(source="missing")
         text_path = get_default_codex_text_path(source="missing")
         if output_path.exists():
-            output_path.unlink()
+            remove_path_with_retry(output_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         response = self.client.get(
             "/api/codex-handoff-latest?source=missing",
             headers=self.local_api_headers(),
@@ -1072,9 +1087,9 @@ class SmokeTests(unittest.TestCase):
         output_path = get_default_codex_output_path(source="missing")
         text_path = get_default_codex_text_path(source="missing")
         if output_path.exists():
-            output_path.unlink()
+            remove_path_with_retry(output_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         response = self.client.get(
             "/api/agent-handoff-latest?source=missing",
             headers=self.local_api_headers(),
@@ -1084,6 +1099,13 @@ class SmokeTests(unittest.TestCase):
     def test_api_handoff_latest_requires_local_token(self) -> None:
         """Latest handoff API should require the local per-process token."""
         response = self.client.get("/api/agent-handoff-latest?source=web")
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_handoff_latest_rejects_query_token(self) -> None:
+        """Local API tokens should not be accepted from URL query parameters."""
+        response = self.client.get(
+            f"/api/agent-handoff-latest?source=web&api_token={self.app.config['LOCAL_API_TOKEN']}"
+        )
         self.assertEqual(response.status_code, 403)
 
     def test_api_handoff_latest_rejects_invalid_source(self) -> None:
@@ -1099,9 +1121,9 @@ class SmokeTests(unittest.TestCase):
         json_path = get_default_codex_output_path(source="metadata_test")
         text_path = get_default_codex_text_path(source="metadata_test")
         if json_path.exists():
-            json_path.unlink()
+            remove_path_with_retry(json_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         missing = build_handoff_metadata(source="metadata_test")
         self.assertFalse(missing["exists"])
         save_codex_handoff_bundle(
@@ -1115,8 +1137,8 @@ class SmokeTests(unittest.TestCase):
         self.assertTrue(metadata["updated_at"])
         self.assertGreater(metadata["json_size_bytes"], 0)
         self.assertGreater(metadata["text_size_bytes"], 0)
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_handoff_cli_reads_latest_prompt(self) -> None:
         """Handoff CLI should print the saved prompt text."""
@@ -1130,8 +1152,8 @@ class SmokeTests(unittest.TestCase):
         result = run_handoff_cli("--source", "cli_test", "--format", "prompt")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Voice transcript:", result.stdout)
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_handoff_source_rejects_path_segments(self) -> None:
         """Handoff source labels should not be usable as path components."""
@@ -1158,8 +1180,8 @@ class SmokeTests(unittest.TestCase):
         result = run_agent_handoff_cli("--source", "agent_cli_test", "--format", "prompt")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Voice transcript:", result.stdout)
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_handoff_cli_reads_latest_command(self) -> None:
         """Handoff CLI should print the saved command text."""
@@ -1173,8 +1195,8 @@ class SmokeTests(unittest.TestCase):
         result = run_handoff_cli("--source", "cli_command", "--format", "command")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(result.stdout.strip(), "依存関係を確認して")
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_agent_handoff_cli_reads_latest_command(self) -> None:
         """Generic agent handoff CLI should print the saved command text."""
@@ -1188,8 +1210,8 @@ class SmokeTests(unittest.TestCase):
         result = run_agent_handoff_cli("--source", "agent_cli_command", "--format", "command")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(result.stdout.strip(), "依存関係を確認して")
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_runner_cli_print_only_outputs_prompt(self) -> None:
         """Runner CLI should print the latest prompt in print-only mode."""
@@ -1203,8 +1225,8 @@ class SmokeTests(unittest.TestCase):
         result = run_runner_cli("--source", "runner_print", "--print-only")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Voice transcript:", result.stdout)
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_agent_runner_cli_print_only_outputs_prompt(self) -> None:
         """Generic agent runner CLI should print the latest prompt in print-only mode."""
@@ -1218,8 +1240,8 @@ class SmokeTests(unittest.TestCase):
         result = run_agent_runner_cli("--source", "agent_runner_print", "--print-only")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Voice transcript:", result.stdout)
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_runner_cli_pipes_prompt_to_command(self) -> None:
         """Runner CLI should pass the rendered prompt to stdin."""
@@ -1240,8 +1262,8 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Requested task:", result.stdout)
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_runner_cli_template_cat_outputs_prompt(self) -> None:
         """Runner CLI should support built-in command templates."""
@@ -1255,8 +1277,8 @@ class SmokeTests(unittest.TestCase):
         result = run_runner_cli("--source", "runner_template", "--template", "cat")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Voice transcript:", result.stdout)
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_api_upload_missing_file_returns_400(self) -> None:
         """Dedicated API upload route should validate missing files."""
@@ -2201,7 +2223,7 @@ class SmokeTests(unittest.TestCase):
         """Codex payload helper should save normalized JSON output."""
         output_path = PROJECT_ROOT / ".cache" / "tests" / "payload_helper.json"
         if output_path.exists():
-            output_path.unlink()
+            remove_path_with_retry(output_path)
         saved_path = save_codex_payload("  依存関係を   確認して ", output_path)
         self.assertEqual(saved_path, output_path)
         payload_json = json.loads(output_path.read_text(encoding="utf-8"))
@@ -2212,16 +2234,16 @@ class SmokeTests(unittest.TestCase):
                 "command": "依存関係を 確認して",
             },
         )
-        output_path.unlink()
+        remove_path_with_retry(output_path)
 
     def test_save_codex_handoff_bundle_writes_json_and_text(self) -> None:
         """Codex handoff helper should save both JSON and text outputs."""
         json_path = PROJECT_ROOT / ".cache" / "tests" / "handoff_bundle.json"
         text_path = PROJECT_ROOT / ".cache" / "tests" / "handoff_bundle.txt"
         if json_path.exists():
-            json_path.unlink()
+            remove_path_with_retry(json_path)
         if text_path.exists():
-            text_path.unlink()
+            remove_path_with_retry(text_path)
         saved_paths = save_codex_handoff_bundle(
             "  依存関係を   確認して ",
             json_path=json_path,
@@ -2235,8 +2257,8 @@ class SmokeTests(unittest.TestCase):
             text_path.read_text(encoding="utf-8"),
             "Voice transcript:\n依存関係を 確認して\n\nRequested task:\n依存関係を 確認して\n",
         )
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_load_codex_handoff_bundle_returns_saved_contents(self) -> None:
         """Handoff loader should return saved JSON and prompt text."""
@@ -2254,8 +2276,8 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("Requested task:", handoff.prompt_text)
         self.assertTrue(handoff.metadata["exists"])
         self.assertTrue(handoff.metadata["handoff_id"])
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_render_handoff_output_returns_json(self) -> None:
         """Handoff renderer should support JSON output."""
@@ -2268,8 +2290,8 @@ class SmokeTests(unittest.TestCase):
         )
         payload_json = json.loads(render_handoff_output("render_json", "json"))
         self.assertEqual(payload_json["command"], "依存関係を確認して")
-        json_path.unlink()
-        text_path.unlink()
+        remove_path_with_retry(json_path)
+        remove_path_with_retry(text_path)
 
     def test_normalize_command_args_strips_separator(self) -> None:
         """Runner CLI should strip a leading '--' from command args."""

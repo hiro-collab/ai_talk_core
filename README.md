@@ -212,8 +212,9 @@ Windows では:
 AI_TALK_CORE_WEB_PRESET=integration uv run python -m src.web.app
 ```
 
-外部 adapter / watcher が状態 API や入力ゲート API を直接呼ぶ場合は、起動時に固定 token を渡してください。
+外部 adapter / watcher が状態 API や入力ゲート API を直接呼ぶ場合、`AI_TALK_CORE_WEB_TOKEN` は必須の起動設定です。
 未指定の場合はプロセスごとにランダム token が生成され、ブラウザ UI だけが利用します。
+token は `X-AI-Core-Token` ヘッダーで送ってください。URL query の `api_token` は受け付けません。
 
 ```powershell
 $env:AI_TALK_CORE_WEB_TOKEN = "local-dev-token"

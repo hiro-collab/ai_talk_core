@@ -369,12 +369,9 @@ def get_web_runtime_state() -> WebRuntimeState:
 
 
 def has_valid_local_api_token() -> bool:
-    """Return whether the request carries the per-process local API token."""
+    """Return whether the request carries the per-process local API token header."""
     expected = get_local_api_token()
-    provided = (
-        request.headers.get(LOCAL_API_TOKEN_HEADER, "")
-        or request.args.get("api_token", "")
-    )
+    provided = request.headers.get(LOCAL_API_TOKEN_HEADER, "")
     return bool(expected and provided and hmac.compare_digest(provided, expected))
 
 

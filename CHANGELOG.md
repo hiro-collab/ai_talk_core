@@ -4,6 +4,15 @@
 
 Reviewed the updated `main` after the Web integration status controls were added.
 
+### Follow-up hardening
+
+- Removed URL query token acceptance; local Web APIs now accept only the
+  `X-AI-Core-Token` header.
+- Added retrying smoke-test cleanup for transient Windows file locks around
+  generated handoff artifacts.
+- Strengthened README guidance that `AI_TALK_CORE_WEB_TOKEN` is required when
+  external local adapters or watchers call protected APIs directly.
+
 ### Security risks addressed
 
 - Status/control APIs exposed local runtime state without the local UI token:
@@ -29,6 +38,5 @@ Reviewed the updated `main` after the Web integration status controls were added
 
 - `python -m py_compile src\web\app.py smoke_test.py`
 - `uv run python smoke_test.py`
-  - 162 tests
+  - 163 tests
   - OK
-
