@@ -4,6 +4,7 @@ param(
     [switch]$NoOpen,
     [switch]$SkipDoctor,
     [string]$Preset = $env:AI_TALK_CORE_WEB_PRESET,
+    [string]$Token = $env:AI_TALK_CORE_WEB_TOKEN,
     [string]$Query = ""
 )
 
@@ -53,6 +54,14 @@ $webPreset = $Preset.Trim()
 if ($webPreset) {
     $env:AI_TALK_CORE_WEB_PRESET = $webPreset
     $queryParts += "profile=$([System.Uri]::EscapeDataString($webPreset))"
+}
+
+if ($null -eq $Token) {
+    $Token = ""
+}
+$webToken = $Token.Trim()
+if ($webToken) {
+    $env:AI_TALK_CORE_WEB_TOKEN = $webToken
 }
 
 if ($null -eq $Query) {

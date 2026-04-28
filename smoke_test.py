@@ -88,6 +88,7 @@ from src.drivers import DriverRequest, DriverResponse, DriverResult, dispatch_dr
 from src.runners.common import emit_driver_result, execute_runner_command
 from src.web.app import (
     ENABLE_PROCESS_SHUTDOWN_CONFIG,
+    LOCAL_API_TOKEN_ENV,
     WEB_PRESET_CONFIG,
     build_input_gate_response,
     create_app,
@@ -179,6 +180,15 @@ class SmokeTests(unittest.TestCase):
 
     def local_api_headers(self) -> dict[str, str]:
         return {"X-AI-Core-Token": self.app.config["LOCAL_API_TOKEN"]}
+
+    def test_web_app_can_use_configured_local_api_token(self) -> None:
+        """External local adapters should be able to use an operator-provided token."""
+        with mock.patch.dict(
+            "os.environ",
+            {LOCAL_API_TOKEN_ENV: "fixed-local-api-token"},
+        ):
+            app = create_app()
+        self.assertEqual(app.config["LOCAL_API_TOKEN"], "fixed-local-api-token")
 
     def test_sample_audio_succeeds(self) -> None:
         """Sample audio should transcribe successfully."""
@@ -474,7 +484,7 @@ class SmokeTests(unittest.TestCase):
 
     def test_api_doctor_returns_runtime_sections(self) -> None:
         """Web UI should expose doctor status for diagnostics display."""
-        response = self.client.get("/api/doctor")
+        response = self.client.get("/api/doctor", headers=self.local_api_headers())
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.is_json)
         payload = response.get_json()
@@ -486,7 +496,7 @@ class SmokeTests(unittest.TestCase):
 
     def test_api_health_returns_integration_status(self) -> None:
         """Health endpoint should expose generic integration readiness state."""
-        response = self.client.get("/api/health")
+        response = self.client.get("/api/health", headers=self.local_api_headers())
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertIsNotNone(payload)
@@ -500,13 +510,18 @@ class SmokeTests(unittest.TestCase):
 
     def test_api_status_alias_returns_health_payload(self) -> None:
         """Status endpoint should mirror the health shape."""
-        response = self.client.get("/api/status")
+        response = self.client.get("/api/status", headers=self.local_api_headers())
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertIsNotNone(payload)
         self.assertTrue(payload["ok"])
         self.assertIn("server", payload)
         self.assertIn("stt", payload)
+
+    def test_api_health_requires_local_token(self) -> None:
+        """Integration status exposes local state and should require the UI token."""
+        response = self.client.get("/api/health")
+        self.assertEqual(response.status_code, 403)
 
     def test_api_shutdown_requires_local_token(self) -> None:
         """Shutdown endpoint should not be callable without the local UI token."""
@@ -531,19 +546,27 @@ class SmokeTests(unittest.TestCase):
         self.assertIsNotNone(payload)
         self.assertTrue(payload["shutdown"]["shutdown_requested"])
         self.assertEqual(payload["shutdown"]["shutdown_reason"], "test")
-        status_response = client.get("/api/status")
+        status_response = client.get(
+            "/api/status",
+            headers={"X-AI-Core-Token": app.config["LOCAL_API_TOKEN"]},
+        )
         status_payload = status_response.get_json()
         self.assertIsNotNone(status_payload)
         self.assertFalse(status_payload["ready"])
 
     def test_api_input_gate_returns_current_state(self) -> None:
         """Web UI should expose current input-gate state."""
-        response = self.client.get("/api/input-gate")
+        response = self.client.get("/api/input-gate", headers=self.local_api_headers())
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertIsNotNone(payload)
         self.assertTrue(payload["ok"])
         self.assertIn("input_enabled", payload["input_gate"])
+
+    def test_api_input_gate_requires_local_token(self) -> None:
+        """Input-gate state controls should not be exposed without the UI token."""
+        response = self.client.get("/api/input-gate")
+        self.assertEqual(response.status_code, 403)
 
     def test_api_input_gate_updates_state(self) -> None:
         """Web UI should accept backend-neutral input-gate payloads."""
@@ -555,6 +578,7 @@ class SmokeTests(unittest.TestCase):
                 "source": "sword_voice_agent",
                 "timestamp": 12.5,
             },
+            headers=self.local_api_headers(),
         )
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -565,7 +589,11 @@ class SmokeTests(unittest.TestCase):
 
     def test_api_input_gate_rejects_invalid_payload(self) -> None:
         """Web UI should reject malformed input-gate payloads."""
-        response = self.client.post("/api/input-gate", json={"input_enabled": "yes"})
+        response = self.client.post(
+            "/api/input-gate",
+            json={"input_enabled": "yes"},
+            headers=self.local_api_headers(),
+        )
         self.assertEqual(response.status_code, 400)
         payload = response.get_json()
         self.assertIsNotNone(payload)
@@ -1248,6 +1276,26 @@ class SmokeTests(unittest.TestCase):
             headers={"Origin": "http://example.com"},
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_local_policy_rejects_non_loopback_remote_without_token_leak(self) -> None:
+        """Host headers should not be enough when the TCP peer is not loopback."""
+        response = self.client.get(
+            "/",
+            base_url="http://127.0.0.1:8000",
+            environ_overrides={"REMOTE_ADDR": "203.0.113.10"},
+        )
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("許可されていない接続元", body)
+        self.assertNotIn(self.app.config["LOCAL_API_TOKEN"], body)
+
+    def test_local_policy_rejects_bad_host_without_token_leak(self) -> None:
+        """Policy denials should not render the token-bearing Web UI."""
+        response = self.client.get("/", headers={"Host": "example.com"})
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("許可されていない Host", body)
+        self.assertNotIn(self.app.config["LOCAL_API_TOKEN"], body)
 
     def test_api_upload_rejects_oversized_request(self) -> None:
         """Flask should reject uploads that exceed the configured byte limit."""

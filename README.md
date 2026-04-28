@@ -212,6 +212,18 @@ Windows では:
 AI_TALK_CORE_WEB_PRESET=integration uv run python -m src.web.app
 ```
 
+外部 adapter / watcher が状態 API や入力ゲート API を直接呼ぶ場合は、起動時に固定 token を渡してください。
+未指定の場合はプロセスごとにランダム token が生成され、ブラウザ UI だけが利用します。
+
+```powershell
+$env:AI_TALK_CORE_WEB_TOKEN = "local-dev-token"
+.\start_web.ps1 -Preset integration
+```
+
+```bash
+AI_TALK_CORE_WEB_TOKEN=local-dev-token AI_TALK_CORE_WEB_PRESET=integration uv run python -m src.web.app
+```
+
 URL で直接指定する場合:
 
 ```text
@@ -279,7 +291,7 @@ curl -X POST http://127.0.0.1:8000/api/transcribe-upload \
 保存済み handoff を取得:
 
 ```bash
-curl -H "X-AI-Core-Token: <page data-api-token value>" \
+curl -H "X-AI-Core-Token: <AI_TALK_CORE_WEB_TOKEN or page data-api-token value>" \
   http://127.0.0.1:8000/api/agent-handoff-latest?source=web
 ```
 
@@ -289,8 +301,10 @@ curl -H "X-AI-Core-Token: <page data-api-token value>" \
 起動状態を確認:
 
 ```bash
-curl http://127.0.0.1:8000/api/health
-curl http://127.0.0.1:8000/api/status
+curl -H "X-AI-Core-Token: <AI_TALK_CORE_WEB_TOKEN or page data-api-token value>" \
+  http://127.0.0.1:8000/api/health
+curl -H "X-AI-Core-Token: <AI_TALK_CORE_WEB_TOKEN or page data-api-token value>" \
+  http://127.0.0.1:8000/api/status
 ```
 
 `/api/health` と `/api/status` は同じ形で、`server.active_transcriptions`, `server.shutdown_requested`, `stt.ffmpeg_available`, `stt.ffprobe_available`, `input_gate`, `latest_handoff` を返します。
@@ -299,6 +313,7 @@ curl http://127.0.0.1:8000/api/status
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/input-gate \
+  -H "X-AI-Core-Token: <AI_TALK_CORE_WEB_TOKEN or page data-api-token value>" \
   -H "Content-Type: application/json" \
   -d '{"input_enabled": true, "reason": "sword_sign", "source": "sword_voice_agent"}'
 ```
@@ -311,12 +326,12 @@ Web UI のブラウザ録音で `入力ゲートで録音を制御する` を有
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/shutdown \
-  -H "X-AI-Core-Token: <page data-api-token value>" \
+  -H "X-AI-Core-Token: <AI_TALK_CORE_WEB_TOKEN or page data-api-token value>" \
   -H "Content-Type: application/json" \
   -d '{"reason": "batch finished"}'
 ```
 
-`/api/shutdown` はローカル UI の per-process token が必要です。
+`/api/doctor`, `/api/health`, `/api/status`, `/api/input-gate`, `/api/*-handoff-latest`, `/api/shutdown` はローカル UI の per-process token が必要です。
 進行中の転写がある場合は新規転写を受け付けず、処理完了後に停止へ進みます。
 すぐ停止したい場合は `{"force": true}` を渡せますが、Whisper/Torch の実行中処理そのものを安全に中断するものではありません。
 
@@ -770,7 +785,7 @@ flowchart LR
 - `Environment error: silence trimming failed: ...`
   `ffmpeg` が利用可能か、入力 wav が壊れていないか確認してください
 - Web UI 終了時に固まる場合
-  `/api/status` の `server.active_transcriptions` を確認してください。Whisper 実行中は停止要求が完了まで待つことがあります。今回の Web UI は新規転写を止め、録音/トリム系 subprocess にはタイムアウトを設定しています。
+  `X-AI-Core-Token` 付きで `/api/status` の `server.active_transcriptions` を確認してください。Whisper 実行中は停止要求が完了まで待つことがあります。今回の Web UI は新規転写を止め、録音/トリム系 subprocess にはタイムアウトを設定しています。
 - `Environment error: failed to load Whisper model ...`
   モデル取得や CUDA 実行環境を確認してください
 - `Ctrl+C`

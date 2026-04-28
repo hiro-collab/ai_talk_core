@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import _thread
 import hmac
+from ipaddress import ip_address
 import os
 import secrets
 import shutil
@@ -38,6 +39,7 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 </svg>"""
 LOCAL_API_TOKEN_HEADER = "X-AI-Core-Token"
 LOCAL_API_TOKEN_CONFIG = "LOCAL_API_TOKEN"
+LOCAL_API_TOKEN_ENV = "AI_TALK_CORE_WEB_TOKEN"
 ENABLE_PROCESS_SHUTDOWN_CONFIG = "ENABLE_PROCESS_SHUTDOWN"
 WEB_PRESET_CONFIG = "WEB_PRESET"
 WEB_PRESET_ENV = "AI_TALK_CORE_WEB_PRESET"
@@ -45,6 +47,11 @@ WEB_RUNTIME_STATE_CONFIG = "WEB_RUNTIME_STATE"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 TOKEN_PROTECTED_ENDPOINTS = {
+    "api_doctor",
+    "api_health",
+    "api_input_gate_get",
+    "api_input_gate_post",
+    "api_status",
     "api_agent_handoff_latest",
     "api_codex_handoff_latest",
     "api_shutdown",
@@ -119,7 +126,9 @@ def create_app() -> Flask:
     """Create the local Flask application."""
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = WEB_MAX_UPLOAD_BYTES
-    app.config[LOCAL_API_TOKEN_CONFIG] = secrets.token_urlsafe(32)
+    app.config[LOCAL_API_TOKEN_CONFIG] = (
+        os.environ.get(LOCAL_API_TOKEN_ENV, "").strip() or secrets.token_urlsafe(32)
+    )
     app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = True
     app.config[WEB_PRESET_CONFIG] = os.environ.get(WEB_PRESET_ENV, "").strip()
     app.config[WEB_RUNTIME_STATE_CONFIG] = WebRuntimeState()
@@ -127,15 +136,26 @@ def create_app() -> Flask:
 
     @app.before_request
     def enforce_local_request_policy() -> tuple[object, int] | None:
+        if not is_allowed_local_remote(request.remote_addr):
+            return build_policy_error_response(
+                "このローカル UI では許可されていない接続元です。",
+                403,
+            )
         if not is_allowed_local_host(request.host):
-            return build_error_response("このローカル UI では許可されていない Host です。", 403)
+            return build_policy_error_response(
+                "このローカル UI では許可されていない Host です。",
+                403,
+            )
         if request.method in UNSAFE_METHODS and not has_trusted_origin():
-            return build_error_response("このローカル UI では許可されていない送信元です。", 403)
+            return build_policy_error_response(
+                "このローカル UI では許可されていない送信元です。",
+                403,
+            )
         if (
             request.endpoint in TOKEN_PROTECTED_ENDPOINTS
             and not has_valid_local_api_token()
         ):
-            return build_error_response("local API token が不正です。", 403)
+            return build_policy_error_response("local API token が不正です。", 403)
         return None
 
     @app.errorhandler(RequestEntityTooLarge)
@@ -310,6 +330,13 @@ def build_error_response(message: str, status_code: int) -> tuple[object, int]:
     return render_page(error=message), status_code
 
 
+def build_policy_error_response(message: str, status_code: int) -> tuple[object, int]:
+    """Return an access-control error without rendering token-bearing HTML."""
+    if wants_json_response():
+        return jsonify({"message": "", "transcript": "", "error": message}), status_code
+    return Response(message, status=status_code, mimetype="text/plain; charset=utf-8"), status_code
+
+
 def wants_json_response() -> bool:
     """Return whether the current request expects a JSON-style API response."""
     return (
@@ -355,6 +382,16 @@ def is_allowed_local_host(host_header: str) -> bool:
     """Return whether the Host header targets a loopback browser origin."""
     hostname = parse_hostname(host_header)
     return hostname in LOCAL_HOSTS
+
+
+def is_allowed_local_remote(remote_addr: str | None) -> bool:
+    """Return whether the TCP peer is loopback, independent of Host spoofing."""
+    if not remote_addr:
+        return False
+    try:
+        return ip_address(remote_addr).is_loopback
+    except ValueError:
+        return False
 
 
 def has_trusted_origin() -> bool:
