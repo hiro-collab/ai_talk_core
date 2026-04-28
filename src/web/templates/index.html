@@ -137,6 +137,15 @@
           </div>
 
           <div id="record-advanced" class="mode-panel form-grid" role="tabpanel" hidden>
+            <div class="full-row">
+              <label for="record_device_id">入力マイク</label>
+              <div class="control-row">
+                <select id="record_device_id">
+                  <option value="">既定マイク</option>
+                </select>
+                <button id="refresh-microphones" class="ghost-action" type="button">再読込</button>
+              </div>
+            </div>
             <div>
               <label for="record_model">モデル</label>
               <select id="record_model">
@@ -156,6 +165,18 @@
             <label class="checkbox" for="record_save_handoff">
               <input id="record_save_handoff" type="checkbox" value="true">
               handoff を保存する
+            </label>
+            <label class="checkbox" for="record_echo_cancellation">
+              <input id="record_echo_cancellation" type="checkbox" value="true">
+              echoCancellation
+            </label>
+            <label class="checkbox" for="record_noise_suppression">
+              <input id="record_noise_suppression" type="checkbox" value="true">
+              noiseSuppression
+            </label>
+            <label class="checkbox" for="record_auto_gain_control">
+              <input id="record_auto_gain_control" type="checkbox" value="true">
+              autoGainControl
             </label>
           </div>
 

@@ -17,6 +17,11 @@ const actionFeedback = document.getElementById("action-feedback");
 const statusPill = document.getElementById("record-status-pill");
 const activeMicrophone = document.getElementById("active-microphone");
 const gateAutoRecord = document.getElementById("record_gate_auto");
+const microphoneSelect = document.getElementById("record_device_id");
+const refreshMicrophonesButton = document.getElementById("refresh-microphones");
+const echoCancellationToggle = document.getElementById("record_echo_cancellation");
+const noiseSuppressionToggle = document.getElementById("record_noise_suppression");
+const autoGainControlToggle = document.getElementById("record_auto_gain_control");
 const diagDevice = document.getElementById("diag-device");
 const diagMicrophone = document.getElementById("diag-microphone");
 const diagGpu = document.getElementById("diag-gpu");
@@ -38,6 +43,10 @@ let lastBlobSize = 0;
 let lastInputGateEnabled = null;
 let gateAutoStartBlocked = false;
 let lastServerDebug = null;
+let lastSupportedAudioConstraints = {};
+let lastRequestedAudioConstraints = true;
+let lastTrackSettings = {};
+let lastTrackConstraints = {};
 
 const showActionFeedback = (text) => {
   actionFeedback.textContent = text;
@@ -77,6 +86,85 @@ const appendDebugValue = (lines, key, value) => {
     return;
   }
   lines.push(`${key}=${value ?? ""}`);
+};
+
+const setSelectOptions = (select, options, selectedValue = "") => {
+  if (!select) {
+    return;
+  }
+  select.replaceChildren();
+  options.forEach(({ label, value }) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+  const hasSelectedValue = Array.from(select.options).some((option) => option.value === selectedValue);
+  select.value = hasSelectedValue ? selectedValue : "";
+};
+
+const getSelectedMicrophoneLabel = () => microphoneSelect?.selectedOptions?.[0]?.textContent || "";
+
+const getSupportedAudioConstraints = () => {
+  if (!navigator.mediaDevices?.getSupportedConstraints) {
+    return {};
+  }
+  const supported = navigator.mediaDevices.getSupportedConstraints();
+  return {
+    deviceId: Boolean(supported.deviceId),
+    echoCancellation: Boolean(supported.echoCancellation),
+    noiseSuppression: Boolean(supported.noiseSuppression),
+    autoGainControl: Boolean(supported.autoGainControl),
+    sampleRate: Boolean(supported.sampleRate),
+    channelCount: Boolean(supported.channelCount),
+  };
+};
+
+const buildAudioConstraints = () => {
+  const supported = getSupportedAudioConstraints();
+  const constraints = {};
+  const selectedDeviceId = microphoneSelect?.value || "";
+  if (selectedDeviceId && supported.deviceId) {
+    constraints.deviceId = { exact: selectedDeviceId };
+  }
+  if (supported.echoCancellation) {
+    constraints.echoCancellation = Boolean(echoCancellationToggle?.checked);
+  }
+  if (supported.noiseSuppression) {
+    constraints.noiseSuppression = Boolean(noiseSuppressionToggle?.checked);
+  }
+  if (supported.autoGainControl) {
+    constraints.autoGainControl = Boolean(autoGainControlToggle?.checked);
+  }
+  lastSupportedAudioConstraints = supported;
+  lastRequestedAudioConstraints = Object.keys(constraints).length > 0 ? constraints : true;
+  return lastRequestedAudioConstraints;
+};
+
+const loadMicrophoneDevices = async () => {
+  if (!microphoneSelect || !navigator.mediaDevices?.enumerateDevices) {
+    return;
+  }
+  const selectedValue = microphoneSelect.value;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter((device) => device.kind === "audioinput");
+    const options = [
+      { label: "既定マイク", value: "" },
+      ...audioInputs.map((device, index) => ({
+        label: device.label || `マイク ${index + 1}`,
+        value: device.deviceId,
+      })),
+    ];
+    setSelectOptions(microphoneSelect, options, selectedValue);
+    const selectedLabel = getSelectedMicrophoneLabel();
+    if (recorderState === "idle" && !activeStream && selectedLabel) {
+      setActiveMicrophone(selectedLabel);
+    }
+    renderDebug(`microphones loaded count=${audioInputs.length}`);
+  } catch (error) {
+    renderDebug(`microphone list failed: ${error}`);
+  }
 };
 
 const loadDiagnostics = async () => {
@@ -149,10 +237,15 @@ const renderDebug = (note = "") => {
     `chunks=${chunks.length}`,
     `lastBlobSize=${lastBlobSize}`,
     `gateAuto=${isInputGateAutoRecordingEnabled()}`,
+    `selectedMicrophone=${getSelectedMicrophoneLabel()}`,
   ];
   if (note) {
     lines.push(`note=${note}`);
   }
+  appendDebugValue(lines, "browser.supportedAudioConstraints", lastSupportedAudioConstraints);
+  appendDebugValue(lines, "browser.requestedAudioConstraints", lastRequestedAudioConstraints);
+  appendDebugValue(lines, "browser.trackSettings", lastTrackSettings);
+  appendDebugValue(lines, "browser.trackConstraints", lastTrackConstraints);
   if (lastServerDebug) {
     Object.entries(lastServerDebug).forEach(([key, value]) => {
       appendDebugValue(lines, `server.${key}`, value);
@@ -330,9 +423,14 @@ const startRecording = async (trigger = "manual") => {
   chunks = [];
   lastBlobSize = 0;
   try {
-    activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const audioConstraints = buildAudioConstraints();
+    renderDebug("requesting microphone");
+    activeStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
     const audioTrack = activeStream.getAudioTracks()[0];
-    setActiveMicrophone(audioTrack?.label || "ブラウザの既定マイク");
+    lastTrackSettings = audioTrack?.getSettings?.() || {};
+    lastTrackConstraints = audioTrack?.getConstraints?.() || {};
+    setActiveMicrophone(audioTrack?.label || getSelectedMicrophoneLabel() || "ブラウザの既定マイク");
+    await loadMicrophoneDevices();
     const recorder = new MediaRecorder(activeStream);
     mediaRecorder = recorder;
     renderDebug("getUserMedia ok; recorder created");
@@ -444,6 +542,22 @@ gateAutoRecord?.addEventListener("change", async () => {
   await loadInputGate();
 });
 
+refreshMicrophonesButton?.addEventListener("click", async () => {
+  await loadMicrophoneDevices();
+});
+
+microphoneSelect?.addEventListener("change", () => {
+  setActiveMicrophone(getSelectedMicrophoneLabel() || "既定マイク");
+  renderDebug("microphone selection changed");
+});
+
+[echoCancellationToggle, noiseSuppressionToggle, autoGainControlToggle].forEach((toggle) => {
+  toggle?.addEventListener("change", () => {
+    buildAudioConstraints();
+    renderDebug("audio constraints changed");
+  });
+});
+
 const copyText = async (text, label) => {
   if (!text) {
     showActionFeedback(`${label} はまだありません。`);
@@ -498,5 +612,7 @@ copyTranscriptButton.disabled = !pageResult.textContent;
 copyCommandButton.disabled = !pageCommand.textContent;
 renderDebug("ready");
 loadDiagnostics();
+loadMicrophoneDevices();
+navigator.mediaDevices?.addEventListener?.("devicechange", loadMicrophoneDevices);
 loadInputGate();
 setInterval(loadInputGate, 1000);
