@@ -254,7 +254,7 @@ def process_transcription_request(
     raw_bytes: bytes,
     filename: str,
     message: str | None = None,
-) -> tuple[dict[str, str], int]:
+) -> tuple[dict[str, object], int]:
     """Run one transcription request and normalize the response payload."""
     def read_bool_flag(*names: str) -> bool:
         for name in names:

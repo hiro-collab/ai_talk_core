@@ -1782,7 +1782,8 @@ class SmokeTests(unittest.TestCase):
         ), mock.patch(
             "src.web.transcription_service.validate_model_name"
         ), mock.patch(
-            "src.web.transcription_service.validate_uploaded_audio_content"
+            "src.web.transcription_service.validate_uploaded_audio_content",
+            return_value=2.0,
         ):
             pipeline_cls.return_value.transcribe_chunk.return_value = "依存関係を確認して"
             response = process_web_transcription(
@@ -1811,7 +1812,8 @@ class SmokeTests(unittest.TestCase):
         ), mock.patch(
             "src.web.transcription_service.validate_model_name"
         ), mock.patch(
-            "src.web.transcription_service.validate_uploaded_audio_content"
+            "src.web.transcription_service.validate_uploaded_audio_content",
+            return_value=2.0,
         ), mock.patch(
             "src.web.transcription_service.save_handoff_bundle",
             return_value=saved_paths,
@@ -1827,6 +1829,106 @@ class SmokeTests(unittest.TestCase):
             )
         self.assertEqual(response.command_path, str(saved_paths.json_path))
         self.assertEqual(response.command_text_path, str(saved_paths.text_path))
+
+    def test_process_web_transcription_skips_short_audio_before_whisper(self) -> None:
+        """Very short recordings should not be sent to Whisper."""
+        with mock.patch(
+            "src.web.transcription_service.TranscriptionPipeline"
+        ) as pipeline_cls, mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.validate_uploaded_audio_content",
+            return_value=0.1,
+        ):
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-audio",
+                    filename="short.wav",
+                    model_name="small",
+                    language="ja",
+                )
+            )
+        pipeline_cls.assert_not_called()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.message, "音声を認識できませんでした。")
+        self.assertEqual(response.transcript, "")
+        self.assertEqual(response.debug["skip_reason"], "duration_below_minimum")
+        self.assertFalse(response.debug["whisper_invoked"])
+        self.assertTrue(response.debug["whisper_skipped"])
+        self.assertEqual(response.debug["model"], "small")
+        self.assertEqual(response.debug["language"], "ja")
+
+    def test_process_web_transcription_skips_vad_no_speech_before_whisper(self) -> None:
+        """Recordings with no VAD-detectable speech should not be sent to Whisper."""
+        with mock.patch(
+            "src.web.transcription_service.TranscriptionPipeline"
+        ) as pipeline_cls, mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.validate_uploaded_audio_content",
+            return_value=2.0,
+        ), mock.patch(
+            "src.web.transcription_service.has_detectable_speech",
+            return_value=False,
+        ):
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-audio",
+                    filename="silent.wav",
+                    model_name="small",
+                    language="ja",
+                )
+            )
+        pipeline_cls.assert_not_called()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.message, "音声を認識できませんでした。")
+        self.assertEqual(response.debug["skip_reason"], "vad_no_speech")
+        self.assertEqual(response.debug["vad"]["reason"], "no_speech_detected")
+        self.assertFalse(response.debug["whisper_invoked"])
+
+    def test_process_web_transcription_records_webm_normalization_debug(self) -> None:
+        """WebM recordings should expose normalized file facts in debug output."""
+        def fake_normalize(input_path: Path, output_path: Path, timeout_seconds: int) -> Path:
+            output_path.write_bytes(b"fake-normalized-wav")
+            return output_path
+
+        with mock.patch(
+            "src.web.transcription_service.TranscriptionPipeline"
+        ) as pipeline_cls, mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.validate_uploaded_audio_content",
+            return_value=2.0,
+        ), mock.patch(
+            "src.web.transcription_service.normalize_audio_for_transcription",
+            side_effect=fake_normalize,
+        ), mock.patch(
+            "src.web.transcription_service.probe_audio_duration",
+            return_value=1.9,
+        ), mock.patch(
+            "src.web.transcription_service.has_detectable_speech",
+            return_value=False,
+        ):
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-webm",
+                    filename="browser_recording.webm",
+                    model_name="small",
+                    language="ja",
+                )
+            )
+        pipeline_cls.assert_not_called()
+        self.assertTrue(response.debug["webm_normalized"])
+        self.assertEqual(response.debug["normalized_audio"]["suffix"], ".wav")
+        self.assertGreater(response.debug["normalized_audio"]["size_bytes"], 0)
+        self.assertEqual(response.debug["normalized_audio"]["duration_seconds"], 1.9)
+        self.assertEqual(response.debug["skip_reason"], "vad_no_speech")
 
     def test_process_web_transcription_rejects_unsupported_extension(self) -> None:
         """Web transcription service should reject non-audio upload extensions."""

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from werkzeug.utils import secure_filename
@@ -29,15 +30,19 @@ from src.io.audio import (
     validate_audio_file,
     validate_model_name,
 )
+from src.io.microphone import has_detectable_speech
 
 LOGGER = logging.getLogger(__name__)
 WEB_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 WEB_MAX_AUDIO_SECONDS = 5 * 60
+WEB_MIN_RECOGNIZABLE_AUDIO_SECONDS = 0.4
 WEB_FFPROBE_TIMEOUT_SECONDS = 10
 WEB_FFMPEG_TIMEOUT_SECONDS = 30
+WEB_VAD_AGGRESSIVENESS = 2
 GENERIC_INPUT_ERROR = "入力された音声ファイルを処理できませんでした。ファイル形式とサイズを確認してください。"
 GENERIC_ENVIRONMENT_ERROR = "サーバー側の音声処理環境でエラーが発生しました。"
 GENERIC_TRANSCRIPTION_ERROR = "文字起こし処理に失敗しました。"
+NO_RECOGNIZABLE_SPEECH_MESSAGE = "音声を認識できませんでした。"
 
 
 @dataclass(frozen=True)
@@ -65,8 +70,9 @@ class WebTranscriptionResponse:
     command_text_path: str
     error: str
     status_code: int
+    debug: dict[str, Any]
 
-    def to_payload(self) -> dict[str, str]:
+    def to_payload(self) -> dict[str, Any]:
         """Return the JSON/HTML payload shape expected by the current Web layer."""
         return {
             "message": self.message,
@@ -75,6 +81,7 @@ class WebTranscriptionResponse:
             "command_path": self.command_path,
             "command_text_path": self.command_text_path,
             "error": self.error,
+            "debug": self.debug,
         }
 
 
@@ -107,8 +114,8 @@ def validate_upload_payload(raw_bytes: bytes, filename: str) -> None:
         raise AudioInputError("unsupported uploaded audio file extension")
 
 
-def validate_uploaded_audio_content(audio_path: Path) -> None:
-    """Use ffprobe to confirm the upload is readable audio with bounded duration."""
+def probe_audio_duration(audio_path: Path) -> float | None:
+    """Return ffprobe duration for a readable uploaded audio file."""
     validate_audio_file(audio_path)
     if shutil.which("ffprobe") is None:
         raise AudioEnvironmentError("ffprobe is not installed or not found in PATH")
@@ -142,21 +149,105 @@ def validate_uploaded_audio_content(audio_path: Path) -> None:
 
     duration_value = payload.get("format", {}).get("duration")
     if duration_value in {None, "", "N/A"}:
-        return
+        return None
     try:
-        duration = float(duration_value)
+        return float(duration_value)
     except (TypeError, ValueError) as exc:
         raise AudioInputError("uploaded audio duration could not be read") from exc
+
+
+def validate_uploaded_audio_content(audio_path: Path) -> float | None:
+    """Use ffprobe to confirm the upload is readable audio with bounded duration."""
+    duration = probe_audio_duration(audio_path)
+    if duration is None:
+        return None
     if duration <= 0:
         raise AudioInputError("uploaded audio duration must be greater than zero")
     if duration > WEB_MAX_AUDIO_SECONDS:
         raise AudioInputError("uploaded audio duration exceeds the web processing limit")
+    return duration
+
+
+def describe_audio_file(audio_path: Path, duration_seconds: float | None = None) -> dict[str, Any]:
+    """Return debug-safe file facts for a temporary audio file."""
+    exists = audio_path.exists()
+    return {
+        "filename": audio_path.name,
+        "suffix": audio_path.suffix.lower(),
+        "exists": exists,
+        "size_bytes": audio_path.stat().st_size if exists else 0,
+        "duration_seconds": round(duration_seconds, 3) if duration_seconds is not None else None,
+    }
+
+
+def evaluate_speech_presence(
+    audio_path: Path,
+    duration_seconds: float | None,
+    debug: dict[str, Any],
+) -> str | None:
+    """Return a skip reason when the audio is too short or VAD finds no speech."""
+    if duration_seconds is not None and duration_seconds < WEB_MIN_RECOGNIZABLE_AUDIO_SECONDS:
+        debug["vad"] = {
+            "checked": False,
+            "speech_detected": False,
+            "reason": "duration_below_minimum",
+            "duration_seconds": round(duration_seconds, 3),
+            "minimum_seconds": WEB_MIN_RECOGNIZABLE_AUDIO_SECONDS,
+        }
+        return "duration_below_minimum"
+
+    if audio_path.suffix.lower() != ".wav":
+        debug["vad"] = {
+            "checked": False,
+            "speech_detected": None,
+            "reason": "vad_requires_normalized_wav",
+        }
+        return None
+
+    try:
+        speech_detected = has_detectable_speech(
+            audio_path,
+            aggressiveness=WEB_VAD_AGGRESSIVENESS,
+        )
+    except AudioEnvironmentError as exc:
+        LOGGER.info("Skipped Web VAD for %s: %s", audio_path.name, exc)
+        debug["vad"] = {
+            "checked": False,
+            "speech_detected": None,
+            "reason": "vad_unavailable",
+            "error_type": exc.__class__.__name__,
+        }
+        return None
+
+    debug["vad"] = {
+        "checked": True,
+        "speech_detected": speech_detected,
+        "reason": "speech_detected" if speech_detected else "no_speech_detected",
+        "aggressiveness": WEB_VAD_AGGRESSIVENESS,
+    }
+    if not speech_detected:
+        return "vad_no_speech"
+    return None
 
 
 def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTranscriptionResponse:
     """Run one Web transcription request and normalize the response payload."""
     temp_path = build_temp_upload_path(request_data.filename)
     normalized_path = temp_path.with_suffix(".normalized.wav")
+    debug: dict[str, Any] = {
+        "uploaded_filename": request_data.filename,
+        "recording_blob_size_bytes": len(request_data.raw_bytes),
+        "model": request_data.model_name,
+        "language": request_data.language or "",
+        "source": request_data.source,
+        "ffprobe_duration_seconds": None,
+        "uploaded_audio": None,
+        "webm_normalized": False,
+        "normalized_audio": None,
+        "whisper_invoked": False,
+        "whisper_skipped": False,
+        "skip_reason": "",
+    }
 
     transcript = ""
     command = ""
@@ -170,43 +261,75 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
         validate_model_name(request_data.model_name)
         ensure_ffmpeg_available()
         temp_path.write_bytes(request_data.raw_bytes)
-        validate_uploaded_audio_content(temp_path)
+        input_duration_seconds = validate_uploaded_audio_content(temp_path)
+        debug["ffprobe_duration_seconds"] = (
+            round(input_duration_seconds, 3)
+            if input_duration_seconds is not None
+            else None
+        )
+        debug["uploaded_audio"] = describe_audio_file(temp_path, input_duration_seconds)
         audio_path = temp_path
+        analysis_duration_seconds = input_duration_seconds
         if temp_path.suffix.lower() == ".webm":
             audio_path = normalize_audio_for_transcription(
                 temp_path,
                 normalized_path,
                 timeout_seconds=WEB_FFMPEG_TIMEOUT_SECONDS,
             )
-        pipeline = TranscriptionPipeline(model_name=request_data.model_name)
-        transcript = pipeline.transcribe_chunk(
-            AudioChunk(path=audio_path, source=request_data.source),
-            language=request_data.language,
-        )
-        payload = build_handoff_payload(transcript)
-        command = "" if payload is None else payload.command
-        if request_data.save_handoff:
-            saved_paths = save_handoff_bundle(
-                transcript,
-                json_path=get_default_handoff_output_path(source=request_data.source),
-                text_path=get_default_handoff_text_path(source=request_data.source),
+            analysis_duration_seconds = probe_audio_duration(audio_path)
+            debug["webm_normalized"] = True
+            debug["normalized_audio"] = describe_audio_file(
+                audio_path,
+                analysis_duration_seconds,
             )
-            if saved_paths is not None:
-                command_path = str(saved_paths.json_path)
-                command_text_path = str(saved_paths.text_path)
+        skip_reason = evaluate_speech_presence(
+            audio_path,
+            analysis_duration_seconds,
+            debug,
+        )
+        if skip_reason:
+            debug["whisper_skipped"] = True
+            debug["skip_reason"] = skip_reason
+            LOGGER.info(
+                "Skipped Web transcription before Whisper: filename=%s reason=%s",
+                request_data.filename,
+                skip_reason,
+            )
+        else:
+            debug["whisper_invoked"] = True
+            pipeline = TranscriptionPipeline(model_name=request_data.model_name)
+            transcript = pipeline.transcribe_chunk(
+                AudioChunk(path=audio_path, source=request_data.source),
+                language=request_data.language,
+            )
+            payload = build_handoff_payload(transcript)
+            command = "" if payload is None else payload.command
+            if request_data.save_handoff:
+                saved_paths = save_handoff_bundle(
+                    transcript,
+                    json_path=get_default_handoff_output_path(source=request_data.source),
+                    text_path=get_default_handoff_text_path(source=request_data.source),
+                )
+                if saved_paths is not None:
+                    command_path = str(saved_paths.json_path)
+                    command_text_path = str(saved_paths.text_path)
     except AudioInputError as exc:
         LOGGER.info("Rejected web transcription input: %s", exc)
+        debug["error_type"] = exc.__class__.__name__
         error = GENERIC_INPUT_ERROR
         status_code = 400
     except AudioEnvironmentError as exc:
         LOGGER.exception("Web transcription environment failure: %s", exc)
+        debug["error_type"] = exc.__class__.__name__
         error = GENERIC_ENVIRONMENT_ERROR
         status_code = 500
     except AudioTranscriptionError as exc:
         LOGGER.exception("Web transcription failure: %s", exc)
+        debug["error_type"] = exc.__class__.__name__
         error = GENERIC_TRANSCRIPTION_ERROR
         status_code = 500
     finally:
+        LOGGER.info("Web transcription debug: %s", debug)
         if temp_path.exists():
             temp_path.unlink()
         if normalized_path.exists():
@@ -217,7 +340,7 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
             ""
             if error
             else (
-                "音声を認識できませんでした。"
+                NO_RECOGNIZABLE_SPEECH_MESSAGE
                 if not transcript
                 else (request_data.success_message or "文字起こしが完了しました。")
             )
@@ -228,4 +351,5 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
         command_text_path=command_text_path,
         error=error,
         status_code=status_code,
+        debug=debug,
     )

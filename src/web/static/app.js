@@ -37,6 +37,7 @@ let chunks = [];
 let lastBlobSize = 0;
 let lastInputGateEnabled = null;
 let gateAutoStartBlocked = false;
+let lastServerDebug = null;
 
 const showActionFeedback = (text) => {
   actionFeedback.textContent = text;
@@ -66,6 +67,16 @@ const localFetch = (url, options = {}) => {
     headers.set("X-AI-Core-Token", apiToken);
   }
   return fetch(url, { ...options, headers });
+};
+
+const appendDebugValue = (lines, key, value) => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    Object.entries(value).forEach(([childKey, childValue]) => {
+      appendDebugValue(lines, `${key}.${childKey}`, childValue);
+    });
+    return;
+  }
+  lines.push(`${key}=${value ?? ""}`);
 };
 
 const loadDiagnostics = async () => {
@@ -137,9 +148,15 @@ const renderDebug = (note = "") => {
     `mediaRecorder=${mediaRecorder ? mediaRecorder.state : "none"}`,
     `chunks=${chunks.length}`,
     `lastBlobSize=${lastBlobSize}`,
+    `gateAuto=${isInputGateAutoRecordingEnabled()}`,
   ];
   if (note) {
     lines.push(`note=${note}`);
+  }
+  if (lastServerDebug) {
+    Object.entries(lastServerDebug).forEach(([key, value]) => {
+      appendDebugValue(lines, `server.${key}`, value);
+    });
   }
   debugBox.textContent = lines.join("\n");
 };
@@ -163,8 +180,12 @@ const setCurrentStatus = (stepName) => {
 };
 
 const setRecorderButtons = () => {
-  startButton.disabled = recorderState !== "idle";
+  const gateManaged = isInputGateAutoRecordingEnabled();
+  startButton.disabled = recorderState !== "idle" || gateManaged;
+  startButton.title = gateManaged ? "入力ゲート制御中はゲート信号で自動開始します。" : "";
+  startButton.setAttribute("aria-disabled", String(startButton.disabled));
   stopButton.disabled = recorderState !== "recording";
+  stopButton.setAttribute("aria-disabled", String(stopButton.disabled));
   renderDebug("buttons updated");
 };
 
@@ -236,6 +257,7 @@ const updateOutput = ({ message = "", transcript = "", command = "", command_pat
 };
 
 const submitForTranscription = async (url, formData, processingText, { updateRecorderStatus = false } = {}) => {
+  lastServerDebug = null;
   if (updateRecorderStatus) {
     recorderState = "uploading";
     setCurrentStatus("uploading");
@@ -255,6 +277,7 @@ const submitForTranscription = async (url, formData, processingText, { updateRec
       headers: { "X-Requested-With": "fetch" },
     });
     const payload = await response.json();
+    lastServerDebug = payload.debug || null;
     updateOutput(payload);
     if (payload.error) {
       if (updateRecorderStatus) {
@@ -295,6 +318,11 @@ uploadForm?.addEventListener("submit", async (event) => {
 });
 
 const startRecording = async (trigger = "manual") => {
+  if (trigger === "manual" && isInputGateAutoRecordingEnabled()) {
+    setStatus("入力ゲート制御中はゲート信号で録音を開始します。");
+    renderDebug("manual start blocked while input gate control is enabled");
+    return false;
+  }
   if (recorderState !== "idle") {
     renderDebug("start ignored because recorder is not idle");
     return false;
@@ -330,11 +358,14 @@ const startRecording = async (trigger = "manual") => {
       }
       const blob = new Blob(recordedChunks, { type: recorder.mimeType || "audio/webm" });
       lastBlobSize = blob.size;
-      renderDebug(`blob ready size=${blob.size}`);
+      const uploadFilename = "browser_recording.webm";
+      const recordModel = document.getElementById("record_model").value;
+      const recordLanguage = document.getElementById("record_language").value;
+      renderDebug(`blob ready size=${blob.size} filename=${uploadFilename} model=${recordModel} language=${recordLanguage}`);
       const formData = new FormData();
-      formData.append("audio_blob", blob, "browser_recording.webm");
-      formData.append("model", document.getElementById("record_model").value);
-      formData.append("language", document.getElementById("record_language").value);
+      formData.append("audio_blob", blob, uploadFilename);
+      formData.append("model", recordModel);
+      formData.append("language", recordLanguage);
       if (document.getElementById("record_instruction_only").checked) {
         formData.append("instruction_only", "true");
       }
@@ -406,6 +437,10 @@ stopButton?.addEventListener("click", () => {
 gateAutoRecord?.addEventListener("change", async () => {
   lastInputGateEnabled = null;
   gateAutoStartBlocked = false;
+  setRecorderButtons();
+  if (isInputGateAutoRecordingEnabled() && recorderState === "idle") {
+    setStatus("入力ゲート制御中です。手動開始は無効になり、ゲート信号で録音します。");
+  }
   await loadInputGate();
 });
 

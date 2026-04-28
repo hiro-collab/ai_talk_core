@@ -290,6 +290,13 @@ select {
   color: var(--text);
 }
 
+.primary-action:disabled,
+.secondary-action:disabled,
+.ghost-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .record-actions,
 .result-actions {
   display: flex;
