@@ -5,7 +5,10 @@ from __future__ import annotations
 import _thread
 import hmac
 from ipaddress import ip_address
+import json
 import os
+from pathlib import Path
+import queue
 import secrets
 import shutil
 import threading
@@ -22,6 +25,7 @@ from flask import (
 )
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from src.core.events import emit_event, get_event_bus, get_event_log_path, new_turn_id
 from src.core.input_gate import InputGate, InputGateError, InputGateState
 from src.core.status_report import build_doctor_status
 from src.core.handoff_bridge import build_handoff_metadata, load_handoff_bundle
@@ -48,9 +52,12 @@ LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 TOKEN_PROTECTED_ENDPOINTS = {
     "api_doctor",
+    "api_event_ingest",
+    "api_events",
     "api_health",
     "api_input_gate_get",
     "api_input_gate_post",
+    "api_recording_chunk",
     "api_status",
     "api_agent_handoff_latest",
     "api_codex_handoff_latest",
@@ -219,6 +226,97 @@ def create_app() -> Flask:
             file_storage.read(),
             file_storage.filename,
             message="ブラウザ録音を処理しました。",
+        )
+
+    @app.post("/api/recording-chunk")
+    def api_recording_chunk() -> tuple[object, int]:
+        file_storage = request.files.get("audio_chunk")
+        turn_id = normalize_turn_id(
+            request.form.get("turn_id", "").strip()
+        ) or new_turn_id("web")
+        sequence = parse_nonnegative_int(request.form.get("sequence"))
+        if file_storage is None or file_storage.filename == "":
+            return jsonify({"ok": False, "error": "audio_chunk is required"}), 400
+        if sequence is None:
+            return jsonify({"ok": False, "error": "sequence must be a non-negative integer"}), 400
+        raw_bytes = file_storage.read()
+        if not raw_bytes:
+            return jsonify({"ok": False, "error": "audio_chunk is empty"}), 400
+        if len(raw_bytes) > WEB_MAX_UPLOAD_BYTES:
+            return jsonify({"ok": False, "error": "audio_chunk is too large"}), 413
+        chunk_dir = get_recording_chunk_dir(turn_id)
+        chunk_path = chunk_dir / f"chunk_{sequence:06d}.webm"
+        chunk_path.write_bytes(raw_bytes)
+        is_final = parse_boolish(request.form.get("is_final")) is True
+        event = emit_event(
+            "record_chunk",
+            turn_id=turn_id,
+            source="web",
+            payload={
+                "sequence": sequence,
+                "size_bytes": len(raw_bytes),
+                "is_final": is_final,
+                "path": chunk_path,
+                "mime_type": file_storage.mimetype,
+            },
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "turn_id": turn_id,
+                "sequence": sequence,
+                "size_bytes": len(raw_bytes),
+                "event": event.to_payload(),
+            }
+        ), 202
+
+    @app.post("/api/events/ingest")
+    def api_event_ingest() -> tuple[object, int]:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "error": "request body must be a JSON object"}), 400
+        event_name = normalize_event_name(payload.get("event"))
+        if not event_name:
+            return jsonify({"ok": False, "error": "event is required"}), 400
+        turn_id = normalize_turn_id(payload.get("turn_id")) or new_turn_id("web")
+        event_payload = payload.get("payload")
+        if not isinstance(event_payload, dict):
+            event_payload = {}
+        for key in (
+            "client_timestamp_wall",
+            "client_timestamp_monotonic",
+            "client_performance_now",
+        ):
+            if key in payload:
+                event_payload[key] = payload[key]
+        event = emit_event(
+            event_name,
+            turn_id=turn_id,
+            source=str(payload.get("source") or "web-ui"),
+            payload=event_payload,
+        )
+        return jsonify({"ok": True, "event": event.to_payload()}), 202
+
+    @app.get("/api/events")
+    def api_events() -> Response:
+        def stream_events() -> object:
+            yield ": connected\n\n"
+            with get_event_bus().subscribe() as subscriber:
+                while True:
+                    try:
+                        event = subscriber.get(timeout=15)
+                    except queue.Empty:
+                        yield ": keepalive\n\n"
+                        continue
+                    yield format_sse_event(event.to_payload(), event.event)
+
+        return Response(
+            stream_events(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     def build_handoff_response() -> tuple[object, int]:
@@ -460,6 +558,11 @@ def build_health_response(
             "ready": ffmpeg_available,
             "max_upload_bytes": WEB_MAX_UPLOAD_BYTES,
         },
+        "events": {
+            "ready": True,
+            "stream": "/api/events",
+            "log_path": str(get_event_log_path()),
+        },
         "input_gate": input_gate_state.to_payload(),
         "latest_handoff": latest_handoff,
         "web_preset": get_web_preset(),
@@ -518,11 +621,13 @@ def process_transcription_request(
                 return True
         return False
 
+    turn_id = normalize_turn_id(request.form.get("turn_id")) or new_turn_id("web")
     try:
         response = process_web_transcription(
             WebTranscriptionRequest(
                 raw_bytes=raw_bytes,
                 filename=filename,
+                turn_id=turn_id,
                 model_name=request.form.get("model", "small").strip() or "small",
                 language=request.form.get("language", "").strip() or None,
                 command_only=read_bool_flag("instruction_only", "command_only"),
@@ -594,6 +699,60 @@ def parse_boolish(value: object) -> bool | None:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return None
+
+
+def normalize_turn_id(value: object) -> str:
+    """Return a path-safe turn id or an empty string."""
+    if value is None:
+        return ""
+    normalized = str(value).strip()
+    if not normalized or len(normalized) > 128:
+        return ""
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+    if any(character not in allowed for character in normalized):
+        return ""
+    return normalized
+
+
+def normalize_event_name(value: object) -> str:
+    """Return a compact event name accepted by the local event ingest API."""
+    if value is None:
+        return ""
+    normalized = str(value).strip()
+    if not normalized or len(normalized) > 80:
+        return ""
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+    if any(character not in allowed for character in normalized):
+        return ""
+    return normalized
+
+
+def parse_nonnegative_int(value: object) -> int | None:
+    """Parse a non-negative integer from request data."""
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    if parsed < 0:
+        return None
+    return parsed
+
+
+def get_recording_chunk_dir(turn_id: str) -> Path:
+    """Return the server-side chunk landing directory for one turn."""
+    safe_turn_id = normalize_turn_id(turn_id)
+    if not safe_turn_id:
+        raise ValueError("invalid turn_id")
+    project_root = Path(__file__).resolve().parents[2]
+    chunk_dir = project_root / ".cache" / "web_recording_chunks" / safe_turn_id
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    return chunk_dir
+
+
+def format_sse_event(payload: dict[str, object], event_name: str) -> str:
+    """Format one event as a Server-Sent Events frame."""
+    data = json.dumps(payload, ensure_ascii=False)
+    return f"event: {event_name}\ndata: {data}\n\n"
 
 
 def schedule_server_shutdown(werkzeug_shutdown: object | None = None) -> None:

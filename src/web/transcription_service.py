@@ -13,13 +13,14 @@ from uuid import uuid4
 
 from werkzeug.utils import secure_filename
 
+from src.core.events import emit_event, new_turn_id, text_payload_facts
 from src.core.handoff_bridge import (
     build_handoff_payload,
     get_default_handoff_output_path,
     get_default_handoff_text_path,
     save_handoff_bundle,
 )
-from src.core.pipeline import AudioChunk, TranscriptionPipeline
+from src.core.pipeline import AudioChunk, get_cached_transcription_pipeline
 from src.io.audio import (
     AudioEnvironmentError,
     AudioInputError,
@@ -51,6 +52,7 @@ class WebTranscriptionRequest:
 
     raw_bytes: bytes
     filename: str
+    turn_id: str | None = None
     model_name: str = "small"
     language: str | None = None
     command_only: bool = False
@@ -70,6 +72,7 @@ class WebTranscriptionResponse:
     command_text_path: str
     error: str
     status_code: int
+    turn_id: str
     debug: dict[str, Any]
 
     def to_payload(self) -> dict[str, Any]:
@@ -81,6 +84,7 @@ class WebTranscriptionResponse:
             "command_path": self.command_path,
             "command_text_path": self.command_text_path,
             "error": self.error,
+            "turn_id": self.turn_id,
             "debug": self.debug,
         }
 
@@ -232,9 +236,11 @@ def evaluate_speech_presence(
 
 def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTranscriptionResponse:
     """Run one Web transcription request and normalize the response payload."""
+    turn_id = request_data.turn_id or new_turn_id("web")
     temp_path = build_temp_upload_path(request_data.filename)
     normalized_path = temp_path.with_suffix(".normalized.wav")
     debug: dict[str, Any] = {
+        "turn_id": turn_id,
         "uploaded_filename": request_data.filename,
         "recording_blob_size_bytes": len(request_data.raw_bytes),
         "model": request_data.model_name,
@@ -297,10 +303,51 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
             )
         else:
             debug["whisper_invoked"] = True
-            pipeline = TranscriptionPipeline(model_name=request_data.model_name)
-            transcript = pipeline.transcribe_chunk(
-                AudioChunk(path=audio_path, source=request_data.source),
-                language=request_data.language,
+            emit_event(
+                "stt_start",
+                turn_id=turn_id,
+                source=request_data.source,
+                payload={
+                    "model": request_data.model_name,
+                    "language": request_data.language or "",
+                    "audio": describe_audio_file(audio_path, analysis_duration_seconds),
+                },
+            )
+            try:
+                pipeline = get_cached_transcription_pipeline(
+                    model_name=request_data.model_name
+                )
+                transcript = pipeline.transcribe_chunk(
+                    AudioChunk(path=audio_path, source=request_data.source),
+                    language=request_data.language,
+                )
+            except Exception as exc:
+                emit_event(
+                    "stt_done",
+                    turn_id=turn_id,
+                    source=request_data.source,
+                    payload={
+                        "model": request_data.model_name,
+                        "status": "error",
+                        "error_type": exc.__class__.__name__,
+                    },
+                )
+                raise
+            emit_event(
+                "stt_done",
+                turn_id=turn_id,
+                source=request_data.source,
+                payload={
+                    "model": request_data.model_name,
+                    "status": "ok",
+                    **text_payload_facts(transcript),
+                },
+            )
+            emit_event(
+                "stt_final",
+                turn_id=turn_id,
+                source=request_data.source,
+                payload=text_payload_facts(transcript),
             )
             payload = build_handoff_payload(transcript)
             command = "" if payload is None else payload.command
@@ -351,5 +398,6 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
         command_text_path=command_text_path,
         error=error,
         status_code=status_code,
+        turn_id=turn_id,
         debug=debug,
     )

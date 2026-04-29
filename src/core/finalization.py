@@ -47,6 +47,8 @@ def should_mark_result_final(
         return False
     if len(current_text) < 3:
         return False
+    if final_stable_seconds <= chunk_duration and repeat_count >= 1:
+        return True
     if repeat_count >= required_repeat_count_for_final(current_text):
         return True
     return has_stable_duration_for_final(

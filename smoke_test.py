@@ -83,7 +83,12 @@ from src.codex_runner import (
     validate_runner_command_available,
 )
 from src.ollama_runner import build_ollama_command
-from src.core.pipeline import AudioChunk, TranscriptionResult
+from src.core.pipeline import (
+    AudioChunk,
+    TranscriptionResult,
+    clear_transcription_pipeline_cache,
+    get_cached_transcription_pipeline,
+)
 from src.core.session import MicLoopSession, MicLoopTuning
 from src.drivers import DriverRequest, DriverResponse, DriverResult, dispatch_driver_request
 from src.runners.common import emit_driver_result, execute_runner_command
@@ -93,6 +98,7 @@ from src.web.app import (
     WEB_PRESET_CONFIG,
     build_input_gate_response,
     create_app,
+    get_recording_chunk_dir,
     render_page,
 )
 from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
@@ -305,7 +311,7 @@ class SmokeTests(unittest.TestCase):
         result = run_cli("--mic-loop", "--duration", "1", "--mic-profile", "fastish")
         self.assertEqual(result.returncode, 1)
         self.assertIn(
-            "Input error: --mic-profile must be one of: responsive, balanced, strict",
+            "Input error: --mic-profile must be one of: responsive, balanced, strict, low_latency",
             result.stdout,
         )
 
@@ -317,6 +323,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("responsive", result.stdout)
         self.assertIn("balanced", result.stdout)
         self.assertIn("strict", result.stdout)
+        self.assertIn("low_latency", result.stdout)
 
     def test_list_mic_profiles_can_return_json(self) -> None:
         """Profile listing should support JSON output."""
@@ -450,6 +457,9 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("record_save_handoff", page)
         self.assertIn("data-api-doctor", page)
         self.assertIn("data-api-input-gate", page)
+        self.assertIn("data-api-recording-chunk", page)
+        self.assertIn("data-api-events-ingest", page)
+        self.assertIn("data-api-events", page)
         self.assertIn("data-api-token", page)
         self.assertIn("data-web-preset", page)
         self.assertIn("app.css", page)
@@ -477,6 +487,11 @@ class SmokeTests(unittest.TestCase):
             self.assertIn("getSupportedConstraints", js_text)
             self.assertIn("getSettings", js_text)
             self.assertIn("getUserMedia({ audio: audioConstraints })", js_text)
+            self.assertIn("RECORDING_CHUNK_TIMESLICE_MS", js_text)
+            self.assertIn("recordingChunk", js_text)
+            self.assertIn("eventsIngest", js_text)
+            self.assertIn("record_start", js_text)
+            self.assertIn("record_stop", js_text)
             self.assertIn("OPTION_PROFILES", js_text)
             self.assertIn("OPTION_PROFILE_ALIASES", js_text)
             self.assertIn("integration", js_text)
@@ -520,6 +535,8 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("active_transcriptions", payload["server"])
         self.assertIn("stt", payload)
         self.assertIn("ffmpeg_available", payload["stt"])
+        self.assertIn("events", payload)
+        self.assertEqual(payload["events"]["stream"], "/api/events")
         self.assertIn("input_gate", payload)
         self.assertIn("latest_handoff", payload)
 
@@ -613,6 +630,75 @@ class SmokeTests(unittest.TestCase):
         payload = response.get_json()
         self.assertIsNotNone(payload)
         self.assertFalse(payload["ok"])
+
+    def test_api_event_ingest_accepts_client_timing_event(self) -> None:
+        """Web UI client events should enter the turn event bus."""
+        response = self.client.post(
+            "/api/events/ingest",
+            json={
+                "event": "record_start",
+                "turn_id": "webtestevent",
+                "source": "web-ui",
+                "client_timestamp_monotonic": 12.5,
+                "payload": {"trigger": "manual"},
+            },
+            headers=self.local_api_headers(),
+        )
+        self.assertEqual(response.status_code, 202)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["event"]["event"], "record_start")
+        self.assertEqual(payload["event"]["turn_id"], "webtestevent")
+        self.assertIn("timestamp_wall", payload["event"])
+        self.assertIn("timestamp_monotonic", payload["event"])
+
+    def test_api_event_ingest_requires_local_token(self) -> None:
+        """Event stream inputs expose local timing state and require the UI token."""
+        response = self.client.post(
+            "/api/events/ingest",
+            json={"event": "record_start", "turn_id": "webtestevent"},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_recording_chunk_persists_chunk_boundary(self) -> None:
+        """Browser recording chunks should have a server-side landing boundary."""
+        turn_id = "webtestchunk"
+        chunk_path = get_recording_chunk_dir(turn_id) / "chunk_000003.webm"
+        if chunk_path.exists():
+            remove_path_with_retry(chunk_path)
+        response = self.client.post(
+            "/api/recording-chunk",
+            data={
+                "audio_chunk": (io.BytesIO(b"chunk-bytes"), "chunk_000003.webm"),
+                "turn_id": turn_id,
+                "sequence": "3",
+            },
+            content_type="multipart/form-data",
+            headers=self.local_api_headers(),
+        )
+        self.assertEqual(response.status_code, 202)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["turn_id"], turn_id)
+        self.assertEqual(payload["sequence"], 3)
+        self.assertTrue(chunk_path.exists())
+        self.assertEqual(chunk_path.read_bytes(), b"chunk-bytes")
+        remove_path_with_retry(chunk_path)
+
+    def test_api_recording_chunk_requires_local_token(self) -> None:
+        """Chunk upload boundaries should not be exposed without the UI token."""
+        response = self.client.post(
+            "/api/recording-chunk",
+            data={
+                "audio_chunk": (io.BytesIO(b"chunk-bytes"), "chunk_000000.webm"),
+                "turn_id": "webtestchunk",
+                "sequence": "0",
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_build_input_gate_response_wraps_state_payload(self) -> None:
         """Input-gate response helper should return a stable envelope."""
@@ -1398,6 +1484,16 @@ class SmokeTests(unittest.TestCase):
         )
         self.assertFalse(should_mark_result_final(result, 2, False, 3, 8))
 
+    def test_low_latency_threshold_can_mark_first_short_utterance_final(self) -> None:
+        """Low-latency tuning may finalize a short utterance after one chunk."""
+        result = TranscriptionResult(
+            source="microphone",
+            text="こんにちは",
+            is_final=False,
+            chunk_count=1,
+        )
+        self.assertTrue(should_mark_result_final(result, 1, False, 1, 1))
+
     def test_long_transcript_marks_result_final_with_two_repeats(self) -> None:
         """Longer stable transcripts may finalize after two repeats."""
         result = TranscriptionResult(
@@ -1441,7 +1537,7 @@ class SmokeTests(unittest.TestCase):
 
     def test_validate_mic_profile_accepts_supported_values(self) -> None:
         """Supported mic profiles should pass validation."""
-        for value in ("responsive", "balanced", "strict"):
+        for value in ("responsive", "balanced", "strict", "low_latency"):
             validate_mic_profile(value)
 
     def test_resolve_mic_loop_tuning_uses_profile_defaults(self) -> None:
@@ -1449,6 +1545,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(resolve_mic_loop_tuning("responsive", None, None), (1, 5))
         self.assertEqual(resolve_mic_loop_tuning("balanced", None, None), (2, 8))
         self.assertEqual(resolve_mic_loop_tuning("strict", None, None), (3, 10))
+        self.assertEqual(resolve_mic_loop_tuning("low_latency", None, None), (1, 1))
 
     def test_resolve_mic_loop_tuning_preserves_explicit_overrides(self) -> None:
         """Explicit CLI overrides should win over profile defaults."""
@@ -1467,6 +1564,7 @@ class SmokeTests(unittest.TestCase):
         """Profile list formatter should describe the preset values."""
         listing = format_mic_profile_list()
         self.assertIn("responsive", listing)
+        self.assertIn("low_latency", listing)
         self.assertIn("vad_aggressiveness=1", listing)
         self.assertIn("final_stable_seconds=10", listing)
 
@@ -2008,7 +2106,7 @@ class SmokeTests(unittest.TestCase):
     def test_process_web_transcription_supports_command_only(self) -> None:
         """Web transcription service should hide transcript in command-only mode."""
         with mock.patch(
-            "src.web.transcription_service.TranscriptionPipeline"
+            "src.web.transcription_service.get_cached_transcription_pipeline"
         ) as pipeline_cls, mock.patch(
             "src.web.transcription_service.ensure_ffmpeg_available"
         ), mock.patch(
@@ -2038,7 +2136,7 @@ class SmokeTests(unittest.TestCase):
             text_path=Path("/tmp/web_latest.txt"),
         )
         with mock.patch(
-            "src.web.transcription_service.TranscriptionPipeline"
+            "src.web.transcription_service.get_cached_transcription_pipeline"
         ) as pipeline_cls, mock.patch(
             "src.web.transcription_service.ensure_ffmpeg_available"
         ), mock.patch(
@@ -2065,7 +2163,7 @@ class SmokeTests(unittest.TestCase):
     def test_process_web_transcription_skips_short_audio_before_whisper(self) -> None:
         """Very short recordings should not be sent to Whisper."""
         with mock.patch(
-            "src.web.transcription_service.TranscriptionPipeline"
+            "src.web.transcription_service.get_cached_transcription_pipeline"
         ) as pipeline_cls, mock.patch(
             "src.web.transcription_service.ensure_ffmpeg_available"
         ), mock.patch(
@@ -2095,7 +2193,7 @@ class SmokeTests(unittest.TestCase):
     def test_process_web_transcription_skips_vad_no_speech_before_whisper(self) -> None:
         """Recordings with no VAD-detectable speech should not be sent to Whisper."""
         with mock.patch(
-            "src.web.transcription_service.TranscriptionPipeline"
+            "src.web.transcription_service.get_cached_transcription_pipeline"
         ) as pipeline_cls, mock.patch(
             "src.web.transcription_service.ensure_ffmpeg_available"
         ), mock.patch(
@@ -2129,7 +2227,7 @@ class SmokeTests(unittest.TestCase):
             return output_path
 
         with mock.patch(
-            "src.web.transcription_service.TranscriptionPipeline"
+            "src.web.transcription_service.get_cached_transcription_pipeline"
         ) as pipeline_cls, mock.patch(
             "src.web.transcription_service.ensure_ffmpeg_available"
         ), mock.patch(
@@ -2535,6 +2633,21 @@ class SmokeTests(unittest.TestCase):
         """Non-CUDA model load errors should not trigger a CPU retry."""
         exc = RuntimeError("unknown Whisper load failure")
         self.assertFalse(should_retry_model_load_on_cpu(exc))
+
+    def test_transcription_pipeline_cache_reuses_model_by_name(self) -> None:
+        """Web transcription should be able to reuse process-local Whisper pipelines."""
+        clear_transcription_pipeline_cache()
+        try:
+            with mock.patch("src.core.pipeline.load_transcription_model") as load_model:
+                load_model.side_effect = [object(), object()]
+                first = get_cached_transcription_pipeline("small")
+                second = get_cached_transcription_pipeline("small")
+                third = get_cached_transcription_pipeline("base")
+            self.assertIs(first, second)
+            self.assertIsNot(first, third)
+            self.assertEqual(load_model.call_count, 2)
+        finally:
+            clear_transcription_pipeline_cache()
 
     def test_print_agent_instruction_only_handles_blank(self) -> None:
         """command-only printer should handle blank transcripts."""

@@ -30,12 +30,16 @@ const diagInputGate = document.getElementById("diag-input-gate");
 const endpoints = {
   transcribeUpload: appRoot?.dataset.apiTranscribeUpload || "/api/transcribe-upload",
   browserRecording: appRoot?.dataset.apiTranscribeBrowserRecording || "/api/transcribe-browser-recording",
+  recordingChunk: appRoot?.dataset.apiRecordingChunk || "/api/recording-chunk",
+  eventsIngest: appRoot?.dataset.apiEventsIngest || "/api/events/ingest",
+  events: appRoot?.dataset.apiEvents || "/api/events",
   agentHandoffLatest: appRoot?.dataset.apiAgentHandoffLatest || "/api/agent-handoff-latest",
   doctor: appRoot?.dataset.apiDoctor || "/api/doctor",
   inputGate: appRoot?.dataset.apiInputGate || "/api/input-gate",
 };
 const apiToken = appRoot?.dataset.apiToken || "";
 const WEB_OPTIONS_STORAGE_KEY = "ai_talk_core.web_options.v1";
+const RECORDING_CHUNK_TIMESLICE_MS = 500;
 const TRUE_OPTION_VALUES = new Set(["1", "true", "yes", "on"]);
 const FALSE_OPTION_VALUES = new Set(["0", "false", "no", "off"]);
 const OPTION_PROFILES = {
@@ -71,6 +75,9 @@ let activeStream = null;
 let recorderState = "idle";
 let chunks = [];
 let lastBlobSize = 0;
+let activeTurnId = "";
+let chunkSequence = 0;
+let pendingChunkUploads = [];
 let lastInputGateEnabled = null;
 let gateAutoStartBlocked = false;
 let lastServerDebug = null;
@@ -115,6 +122,41 @@ const localFetch = (url, options = {}) => {
     headers.set("X-AI-Core-Token", apiToken);
   }
   return fetch(url, { ...options, headers });
+};
+
+const createTurnId = () => {
+  if (window.crypto?.randomUUID) {
+    return `web_${window.crypto.randomUUID().replaceAll("-", "")}`;
+  }
+  return `web_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+};
+
+const buildClientTiming = () => ({
+  client_timestamp_wall: new Date().toISOString(),
+  client_timestamp_monotonic: performance.now() / 1000,
+  client_performance_now: performance.now(),
+});
+
+const emitTurnEvent = async (eventName, payload = {}) => {
+  const turnId = activeTurnId || createTurnId();
+  try {
+    await localFetch(endpoints.eventsIngest, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "fetch",
+      },
+      body: JSON.stringify({
+        event: eventName,
+        turn_id: turnId,
+        source: "web-ui",
+        payload,
+        ...buildClientTiming(),
+      }),
+    });
+  } catch (error) {
+    renderDebug(`event emit failed ${eventName}: ${error}`);
+  }
 };
 
 const appendDebugValue = (lines, key, value) => {
@@ -433,6 +475,10 @@ const renderDebug = (note = "") => {
     `state=${recorderState}`,
     `mediaRecorder=${mediaRecorder ? mediaRecorder.state : "none"}`,
     `chunks=${chunks.length}`,
+    `turnId=${activeTurnId}`,
+    `chunkSequence=${chunkSequence}`,
+    `pendingChunkUploads=${pendingChunkUploads.length}`,
+    `chunkTimesliceMs=${RECORDING_CHUNK_TIMESLICE_MS}`,
     `lastBlobSize=${lastBlobSize}`,
     `gateAuto=${isInputGateAutoRecordingEnabled()}`,
     `selectedMicrophone=${getSelectedMicrophoneLabel()}`,
@@ -501,6 +547,39 @@ const resetRecorderState = () => {
   recorderState = "idle";
   setCurrentStatus("idle");
   setRecorderButtons();
+};
+
+const uploadRecordingChunk = (chunkBlob) => {
+  if (!chunkBlob?.size || !activeTurnId) {
+    return;
+  }
+  const sequence = chunkSequence;
+  chunkSequence += 1;
+  const formData = new FormData();
+  formData.append("audio_chunk", chunkBlob, `chunk_${String(sequence).padStart(6, "0")}.webm`);
+  formData.append("turn_id", activeTurnId);
+  formData.append("sequence", String(sequence));
+  formData.append("is_final", "false");
+  const upload = localFetch(endpoints.recordingChunk, {
+    method: "POST",
+    body: formData,
+    headers: { "X-Requested-With": "fetch" },
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`chunk upload ${response.status}: ${text}`);
+      }
+      return response.json();
+    })
+    .catch((error) => {
+      renderDebug(`chunk upload failed sequence=${sequence}: ${error}`);
+    });
+  pendingChunkUploads.push(upload);
+  upload.finally(() => {
+    pendingChunkUploads = pendingChunkUploads.filter((candidate) => candidate !== upload);
+    renderDebug(`chunk upload settled sequence=${sequence}`);
+  });
 };
 
 const isInputGateAutoRecordingEnabled = () => Boolean(gateAutoRecord?.checked);
@@ -621,6 +700,9 @@ const startRecording = async (trigger = "manual") => {
   }
   chunks = [];
   lastBlobSize = 0;
+  activeTurnId = createTurnId();
+  chunkSequence = 0;
+  pendingChunkUploads = [];
   try {
     const audioConstraints = buildAudioConstraints();
     renderDebug("requesting microphone");
@@ -636,6 +718,7 @@ const startRecording = async (trigger = "manual") => {
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         chunks.push(event.data);
+        uploadRecordingChunk(event.data);
       }
       renderDebug(`dataavailable size=${event.data.size}`);
     };
@@ -646,8 +729,15 @@ const startRecording = async (trigger = "manual") => {
       }
       const recordedChunks = [...chunks];
       lastBlobSize = recordedChunks.reduce((total, chunk) => total + chunk.size, 0);
+      await emitTurnEvent("record_stop", {
+        chunk_count: recordedChunks.length,
+        chunk_sequence: chunkSequence,
+        blob_size_bytes: lastBlobSize,
+      });
+      const stoppedTurnId = activeTurnId;
       resetRecorderState();
       if (!recorder || recordedChunks.length === 0) {
+        activeTurnId = "";
         setStatus("録音データが空です。もう一度試してください。");
         setCurrentStatus("error");
         renderDebug("no recorded chunks after stop");
@@ -661,6 +751,7 @@ const startRecording = async (trigger = "manual") => {
       renderDebug(`blob ready size=${blob.size} filename=${uploadFilename} model=${recordModel} language=${recordLanguage}`);
       const formData = new FormData();
       formData.append("audio_blob", blob, uploadFilename);
+      formData.append("turn_id", stoppedTurnId);
       formData.append("model", recordModel);
       formData.append("language", recordLanguage);
       if (document.getElementById("record_instruction_only").checked) {
@@ -675,6 +766,7 @@ const startRecording = async (trigger = "manual") => {
         "録音データをアップロードして処理中...",
         { updateRecorderStatus: true }
       );
+      activeTurnId = "";
     };
     recorder.onerror = () => {
       resetRecorderState();
@@ -682,7 +774,7 @@ const startRecording = async (trigger = "manual") => {
       setCurrentStatus("error");
       renderDebug("recorder error");
     };
-    recorder.start();
+    recorder.start(RECORDING_CHUNK_TIMESLICE_MS);
     recorderState = "recording";
     setCurrentStatus("recording");
     setRecorderButtons();
@@ -692,9 +784,15 @@ const startRecording = async (trigger = "manual") => {
       setStatus("録音中です。停止後にアップロードして文字起こしします。");
     }
     renderDebug(`recording started trigger=${trigger}`);
+    await emitTurnEvent("record_start", {
+      trigger,
+      timeslice_ms: RECORDING_CHUNK_TIMESLICE_MS,
+      mime_type: recorder.mimeType || "",
+    });
     return true;
   } catch (error) {
     resetRecorderState();
+    activeTurnId = "";
     if (trigger === "input_gate") {
       gateAutoStartBlocked = true;
     }

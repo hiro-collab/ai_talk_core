@@ -42,6 +42,7 @@ MIC_LOOP_PROFILES: dict[str, tuple[int, int, str]] = {
     "responsive": (1, 5, "反応を優先し、早めに partial/final を出す"),
     "balanced": (2, 8, "既定のバランス設定"),
     "strict": (3, 10, "無音と誤認識を減らす代わりに確定を遅くする"),
+    "low_latency": (1, 1, "短い発話を1回の final として試験的に早期確定する"),
 }
 
 
@@ -258,7 +259,8 @@ def validate_mic_profile(profile: str) -> None:
     """Validate the selected mic-loop tuning profile."""
     if profile not in MIC_LOOP_PROFILES:
         raise AudioInputError(
-            "--mic-profile must be one of: responsive, balanced, strict"
+            "--mic-profile must be one of: "
+            + ", ".join(MIC_LOOP_PROFILES)
         )
 
 
@@ -385,7 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mic-profile",
         default="balanced",
-        help="Mic-loop tuning profile: responsive, balanced, or strict. Default: balanced",
+        help="Mic-loop tuning profile: responsive, balanced, strict, or low_latency. Default: balanced",
     )
     parser.add_argument(
         "--list-mic-profiles",

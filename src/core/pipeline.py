@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import threading
 from typing import Any
 
 from src.io.audio import AudioInputError, load_transcription_model, transcribe_file
@@ -81,3 +82,23 @@ class TranscriptionPipeline:
             is_final=is_final,
             chunk_count=len(buffer.chunks),
         )
+
+
+_PIPELINE_CACHE: dict[str, TranscriptionPipeline] = {}
+_PIPELINE_CACHE_LOCK = threading.Lock()
+
+
+def get_cached_transcription_pipeline(model_name: str = "small") -> TranscriptionPipeline:
+    """Return one process-local transcription pipeline per Whisper model name."""
+    with _PIPELINE_CACHE_LOCK:
+        pipeline = _PIPELINE_CACHE.get(model_name)
+        if pipeline is None:
+            pipeline = TranscriptionPipeline(model_name=model_name)
+            _PIPELINE_CACHE[model_name] = pipeline
+        return pipeline
+
+
+def clear_transcription_pipeline_cache() -> None:
+    """Clear cached pipelines, primarily for tests."""
+    with _PIPELINE_CACHE_LOCK:
+        _PIPELINE_CACHE.clear()
