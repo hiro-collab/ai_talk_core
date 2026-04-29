@@ -5,6 +5,7 @@ param(
     [switch]$SkipDoctor,
     [string]$Preset = $env:AI_TALK_CORE_WEB_PRESET,
     [string]$Token = $env:AI_TALK_CORE_WEB_TOKEN,
+    [string]$RuntimeStatusFile = "",
     [string]$Query = ""
 )
 
@@ -97,4 +98,8 @@ if (-not $NoOpen) {
 
 Write-Host "Starting ai_core Web UI at $url"
 Write-Host "Press Ctrl+C to stop the server."
-& $projectPython -m src.web.app
+$webArgs = @("-m", "src.web.app")
+if ($RuntimeStatusFile.Trim()) {
+    $webArgs += @("--runtime-status-file", $RuntimeStatusFile.Trim())
+}
+& $projectPython @webArgs

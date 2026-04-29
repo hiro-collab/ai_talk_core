@@ -108,9 +108,12 @@ from src.web.app import (
     WEB_MAX_RECORDING_CHUNK_BYTES,
     WEB_RECORDING_CHUNK_RETENTION_SECONDS,
     WEB_MAX_RECORDING_CHUNKS,
+    RuntimeStatusWriter,
+    build_runtime_status_payload,
     build_input_gate_response,
     create_app,
     get_recording_chunk_dir,
+    parse_bearer_token,
     prune_recording_chunk_cache,
     render_page,
 )
@@ -557,6 +560,19 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("input_gate", payload)
         self.assertIn("latest_handoff", payload)
 
+    def test_health_endpoint_returns_process_contract(self) -> None:
+        """Unprefixed health endpoint should expose the supervisor contract."""
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["module"], "ai_talk_core.web")
+        self.assertEqual(payload["pid"], os.getpid())
+        self.assertIn("uptime_s", payload)
+        self.assertEqual(payload["host"], "127.0.0.1")
+        self.assertEqual(payload["port"], 8000)
+
     def test_api_health_reports_relative_event_log_path(self) -> None:
         """Status output should not expose the operator's absolute workspace root."""
         response = self.client.get("/api/health", headers=self.local_api_headers())
@@ -612,6 +628,86 @@ class SmokeTests(unittest.TestCase):
         status_payload = status_response.get_json()
         self.assertIsNotNone(status_payload)
         self.assertFalse(status_payload["ready"])
+
+    def test_shutdown_endpoint_sets_runtime_state_on_loopback(self) -> None:
+        """Unprefixed shutdown should stop cooperatively for local supervisors."""
+        app = create_app()
+        app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = False
+        client = app.test_client()
+        response = client.post("/shutdown")
+        self.assertEqual(response.status_code, 202)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["shutdown"]["shutdown_requested"])
+        self.assertEqual(payload["shutdown"]["shutdown_reason"], "shutdown_endpoint")
+
+    def test_non_loopback_shutdown_accepts_sword_agent_token(self) -> None:
+        """Non-loopback bind configurations should require an automation token."""
+        app = create_app(host="0.0.0.0")
+        app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = False
+        client = app.test_client()
+        token = app.config["LOCAL_API_TOKEN"]
+        rejected = client.post("/shutdown")
+        self.assertEqual(rejected.status_code, 403)
+        accepted = client.post(
+            "/shutdown",
+            headers={"X-Sword-Agent-Token": token},
+        )
+        self.assertEqual(accepted.status_code, 202)
+
+    def test_authorization_bearer_token_is_supported(self) -> None:
+        """Automation callers should be able to use Authorization: Bearer."""
+        app = create_app()
+        app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = False
+        client = app.test_client()
+        response = client.get(
+            "/api/health",
+            headers={"Authorization": f"Bearer {app.config['LOCAL_API_TOKEN']}"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_parse_bearer_token_rejects_non_bearer_values(self) -> None:
+        """Only Bearer auth should be interpreted as a local API token."""
+        self.assertEqual(parse_bearer_token("Bearer abc123"), "abc123")
+        self.assertEqual(parse_bearer_token("Basic abc123"), "")
+
+    def test_runtime_status_payload_contains_supervisor_fields(self) -> None:
+        """Runtime status JSON should give launch supervisors exact process facts."""
+        payload = build_runtime_status_payload(
+            state="running",
+            host="127.0.0.1",
+            port=8000,
+            started_at="2026-04-29T00:00:00Z",
+            command_line="python -m src.web.app",
+        )
+        self.assertEqual(payload["module"], "ai_talk_core.web")
+        self.assertEqual(payload["state"], "running")
+        self.assertEqual(payload["pid"], os.getpid())
+        self.assertEqual(payload["parent_pid"], os.getppid())
+        self.assertEqual(payload["health_url"], "http://127.0.0.1:8000/health")
+        self.assertEqual(payload["shutdown_url"], "http://127.0.0.1:8000/shutdown")
+        self.assertEqual(payload["command_line"], "python -m src.web.app")
+
+    def test_runtime_status_writer_updates_json_file(self) -> None:
+        """Runtime status writer should leave a stopped status file on shutdown."""
+        status_path = PROJECT_ROOT / ".cache" / "tests" / "runtime_status.json"
+        if status_path.exists():
+            remove_path_with_retry(status_path)
+        writer = RuntimeStatusWriter(
+            status_path,
+            host="127.0.0.1",
+            port=8000,
+            started_at="2026-04-29T00:00:00Z",
+            command_line="python -m src.web.app",
+        )
+        writer.write("running")
+        running = json.loads(status_path.read_text(encoding="utf-8"))
+        self.assertEqual(running["state"], "running")
+        writer.write("stopped")
+        stopped = json.loads(status_path.read_text(encoding="utf-8"))
+        self.assertEqual(stopped["state"], "stopped")
+        self.assertIn("stopped_at", stopped)
+        remove_path_with_retry(status_path)
 
     def test_api_input_gate_returns_current_state(self) -> None:
         """Web UI should expose current input-gate state."""
@@ -2042,8 +2138,11 @@ class SmokeTests(unittest.TestCase):
         script = (PROJECT_ROOT / "start_web.ps1").read_text(encoding="utf-8")
         self.assertIn("$projectPython", script)
         self.assertIn("& $projectPython -m src.main --doctor", script)
-        self.assertIn("& $projectPython -m src.web.app", script)
+        self.assertIn('"src.web.app"', script)
+        self.assertIn("--runtime-status-file", script)
+        self.assertIn("@webArgs", script)
         self.assertIn("[string]$Preset", script)
+        self.assertIn("[string]$RuntimeStatusFile", script)
         self.assertIn("AI_TALK_CORE_WEB_PRESET", script)
         self.assertIn("profile=", script)
         self.assertNotIn("& uv run python -m src.main --doctor", script)

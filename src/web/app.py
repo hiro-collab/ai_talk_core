@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import _thread
+import argparse
+from datetime import UTC, datetime
 import hmac
 from ipaddress import ip_address
 import json
@@ -10,7 +12,10 @@ import os
 from pathlib import Path
 import queue
 import secrets
+import signal
 import shutil
+import subprocess
+import sys
 import threading
 import time
 from urllib.parse import urlsplit
@@ -57,6 +62,12 @@ ENABLE_PROCESS_SHUTDOWN_CONFIG = "ENABLE_PROCESS_SHUTDOWN"
 WEB_PRESET_CONFIG = "WEB_PRESET"
 WEB_PRESET_ENV = "AI_TALK_CORE_WEB_PRESET"
 WEB_RUNTIME_STATE_CONFIG = "WEB_RUNTIME_STATE"
+WEB_BIND_HOST_CONFIG = "WEB_BIND_HOST"
+WEB_BIND_PORT_CONFIG = "WEB_BIND_PORT"
+WEB_STARTED_AT_CONFIG = "WEB_STARTED_AT"
+RUNTIME_STATUS_WRITER_CONFIG = "RUNTIME_STATUS_WRITER"
+WEB_MODULE_NAME = "ai_talk_core.web"
+SWORD_AGENT_TOKEN_HEADER = "X-Sword-Agent-Token"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 TOKEN_PROTECTED_ENDPOINTS = {
@@ -159,7 +170,50 @@ class WebRuntimeState:
         }
 
 
-def create_app() -> Flask:
+class RuntimeStatusWriter:
+    """Write integration-friendly process status JSON for the Web server."""
+
+    def __init__(
+        self,
+        path: Path | None,
+        *,
+        host: str,
+        port: int,
+        started_at: str,
+        command_line: str | None = None,
+    ) -> None:
+        self.path = path
+        self.host = host
+        self.port = port
+        self.started_at = started_at
+        self.command_line = command_line or subprocess.list2cmdline(sys.argv)
+
+    def write(self, state: str, **extra: object) -> None:
+        """Write the current runtime status when a status path is configured."""
+        if self.path is None:
+            return
+        payload = build_runtime_status_payload(
+            state=state,
+            host=self.host,
+            port=self.port,
+            started_at=self.started_at,
+            command_line=self.command_line,
+            **extra,
+        )
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+
+def create_app(
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    runtime_status_writer: RuntimeStatusWriter | None = None,
+    started_at: str | None = None,
+) -> Flask:
     """Create the local Flask application."""
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = WEB_MAX_UPLOAD_BYTES
@@ -169,6 +223,12 @@ def create_app() -> Flask:
     app.config[ENABLE_PROCESS_SHUTDOWN_CONFIG] = True
     app.config[WEB_PRESET_CONFIG] = os.environ.get(WEB_PRESET_ENV, "").strip()
     app.config[WEB_RUNTIME_STATE_CONFIG] = WebRuntimeState()
+    app.config[WEB_BIND_HOST_CONFIG] = host
+    app.config[WEB_BIND_PORT_CONFIG] = port
+    app.config[WEB_STARTED_AT_CONFIG] = (
+        started_at or datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    )
+    app.config[RUNTIME_STATUS_WRITER_CONFIG] = runtime_status_writer
     input_gate = InputGate()
 
     @app.before_request
@@ -209,6 +269,22 @@ def create_app() -> Flask:
     @app.get("/favicon.ico")
     def favicon() -> Response:
         return Response(FAVICON_SVG, mimetype="image/svg+xml")
+
+    @app.get("/health")
+    def health() -> tuple[object, int]:
+        return jsonify(build_process_health_response()), 200
+
+    @app.post("/shutdown")
+    def shutdown() -> tuple[object, int]:
+        if shutdown_requires_token() and not has_valid_local_api_token():
+            return jsonify({"ok": False, "error": "shutdown token is required"}), 403
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            payload = {}
+        return build_shutdown_response(
+            reason=str(payload.get("reason") or request.args.get("reason") or "shutdown_endpoint"),
+            force=parse_boolish(payload.get("force", request.args.get("force"))) is True,
+        )
 
     @app.post("/transcribe-upload")
     def transcribe_upload() -> str | Response:
@@ -445,30 +521,155 @@ def create_app() -> Flask:
         force_value = (
             payload["force"] if "force" in payload else request.args.get("force")
         )
-        force = parse_boolish(force_value) is True
-        shutdown_state, should_schedule = runtime_state.request_shutdown(
+        return build_shutdown_response(
             reason=reason,
-            force=force,
+            force=parse_boolish(force_value) is True,
         )
-        if should_schedule and current_app.config.get(
-            ENABLE_PROCESS_SHUTDOWN_CONFIG,
-            True,
-        ):
-            shutdown_state = runtime_state.mark_shutdown_scheduled()
-            schedule_server_shutdown(request.environ.get("werkzeug.server.shutdown"))
-        return jsonify(
-            {
-                "ok": True,
-                "shutdown": shutdown_state,
-                "message": (
-                    "shutdown scheduled"
-                    if shutdown_state["shutdown_scheduled"]
-                    else "shutdown requested"
-                ),
-            }
-        ), 202
 
     return app
+
+
+def build_shutdown_response(reason: str, *, force: bool = False) -> tuple[object, int]:
+    """Request cooperative server shutdown and return the updated state."""
+    runtime_state = get_web_runtime_state()
+    shutdown_state, should_schedule = runtime_state.request_shutdown(
+        reason=reason,
+        force=force,
+    )
+    status_writer = get_runtime_status_writer()
+    if status_writer is not None:
+        status_writer.write("stopping", shutdown=shutdown_state)
+    if should_schedule and current_app.config.get(
+        ENABLE_PROCESS_SHUTDOWN_CONFIG,
+        True,
+    ):
+        shutdown_state = runtime_state.mark_shutdown_scheduled()
+        if status_writer is not None:
+            status_writer.write("stopping", shutdown=shutdown_state)
+        schedule_server_shutdown(request.environ.get("werkzeug.server.shutdown"))
+    return jsonify(
+        {
+            "ok": True,
+            "shutdown": shutdown_state,
+            "message": (
+                "shutdown scheduled"
+                if shutdown_state["shutdown_scheduled"]
+                else "shutdown requested"
+            ),
+        }
+    ), 202
+
+
+def shutdown_requires_token() -> bool:
+    """Return whether the unprefixed shutdown endpoint requires a token."""
+    return not is_loopback_host(get_bind_host())
+
+
+def get_bind_host() -> str:
+    """Return the configured server bind host."""
+    if has_app_context():
+        return str(current_app.config.get(WEB_BIND_HOST_CONFIG, "127.0.0.1"))
+    return "127.0.0.1"
+
+
+def get_bind_port() -> int:
+    """Return the configured server bind port."""
+    if has_app_context():
+        try:
+            return int(current_app.config.get(WEB_BIND_PORT_CONFIG, 8000))
+        except (TypeError, ValueError):
+            return 8000
+    return 8000
+
+
+def get_runtime_status_writer() -> RuntimeStatusWriter | None:
+    """Return the configured runtime status writer, if any."""
+    writer = current_app.config.get(RUNTIME_STATUS_WRITER_CONFIG)
+    return writer if isinstance(writer, RuntimeStatusWriter) else None
+
+
+def build_process_health_response() -> dict[str, object]:
+    """Return the compact health contract expected by launch supervisors."""
+    host = get_bind_host()
+    port = get_bind_port()
+    return {
+        "ok": True,
+        "module": WEB_MODULE_NAME,
+        "pid": os.getpid(),
+        "uptime_s": round(get_process_uptime_seconds(), 3),
+        "host": host,
+        "port": port,
+    }
+
+
+def get_process_uptime_seconds() -> float:
+    """Return process uptime based on the Web app startup timestamp."""
+    started_at = str(current_app.config.get(WEB_STARTED_AT_CONFIG, "")).strip()
+    try:
+        started = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0
+    return max(0.0, (datetime.now(UTC) - started).total_seconds())
+
+
+def build_runtime_status_payload(
+    *,
+    state: str,
+    host: str,
+    port: int,
+    started_at: str,
+    command_line: str,
+    **extra: object,
+) -> dict[str, object]:
+    """Build the runtime status JSON written for integration supervisors."""
+    payload: dict[str, object] = {
+        "module": WEB_MODULE_NAME,
+        "state": state,
+        "pid": os.getpid(),
+        "parent_pid": os.getppid(),
+        "started_at": started_at,
+        "host": host,
+        "port": port,
+        "health_url": build_local_url(host, port, "/health"),
+        "shutdown_url": build_local_url(host, port, "/shutdown"),
+        "command_line": command_line,
+    }
+    if state == "stopped":
+        payload["stopped_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    payload.update({key: value for key, value in extra.items() if value is not None})
+    return payload
+
+
+def build_local_url(host: str, port: int, path: str) -> str:
+    """Return a usable local URL for status files."""
+    url_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
+    if ":" in url_host and not url_host.startswith("["):
+        url_host = f"[{url_host}]"
+    return f"http://{url_host}:{port}{path}"
+
+
+def is_loopback_host(host: str) -> bool:
+    """Return whether a bind host is loopback-only."""
+    normalized = (host or "").strip().lower()
+    if normalized in {"localhost"}:
+        return True
+    try:
+        return ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def install_shutdown_signal_handlers(status_writer: RuntimeStatusWriter) -> None:
+    """Install cooperative process signal handlers for the Web server."""
+    def handle_signal(signum: int, _frame: object) -> None:
+        status_writer.write("stopping", signal=signal.Signals(signum).name)
+        print(f"ai_core Web UI received {signal.Signals(signum).name}; stopping.")
+        raise KeyboardInterrupt
+
+    for signal_name in ("SIGINT", "SIGTERM", "SIGBREAK"):
+        signum = getattr(signal, signal_name, None)
+        if signum is not None:
+            signal.signal(signum, handle_signal)
 
 
 def build_error_response(message: str, status_code: int) -> tuple[object, int]:
@@ -519,8 +720,21 @@ def get_web_runtime_state() -> WebRuntimeState:
 def has_valid_local_api_token() -> bool:
     """Return whether the request carries the per-process local API token header."""
     expected = get_local_api_token()
-    provided = request.headers.get(LOCAL_API_TOKEN_HEADER, "")
+    provided = (
+        request.headers.get(LOCAL_API_TOKEN_HEADER, "")
+        or request.headers.get(SWORD_AGENT_TOKEN_HEADER, "")
+        or parse_bearer_token(request.headers.get("Authorization", ""))
+    )
     return bool(expected and provided and hmac.compare_digest(provided, expected))
+
+
+def parse_bearer_token(value: str) -> str:
+    """Parse an Authorization: Bearer token header."""
+    prefix = "bearer "
+    normalized = (value or "").strip()
+    if normalized.lower().startswith(prefix):
+        return normalized[len(prefix):].strip()
+    return ""
 
 
 def is_allowed_local_host(host_header: str) -> bool:
@@ -968,12 +1182,66 @@ def schedule_server_shutdown(werkzeug_shutdown: object | None = None) -> None:
     timer.start()
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the Web server argument parser."""
+    parser = argparse.ArgumentParser(description="Run the local ai_core Web UI.")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind host for the Web UI. Default: 127.0.0.1",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Bind port for the Web UI. Default: 8000",
+    )
+    parser.add_argument(
+        "--runtime-status-file",
+        default=None,
+        help="Optional JSON status file for integration supervisors.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
     """Run the local Flask development server."""
-    app = create_app()
+    args = build_parser().parse_args(argv)
+    started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    status_path = (
+        Path(args.runtime_status_file).expanduser().resolve()
+        if args.runtime_status_file
+        else None
+    )
+    status_writer = RuntimeStatusWriter(
+        status_path,
+        host=args.host,
+        port=args.port,
+        started_at=started_at,
+    )
+    app = create_app(
+        host=args.host,
+        port=args.port,
+        runtime_status_writer=status_writer,
+        started_at=started_at,
+    )
+    install_shutdown_signal_handlers(status_writer)
+    status_writer.write("running")
+    final_state = "stopped"
+    final_extra: dict[str, object] = {}
     try:
-        app.run(host="127.0.0.1", port=8000, debug=False)
+        app.run(host=args.host, port=args.port, debug=False, use_reloader=False)
+    except KeyboardInterrupt:
+        return 0
+    except BaseException as exc:
+        final_state = "error"
+        final_extra = {
+            "error_type": exc.__class__.__name__,
+            "error": str(exc),
+        }
+        raise
     finally:
+        status_writer.write(final_state, **final_extra)
         print("ai_core Web UI stopped.")
     return 0
 
