@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -40,6 +41,7 @@ WEB_MIN_RECOGNIZABLE_AUDIO_SECONDS = 0.4
 WEB_FFPROBE_TIMEOUT_SECONDS = 10
 WEB_FFMPEG_TIMEOUT_SECONDS = 30
 WEB_VAD_AGGRESSIVENESS = 2
+WEB_DEBUG_ERROR_MAX_CHARS = 300
 GENERIC_INPUT_ERROR = "入力された音声ファイルを処理できませんでした。ファイル形式とサイズを確認してください。"
 GENERIC_ENVIRONMENT_ERROR = "サーバー側の音声処理環境でエラーが発生しました。"
 GENERIC_TRANSCRIPTION_ERROR = "文字起こし処理に失敗しました。"
@@ -144,7 +146,11 @@ def probe_audio_duration(audio_path: Path) -> float | None:
     except subprocess.TimeoutExpired as exc:
         raise AudioInputError("uploaded audio metadata probe timed out") from exc
     except subprocess.CalledProcessError as exc:
-        raise AudioInputError("uploaded file is not readable audio") from exc
+        detail = summarize_audio_tool_error(exc.stderr or exc.stdout)
+        message = "uploaded file is not readable audio"
+        if detail:
+            message = f"{message}: {detail}"
+        raise AudioInputError(message) from exc
 
     try:
         payload = json.loads(completed.stdout or "{}")
@@ -170,6 +176,18 @@ def validate_uploaded_audio_content(audio_path: Path) -> float | None:
     if duration > WEB_MAX_AUDIO_SECONDS:
         raise AudioInputError("uploaded audio duration exceeds the web processing limit")
     return duration
+
+
+def summarize_audio_tool_error(message: str | None) -> str:
+    """Return a short debug-safe ffmpeg/ffprobe error summary."""
+    if not message:
+        return ""
+    normalized = " ".join(message.strip().split())
+    normalized = re.sub(r"[A-Za-z]:[\\/][^\s]+", "[path]", normalized)
+    normalized = re.sub(r"(?<!:)[\\/][^\s]+", "[path]", normalized)
+    if len(normalized) > WEB_DEBUG_ERROR_MAX_CHARS:
+        return f"{normalized[:WEB_DEBUG_ERROR_MAX_CHARS]}...[truncated]"
+    return normalized
 
 
 def describe_audio_file(audio_path: Path, duration_seconds: float | None = None) -> dict[str, Any]:
@@ -267,27 +285,26 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
         validate_model_name(request_data.model_name)
         ensure_ffmpeg_available()
         temp_path.write_bytes(request_data.raw_bytes)
-        input_duration_seconds = validate_uploaded_audio_content(temp_path)
-        debug["ffprobe_duration_seconds"] = (
-            round(input_duration_seconds, 3)
-            if input_duration_seconds is not None
-            else None
-        )
-        debug["uploaded_audio"] = describe_audio_file(temp_path, input_duration_seconds)
         audio_path = temp_path
-        analysis_duration_seconds = input_duration_seconds
+        analysis_duration_seconds = None
+        debug["uploaded_audio"] = describe_audio_file(temp_path)
         if temp_path.suffix.lower() == ".webm":
             audio_path = normalize_audio_for_transcription(
                 temp_path,
                 normalized_path,
                 timeout_seconds=WEB_FFMPEG_TIMEOUT_SECONDS,
             )
-            analysis_duration_seconds = probe_audio_duration(audio_path)
             debug["webm_normalized"] = True
-            debug["normalized_audio"] = describe_audio_file(
-                audio_path,
-                analysis_duration_seconds,
-            )
+            analysis_duration_seconds = validate_uploaded_audio_content(audio_path)
+            debug["normalized_audio"] = describe_audio_file(audio_path, analysis_duration_seconds)
+        else:
+            analysis_duration_seconds = validate_uploaded_audio_content(temp_path)
+            debug["uploaded_audio"] = describe_audio_file(temp_path, analysis_duration_seconds)
+        debug["ffprobe_duration_seconds"] = (
+            round(analysis_duration_seconds, 3)
+            if analysis_duration_seconds is not None
+            else None
+        )
         skip_reason = evaluate_speech_presence(
             audio_path,
             analysis_duration_seconds,
@@ -374,16 +391,19 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
     except AudioInputError as exc:
         LOGGER.info("Rejected web transcription input: %s", exc)
         debug["error_type"] = exc.__class__.__name__
+        debug["error_detail"] = summarize_audio_tool_error(str(exc))
         error = GENERIC_INPUT_ERROR
         status_code = 400
     except AudioEnvironmentError as exc:
         LOGGER.exception("Web transcription environment failure: %s", exc)
         debug["error_type"] = exc.__class__.__name__
+        debug["error_detail"] = summarize_audio_tool_error(str(exc))
         error = GENERIC_ENVIRONMENT_ERROR
         status_code = 500
     except AudioTranscriptionError as exc:
         LOGGER.exception("Web transcription failure: %s", exc)
         debug["error_type"] = exc.__class__.__name__
+        debug["error_detail"] = summarize_audio_tool_error(str(exc))
         error = GENERIC_TRANSCRIPTION_ERROR
         status_code = 500
     finally:

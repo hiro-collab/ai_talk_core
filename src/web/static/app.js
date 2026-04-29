@@ -40,6 +40,10 @@ const endpoints = {
 const apiToken = appRoot?.dataset.apiToken || "";
 const WEB_OPTIONS_STORAGE_KEY = "ai_talk_core.web_options.v1";
 const RECORDING_CHUNK_TIMESLICE_MS = 500;
+const PREFERRED_RECORDING_MIME_TYPES = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+];
 const TRUE_OPTION_VALUES = new Set(["1", "true", "yes", "on"]);
 const FALSE_OPTION_VALUES = new Set(["0", "false", "no", "off"]);
 const OPTION_PROFILES = {
@@ -136,6 +140,16 @@ const buildClientTiming = () => ({
   client_timestamp_monotonic: performance.now() / 1000,
   client_performance_now: performance.now(),
 });
+
+const buildMediaRecorderOptions = () => {
+  if (!window.MediaRecorder?.isTypeSupported) {
+    return {};
+  }
+  const mimeType = PREFERRED_RECORDING_MIME_TYPES.find((candidate) =>
+    MediaRecorder.isTypeSupported(candidate)
+  );
+  return mimeType ? { mimeType } : {};
+};
 
 const emitTurnEvent = async (eventName, payload = {}) => {
   const turnId = activeTurnId || createTurnId();
@@ -712,7 +726,7 @@ const startRecording = async (trigger = "manual") => {
     lastTrackConstraints = audioTrack?.getConstraints?.() || {};
     setActiveMicrophone(audioTrack?.label || getSelectedMicrophoneLabel() || "ブラウザの既定マイク");
     await loadMicrophoneDevices();
-    const recorder = new MediaRecorder(activeStream);
+    const recorder = new MediaRecorder(activeStream, buildMediaRecorderOptions());
     mediaRecorder = recorder;
     renderDebug("getUserMedia ok; recorder created");
     recorder.ondataavailable = (event) => {

@@ -2544,6 +2544,10 @@ class SmokeTests(unittest.TestCase):
             output_path.write_bytes(b"fake-normalized-wav")
             return output_path
 
+        def fake_validate(audio_path: Path) -> float:
+            self.assertEqual(audio_path.suffix, ".wav")
+            return 1.9
+
         with mock.patch(
             "src.web.transcription_service.get_cached_transcription_pipeline"
         ) as pipeline_cls, mock.patch(
@@ -2552,13 +2556,10 @@ class SmokeTests(unittest.TestCase):
             "src.web.transcription_service.validate_model_name"
         ), mock.patch(
             "src.web.transcription_service.validate_uploaded_audio_content",
-            return_value=2.0,
+            side_effect=fake_validate,
         ), mock.patch(
             "src.web.transcription_service.normalize_audio_for_transcription",
             side_effect=fake_normalize,
-        ), mock.patch(
-            "src.web.transcription_service.probe_audio_duration",
-            return_value=1.9,
         ), mock.patch(
             "src.web.transcription_service.has_detectable_speech",
             return_value=False,
@@ -2577,6 +2578,65 @@ class SmokeTests(unittest.TestCase):
         self.assertGreater(response.debug["normalized_audio"]["size_bytes"], 0)
         self.assertEqual(response.debug["normalized_audio"]["duration_seconds"], 1.9)
         self.assertEqual(response.debug["skip_reason"], "vad_no_speech")
+
+    def test_webm_transcription_skips_original_duration_probe(self) -> None:
+        """Browser WebM uploads should normalize before duration probing."""
+        def fake_normalize(input_path: Path, output_path: Path, timeout_seconds: int) -> Path:
+            output_path.write_bytes(b"fake-normalized-wav")
+            return output_path
+
+        with mock.patch(
+            "src.web.transcription_service.get_cached_transcription_pipeline"
+        ) as pipeline_cls, mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.normalize_audio_for_transcription",
+            side_effect=fake_normalize,
+        ), mock.patch(
+            "src.web.transcription_service.validate_uploaded_audio_content",
+            return_value=1.0,
+        ) as validate_content, mock.patch(
+            "src.web.transcription_service.has_detectable_speech",
+            return_value=False,
+        ):
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-webm",
+                    filename="browser_recording.webm",
+                    model_name="small",
+                    language="ja",
+                )
+            )
+        pipeline_cls.assert_not_called()
+        self.assertEqual(validate_content.call_count, 1)
+        validated_path = validate_content.call_args.args[0]
+        self.assertEqual(validated_path.suffix, ".wav")
+        self.assertTrue(response.debug["webm_normalized"])
+
+    def test_web_transcription_debug_redacts_audio_tool_paths(self) -> None:
+        """Debug error details should help diagnosis without leaking local paths."""
+        with mock.patch(
+            "src.web.transcription_service.ensure_ffmpeg_available"
+        ), mock.patch(
+            "src.web.transcription_service.validate_model_name"
+        ), mock.patch(
+            "src.web.transcription_service.validate_uploaded_audio_content",
+            side_effect=AudioInputError(
+                r"uploaded file is not readable audio: C:\Users\secret\bad.webm invalid data"
+            ),
+        ):
+            response = process_web_transcription(
+                WebTranscriptionRequest(
+                    raw_bytes=b"fake-audio",
+                    filename="sample.wav",
+                    model_name="small",
+                )
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not readable audio", response.debug["error_detail"])
+        self.assertNotIn("C:\\Users", response.debug["error_detail"])
 
     def test_process_web_transcription_rejects_unsupported_extension(self) -> None:
         """Web transcription service should reject non-audio upload extensions."""
