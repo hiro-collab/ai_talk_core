@@ -309,6 +309,15 @@ curl -H "X-AI-Core-Token: <AI_TALK_CORE_WEB_TOKEN or page data-api-token value>"
 ```
 
 `/api/health` と `/api/status` は同じ形で、`server.active_transcriptions`, `server.shutdown_requested`, `stt.ffmpeg_available`, `stt.ffprobe_available`, `input_gate`, `latest_handoff` を返します。
+latency 計測用の `events.log_path` はプロジェクト相対パスで返し、ローカル OS の絶対パスは出しません。
+
+ブラウザ録音の latency 計測:
+
+- `/api/events/ingest` は UI からの `record_start` / `record_stop` などの timing event を受け付けます
+- `/api/recording-chunk` は 500ms ごとの録音チャンク境界を保存します
+- どちらも `X-AI-Core-Token` が必須で、client payload は timing 用の allowlist だけをイベントログへ残します
+- `.cache/events.jsonl` はサイズ上限を超えると `.cache/events.jsonl.1` へローテーションされます
+- 録音チャンクには per-chunk / per-turn / sequence 上限があり、古い turn ディレクトリは保持数・総量・経過時間で pruning されます。最終的な文字起こしは従来どおり `/api/transcribe-browser-recording` のアップロードを使います
 
 外部 adapter から入力ゲートを更新:
 
@@ -332,7 +341,7 @@ curl -X POST http://127.0.0.1:8000/api/shutdown \
   -d '{"reason": "batch finished"}'
 ```
 
-`/api/doctor`, `/api/health`, `/api/status`, `/api/input-gate`, `/api/*-handoff-latest`, `/api/shutdown` はローカル UI の per-process token が必要です。
+`/api/doctor`, `/api/health`, `/api/status`, `/api/input-gate`, `/api/events/*`, `/api/recording-chunk`, `/api/*-handoff-latest`, `/api/shutdown` はローカル UI の per-process token が必要です。
 進行中の転写がある場合は新規転写を受け付けず、処理完了後に停止へ進みます。
 すぐ停止したい場合は `{"force": true}` を渡せますが、Whisper/Torch の実行中処理そのものを安全に中断するものではありません。
 

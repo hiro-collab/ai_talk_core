@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-04-29 - Latency event security hardening
+
+Reviewed the updated `main` after latency event instrumentation was added.
+
+### Security risks addressed
+
+- Browser-origin event ingestion accepted arbitrary payload keys, which could
+  persist transcript-like text or local debug data into `.cache/events.jsonl`.
+- The event JSONL projection could grow without bound during repeated local
+  recording sessions.
+- Recording chunk uploads had only the whole-upload Flask limit and no
+  per-chunk, per-turn, or sequence boundary.
+- Recording chunk cache files could accumulate across repeated local recording
+  sessions.
+- Recording chunk events and health status could expose absolute local paths.
+- Transcript event metadata retained a stable content hash, which is not needed
+  for latency analysis.
+
+### Changes
+
+- Added bounded event payload sanitization for strings, lists, nesting, keys,
+  non-finite numbers, and `Path` values.
+- Added event log rotation at 5MB with a single `.1` archive.
+- Added a client event payload allowlist for `/api/events/ingest`.
+- Added recording chunk limits and removed absolute chunk paths from emitted
+  events.
+- Added recording chunk cache pruning by age, retained turn count, and total
+  cache bytes.
+- Changed health event log reporting to a project-relative cache path.
+- Kept transcript-derived event metadata to length/presence only.
+
+### Verification
+
+- `uv run python -m py_compile src\core\events.py src\web\app.py src\web\transcription_service.py smoke_test.py`
+- `uv run python -m unittest` for the added event/chunk hardening tests
+  - 8 tests
+  - OK
+- `uv run python smoke_test.py`
+  - 177 tests
+  - OK
+
 ## 2026-04-28 - Local Web API security hardening
 
 Reviewed the updated `main` after the Web integration status controls were added.

@@ -5,8 +5,10 @@ from __future__ import annotations
 import io
 import contextlib
 import json
+import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -42,6 +44,11 @@ from src.core.input_gate import (
     InputGateError,
     InputGateEvent,
     parse_input_gate_payload,
+)
+from src.core.events import (
+    TurnEventBus,
+    sanitize_event_payload,
+    text_payload_facts,
 )
 from src.core.torch_pin_plan import format_torch_pin_plan, get_torch_pin_plan
 from src.main import (
@@ -96,9 +103,13 @@ from src.web.app import (
     ENABLE_PROCESS_SHUTDOWN_CONFIG,
     LOCAL_API_TOKEN_ENV,
     WEB_PRESET_CONFIG,
+    WEB_MAX_RECORDING_CHUNK_BYTES,
+    WEB_RECORDING_CHUNK_RETENTION_SECONDS,
+    WEB_MAX_RECORDING_CHUNKS,
     build_input_gate_response,
     create_app,
     get_recording_chunk_dir,
+    prune_recording_chunk_cache,
     render_page,
 )
 from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
@@ -540,6 +551,16 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("input_gate", payload)
         self.assertIn("latest_handoff", payload)
 
+    def test_api_health_reports_relative_event_log_path(self) -> None:
+        """Status output should not expose the operator's absolute workspace root."""
+        response = self.client.get("/api/health", headers=self.local_api_headers())
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        event_log_path = Path(payload["events"]["log_path"])
+        self.assertFalse(event_log_path.is_absolute())
+        self.assertEqual(event_log_path.parts[0], ".cache")
+
     def test_api_status_alias_returns_health_payload(self) -> None:
         """Status endpoint should mirror the health shape."""
         response = self.client.get("/api/status", headers=self.local_api_headers())
@@ -653,6 +674,29 @@ class SmokeTests(unittest.TestCase):
         self.assertIn("timestamp_wall", payload["event"])
         self.assertIn("timestamp_monotonic", payload["event"])
 
+    def test_api_event_ingest_filters_unexpected_client_payload(self) -> None:
+        """Client-origin events should not persist arbitrary text-bearing fields."""
+        response = self.client.post(
+            "/api/events/ingest",
+            json={
+                "event": "record_start",
+                "turn_id": "webtestevent",
+                "source": "../bad source",
+                "payload": {
+                    "trigger": "manual",
+                    "transcript": "secret transcript",
+                    "nested": {"token": "secret"},
+                },
+            },
+            headers=self.local_api_headers(),
+        )
+        self.assertEqual(response.status_code, 202)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        event = payload["event"]
+        self.assertEqual(event["source"], "badsource")
+        self.assertEqual(event["payload"], {"trigger": "manual"})
+
     def test_api_event_ingest_requires_local_token(self) -> None:
         """Event stream inputs expose local timing state and require the UI token."""
         response = self.client.post(
@@ -660,6 +704,46 @@ class SmokeTests(unittest.TestCase):
             json={"event": "record_start", "turn_id": "webtestevent"},
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_event_payload_sanitizer_bounds_debug_data(self) -> None:
+        """Event projections should avoid absolute paths and oversized values."""
+        payload = sanitize_event_payload(
+            {
+                "path": Path("C:/Users/example/secret.wav"),
+                "long": "x" * 600,
+                "items": list(range(20)),
+            }
+        )
+        self.assertEqual(payload["path"], "secret.wav")
+        self.assertNotIn("C:/Users", str(payload))
+        self.assertTrue(str(payload["long"]).endswith("...[truncated]"))
+        self.assertEqual(payload["items"][-1], "...4 more")
+
+    def test_text_payload_facts_do_not_store_content_hash(self) -> None:
+        """Latency metadata should not retain transcript fingerprints."""
+        payload = text_payload_facts("secret phrase")
+        self.assertEqual(payload["text_length"], len("secret phrase"))
+        self.assertTrue(payload["text_present"])
+        self.assertNotIn("text_sha256", payload)
+        self.assertNotIn("secret phrase", str(payload))
+
+    def test_turn_event_bus_rotates_bounded_event_log(self) -> None:
+        """The JSONL event projection should not grow without bound."""
+        log_path = PROJECT_ROOT / ".cache" / "events_rotation_test.jsonl"
+        archive_path = Path(f"{log_path}.1")
+        if log_path.exists():
+            remove_path_with_retry(log_path)
+        if archive_path.exists():
+            remove_path_with_retry(archive_path)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("x" * 64, encoding="utf-8")
+        with mock.patch("src.core.events.MAX_EVENT_LOG_BYTES", 32):
+            bus = TurnEventBus(log_path=log_path)
+            bus.emit("test_event", turn_id="turn1", payload={"value": "ok"})
+        self.assertTrue(archive_path.exists())
+        self.assertIn('"event": "test_event"', log_path.read_text(encoding="utf-8"))
+        remove_path_with_retry(log_path)
+        remove_path_with_retry(archive_path)
 
     def test_api_recording_chunk_persists_chunk_boundary(self) -> None:
         """Browser recording chunks should have a server-side landing boundary."""
@@ -686,6 +770,58 @@ class SmokeTests(unittest.TestCase):
         self.assertTrue(chunk_path.exists())
         self.assertEqual(chunk_path.read_bytes(), b"chunk-bytes")
         remove_path_with_retry(chunk_path)
+
+    def test_api_recording_chunk_rejects_excessive_sequence(self) -> None:
+        """Chunk filenames should stay within a bounded sequence range."""
+        response = self.client.post(
+            "/api/recording-chunk",
+            data={
+                "audio_chunk": (io.BytesIO(b"chunk-bytes"), "chunk_999999.webm"),
+                "turn_id": "webtestchunk",
+                "sequence": str(WEB_MAX_RECORDING_CHUNKS + 1),
+            },
+            content_type="multipart/form-data",
+            headers=self.local_api_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_api_recording_chunk_rejects_large_chunk(self) -> None:
+        """Chunk uploads should have a tighter limit than whole recording uploads."""
+        response = self.client.post(
+            "/api/recording-chunk",
+            data={
+                "audio_chunk": (
+                    io.BytesIO(b"x" * (WEB_MAX_RECORDING_CHUNK_BYTES + 1)),
+                    "chunk_000000.webm",
+                ),
+                "turn_id": "webtestchunklarge",
+                "sequence": "0",
+            },
+            content_type="multipart/form-data",
+            headers=self.local_api_headers(),
+        )
+        self.assertEqual(response.status_code, 413)
+
+    def test_recording_chunk_cache_prunes_expired_turn_dirs(self) -> None:
+        """Chunk cache retention should remove old per-turn directories."""
+        cache_dir = PROJECT_ROOT / ".cache" / "web_recording_chunks_prune_test"
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+        expired_dir = cache_dir / "expired"
+        fresh_dir = cache_dir / "fresh"
+        expired_dir.mkdir(parents=True)
+        fresh_dir.mkdir()
+        (expired_dir / "chunk_000000.webm").write_bytes(b"expired")
+        (fresh_dir / "chunk_000000.webm").write_bytes(b"fresh")
+        old_timestamp = time.time() - WEB_RECORDING_CHUNK_RETENTION_SECONDS - 60
+        os.utime(expired_dir, (old_timestamp, old_timestamp))
+        try:
+            prune_recording_chunk_cache(cache_dir)
+            self.assertFalse(expired_dir.exists())
+            self.assertTrue(fresh_dir.exists())
+        finally:
+            if cache_dir.exists():
+                shutil.rmtree(cache_dir)
 
     def test_api_recording_chunk_requires_local_token(self) -> None:
         """Chunk upload boundaries should not be exposed without the UI token."""

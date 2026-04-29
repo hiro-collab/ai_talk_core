@@ -12,6 +12,7 @@ import queue
 import secrets
 import shutil
 import threading
+import time
 from urllib.parse import urlsplit
 
 from flask import (
@@ -25,7 +26,14 @@ from flask import (
 )
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from src.core.events import emit_event, get_event_bus, get_event_log_path, new_turn_id
+from src.core.events import (
+    MAX_EVENT_LOG_BYTES,
+    emit_event,
+    get_event_bus,
+    get_event_log_path,
+    new_turn_id,
+    normalize_event_source,
+)
 from src.core.input_gate import InputGate, InputGateError, InputGateState
 from src.core.status_report import build_doctor_status
 from src.core.handoff_bridge import build_handoff_metadata, load_handoff_bundle
@@ -62,6 +70,26 @@ TOKEN_PROTECTED_ENDPOINTS = {
     "api_agent_handoff_latest",
     "api_codex_handoff_latest",
     "api_shutdown",
+}
+WEB_RECORDING_CHUNK_TIMESLICE_MS = 500
+WEB_MAX_RECORDING_CHUNK_BYTES = 1 * 1024 * 1024
+WEB_MAX_RECORDING_CHUNKS = 720
+WEB_MAX_RECORDING_TURN_BYTES = WEB_MAX_UPLOAD_BYTES
+WEB_MAX_RECORDING_CHUNK_CACHE_BYTES = 100 * 1024 * 1024
+WEB_MAX_RECORDING_CHUNK_CACHE_TURNS = 20
+WEB_RECORDING_CHUNK_RETENTION_SECONDS = 24 * 60 * 60
+CLIENT_EVENT_PAYLOAD_KEYS = {
+    "blob_size_bytes",
+    "chunk_count",
+    "chunk_sequence",
+    "mime_type",
+    "timeslice_ms",
+    "trigger",
+}
+CLIENT_EVENT_TIMING_KEYS = {
+    "client_timestamp_wall",
+    "client_timestamp_monotonic",
+    "client_performance_now",
 }
 
 
@@ -239,13 +267,21 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": "audio_chunk is required"}), 400
         if sequence is None:
             return jsonify({"ok": False, "error": "sequence must be a non-negative integer"}), 400
+        if sequence > WEB_MAX_RECORDING_CHUNKS:
+            return jsonify({"ok": False, "error": "sequence exceeds recording chunk limit"}), 400
         raw_bytes = file_storage.read()
         if not raw_bytes:
             return jsonify({"ok": False, "error": "audio_chunk is empty"}), 400
-        if len(raw_bytes) > WEB_MAX_UPLOAD_BYTES:
+        if len(raw_bytes) > WEB_MAX_RECORDING_CHUNK_BYTES:
             return jsonify({"ok": False, "error": "audio_chunk is too large"}), 413
         chunk_dir = get_recording_chunk_dir(turn_id)
-        chunk_path = chunk_dir / f"chunk_{sequence:06d}.webm"
+        chunk_path = get_recording_chunk_path(chunk_dir, sequence)
+        if (
+            get_recording_chunk_total_bytes(chunk_dir, exclude_path=chunk_path)
+            + len(raw_bytes)
+            > WEB_MAX_RECORDING_TURN_BYTES
+        ):
+            return jsonify({"ok": False, "error": "recording turn is too large"}), 413
         chunk_path.write_bytes(raw_bytes)
         is_final = parse_boolish(request.form.get("is_final")) is True
         event = emit_event(
@@ -256,7 +292,7 @@ def create_app() -> Flask:
                 "sequence": sequence,
                 "size_bytes": len(raw_bytes),
                 "is_final": is_final,
-                "path": chunk_path,
+                "filename": chunk_path.name,
                 "mime_type": file_storage.mimetype,
             },
         )
@@ -282,17 +318,14 @@ def create_app() -> Flask:
         event_payload = payload.get("payload")
         if not isinstance(event_payload, dict):
             event_payload = {}
-        for key in (
-            "client_timestamp_wall",
-            "client_timestamp_monotonic",
-            "client_performance_now",
-        ):
+        event_payload = filter_client_event_payload(event_payload)
+        for key in CLIENT_EVENT_TIMING_KEYS:
             if key in payload:
                 event_payload[key] = payload[key]
         event = emit_event(
             event_name,
             turn_id=turn_id,
-            source=str(payload.get("source") or "web-ui"),
+            source=normalize_event_source(payload.get("source"), default="web-ui"),
             payload=event_payload,
         )
         return jsonify({"ok": True, "event": event.to_payload()}), 202
@@ -561,7 +594,8 @@ def build_health_response(
         "events": {
             "ready": True,
             "stream": "/api/events",
-            "log_path": str(get_event_log_path()),
+            "log_path": str(project_relative_path(get_event_log_path())),
+            "max_log_bytes": MAX_EVENT_LOG_BYTES,
         },
         "input_gate": input_gate_state.to_payload(),
         "latest_handoff": latest_handoff,
@@ -738,15 +772,142 @@ def parse_nonnegative_int(value: object) -> int | None:
     return parsed
 
 
+def filter_client_event_payload(payload: dict[str, object]) -> dict[str, object]:
+    """Keep only timing fields the browser UI is expected to send."""
+    return {
+        str(key): value
+        for key, value in payload.items()
+        if key in CLIENT_EVENT_PAYLOAD_KEYS
+    }
+
+
 def get_recording_chunk_dir(turn_id: str) -> Path:
     """Return the server-side chunk landing directory for one turn."""
     safe_turn_id = normalize_turn_id(turn_id)
     if not safe_turn_id:
         raise ValueError("invalid turn_id")
     project_root = Path(__file__).resolve().parents[2]
-    chunk_dir = project_root / ".cache" / "web_recording_chunks" / safe_turn_id
+    cache_dir = project_root / ".cache" / "web_recording_chunks"
+    chunk_dir = cache_dir / safe_turn_id
+    if not chunk_dir.exists():
+        prune_recording_chunk_cache(cache_dir)
     chunk_dir.mkdir(parents=True, exist_ok=True)
     return chunk_dir
+
+
+def get_recording_chunk_path(chunk_dir: Path, sequence: int) -> Path:
+    """Return a bounded chunk path for one sequence number."""
+    if sequence < 0 or sequence > WEB_MAX_RECORDING_CHUNKS:
+        raise ValueError("recording chunk sequence is out of range")
+    safe_dir = chunk_dir.resolve()
+    chunk_path = (safe_dir / f"chunk_{sequence:06d}.webm").resolve()
+    if not chunk_path.is_relative_to(safe_dir):
+        raise ValueError("recording chunk path escaped the cache directory")
+    return chunk_path
+
+
+def get_recording_chunk_total_bytes(
+    chunk_dir: Path,
+    *,
+    exclude_path: Path | None = None,
+) -> int:
+    """Return the current byte total for one turn's server-side chunks."""
+    if not chunk_dir.exists():
+        return 0
+    safe_exclude = exclude_path.resolve() if exclude_path is not None else None
+    total = 0
+    for path in chunk_dir.glob("chunk_*.webm"):
+        try:
+            if safe_exclude is not None and path.resolve() == safe_exclude:
+                continue
+            total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def prune_recording_chunk_cache(cache_dir: Path) -> None:
+    """Remove old browser-recording chunk directories from the local cache."""
+    if not cache_dir.exists():
+        return
+    safe_cache_dir = cache_dir.resolve()
+    now = time.time()
+    try:
+        turn_dirs = [
+            path
+            for path in cache_dir.iterdir()
+            if path.is_dir() and path.resolve().is_relative_to(safe_cache_dir)
+        ]
+    except OSError:
+        return
+    for turn_dir in list(turn_dirs):
+        try:
+            if now - turn_dir.stat().st_mtime > WEB_RECORDING_CHUNK_RETENTION_SECONDS:
+                remove_recording_chunk_dir(safe_cache_dir, turn_dir)
+                turn_dirs.remove(turn_dir)
+        except OSError:
+            continue
+
+    turn_dirs = sorted(
+        [path for path in turn_dirs if path.exists()],
+        key=lambda path: path.stat().st_mtime if path.exists() else 0,
+        reverse=True,
+    )
+    for turn_dir in turn_dirs[WEB_MAX_RECORDING_CHUNK_CACHE_TURNS:]:
+        remove_recording_chunk_dir(safe_cache_dir, turn_dir)
+
+    remaining_dirs = [
+        path
+        for path in turn_dirs[:WEB_MAX_RECORDING_CHUNK_CACHE_TURNS]
+        if path.exists()
+    ]
+    while (
+        get_recording_chunk_cache_total_bytes(remaining_dirs)
+        > WEB_MAX_RECORDING_CHUNK_CACHE_BYTES
+    ):
+        if not remaining_dirs:
+            break
+        oldest = min(
+            remaining_dirs,
+            key=lambda path: path.stat().st_mtime if path.exists() else 0,
+        )
+        remove_recording_chunk_dir(safe_cache_dir, oldest)
+        remaining_dirs = [path for path in remaining_dirs if path.exists()]
+
+
+def get_recording_chunk_cache_total_bytes(turn_dirs: list[Path]) -> int:
+    """Return recursive size for selected recording chunk turn directories."""
+    total = 0
+    for turn_dir in turn_dirs:
+        try:
+            total += sum(
+                path.stat().st_size
+                for path in turn_dir.rglob("chunk_*.webm")
+                if path.is_file()
+            )
+        except OSError:
+            continue
+    return total
+
+
+def remove_recording_chunk_dir(cache_dir: Path, turn_dir: Path) -> None:
+    """Remove one cache child only after confirming it is under the cache root."""
+    try:
+        safe_turn_dir = turn_dir.resolve()
+    except OSError:
+        return
+    if not safe_turn_dir.is_relative_to(cache_dir):
+        return
+    shutil.rmtree(safe_turn_dir, ignore_errors=True)
+
+
+def project_relative_path(path: Path) -> Path:
+    """Return a project-relative path where possible to avoid leaking local roots."""
+    project_root = Path(__file__).resolve().parents[2]
+    try:
+        return path.resolve().relative_to(project_root.resolve())
+    except ValueError:
+        return Path(path.name)
 
 
 def format_sse_event(payload: dict[str, object], event_name: str) -> str:
