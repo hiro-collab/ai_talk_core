@@ -33,6 +33,7 @@ from src.core.events import (
     get_event_log_path,
     new_turn_id,
     normalize_event_source,
+    read_event_log_events,
 )
 from src.core.input_gate import InputGate, InputGateError, InputGateState
 from src.core.status_report import build_doctor_status
@@ -78,6 +79,7 @@ WEB_MAX_RECORDING_TURN_BYTES = WEB_MAX_UPLOAD_BYTES
 WEB_MAX_RECORDING_CHUNK_CACHE_BYTES = 100 * 1024 * 1024
 WEB_MAX_RECORDING_CHUNK_CACHE_TURNS = 20
 WEB_RECORDING_CHUNK_RETENTION_SECONDS = 24 * 60 * 60
+WEB_EVENT_TRACE_DEFAULT_LIMIT = 100
 CLIENT_EVENT_PAYLOAD_KEYS = {
     "blob_size_bytes",
     "chunk_count",
@@ -331,7 +333,22 @@ def create_app() -> Flask:
         return jsonify({"ok": True, "event": event.to_payload()}), 202
 
     @app.get("/api/events")
-    def api_events() -> Response:
+    def api_events() -> Response | tuple[object, int]:
+        if parse_boolish(request.args.get("once")) is True:
+            turn_id = normalize_turn_id(request.args.get("turn_id"))
+            events = read_event_log_events(
+                limit=resolve_event_trace_limit(request.args.get("limit")),
+                turn_id=turn_id or None,
+            )
+            return jsonify(
+                {
+                    "ok": True,
+                    "count": len(events),
+                    "events": events,
+                    "projection": "events.jsonl",
+                }
+            ), 200
+
         def stream_events() -> object:
             yield ": connected\n\n"
             with get_event_bus().subscribe() as subscriber:
@@ -656,6 +673,20 @@ def process_transcription_request(
         return False
 
     turn_id = normalize_turn_id(request.form.get("turn_id")) or new_turn_id("web")
+    if request.endpoint in {
+        "api_transcribe_browser_recording",
+        "transcribe_browser_recording",
+    }:
+        emit_event(
+            "record_stop",
+            turn_id=turn_id,
+            source="web",
+            payload={
+                "transport": "final_upload",
+                "filename": Path(filename).name,
+                "size_bytes": len(raw_bytes),
+            },
+        )
     try:
         response = process_web_transcription(
             WebTranscriptionRequest(
@@ -769,6 +800,14 @@ def parse_nonnegative_int(value: object) -> int | None:
         return None
     if parsed < 0:
         return None
+    return parsed
+
+
+def resolve_event_trace_limit(value: object) -> int:
+    """Return a bounded event trace read limit."""
+    parsed = parse_nonnegative_int(value)
+    if parsed is None or parsed <= 0:
+        return WEB_EVENT_TRACE_DEFAULT_LIMIT
     return parsed
 
 

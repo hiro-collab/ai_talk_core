@@ -9,6 +9,12 @@ import time
 from pathlib import Path
 
 from src.core.agent_instruction import build_agent_instruction
+from src.core.events import (
+    emit_event,
+    new_turn_id,
+    normalize_event_turn_id,
+    text_payload_facts,
+)
 from src.core.handoff_bridge import save_handoff_bundle
 from src.core.input_gate import InputGate, InputGateState
 from src.core.pipeline import AudioChunk, TranscriptionPipeline, TranscriptionResult
@@ -81,7 +87,13 @@ def print_agent_instruction_only(text: str) -> None:
     print(draft.instruction)
 
 
-def save_handoff_if_requested(text: str, output_path: str | None) -> None:
+def save_handoff_if_requested(
+    text: str,
+    output_path: str | None,
+    *,
+    turn_id: str | None = None,
+    source: str = "cli",
+) -> None:
     """Save a handoff bundle to disk when requested."""
     if not output_path:
         return
@@ -91,6 +103,17 @@ def save_handoff_if_requested(text: str, output_path: str | None) -> None:
     if saved_paths is None:
         print(f"[command-file] no instruction draft available for {output_path}")
         return
+    if turn_id:
+        emit_event(
+            "handoff_saved",
+            turn_id=turn_id,
+            source=source,
+            payload={
+                "json_filename": saved_paths.json_path.name,
+                "text_filename": saved_paths.text_path.name,
+                "transcript": text_payload_facts(text),
+            },
+        )
     print(f"[command-file] {saved_paths.json_path}")
     print(f"[command-text] {saved_paths.text_path}")
 
@@ -503,12 +526,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to save a handoff payload JSON file.",
     )
+    parser.add_argument(
+        "--turn-id",
+        default=None,
+        help="Optional turn id for emitted latency events.",
+    )
     return parser
 
 
 def main() -> int:
     """Run the transcription CLI."""
     args = build_parser().parse_args()
+    turn_id = (
+        normalize_event_turn_id(args.turn_id)
+        if args.turn_id
+        else new_turn_id("cli")
+    )
 
     try:
         if args.list_mic_profiles:
@@ -621,6 +654,17 @@ def main() -> int:
                 backend=args.mic_backend,
                 trim_silence_enabled=not args.no_trim_silence,
             )
+            emit_event(
+                "record_stop",
+                turn_id=turn_id,
+                source="cli",
+                payload={
+                    "transport": "cli_microphone",
+                    "filename": audio_path.name,
+                    "duration_seconds": args.duration,
+                    "backend": args.mic_backend,
+                },
+            )
         else:
             if not args.audio_file:
                 raise AudioInputError(
@@ -628,13 +672,54 @@ def main() -> int:
                 )
             audio_path = Path(args.audio_file).expanduser().resolve()
             validate_audio_file(audio_path)
-        pipeline = TranscriptionPipeline(model_name=args.model)
-        text = pipeline.transcribe_chunk(
-            AudioChunk(
-                path=audio_path,
-                source="microphone" if args.mic else "file",
-            ),
-            language=args.language,
+        source = "microphone" if args.mic else "file"
+        emit_event(
+            "stt_start",
+            turn_id=turn_id,
+            source="cli",
+            payload={
+                "model": args.model,
+                "language": args.language or "",
+                "source": source,
+                "filename": audio_path.name,
+            },
+        )
+        try:
+            pipeline = TranscriptionPipeline(model_name=args.model)
+            text = pipeline.transcribe_chunk(
+                AudioChunk(
+                    path=audio_path,
+                    source=source,
+                ),
+                language=args.language,
+            )
+        except Exception as exc:
+            emit_event(
+                "stt_done",
+                turn_id=turn_id,
+                source="cli",
+                payload={
+                    "model": args.model,
+                    "status": "error",
+                    "error_type": exc.__class__.__name__,
+                },
+            )
+            raise
+        emit_event(
+            "stt_done",
+            turn_id=turn_id,
+            source="cli",
+            payload={
+                "model": args.model,
+                "status": "ok",
+                **text_payload_facts(text),
+            },
+        )
+        emit_event(
+            "stt_final",
+            turn_id=turn_id,
+            source="cli",
+            payload=text_payload_facts(text),
         )
     except AudioInputError as exc:
         print(f"Input error: {exc}")
@@ -651,7 +736,7 @@ def main() -> int:
     else:
         print(text)
         print_agent_instruction_if_requested(text, emit_command=args.emit_command)
-    save_handoff_if_requested(text, args.command_output)
+    save_handoff_if_requested(text, args.command_output, turn_id=turn_id)
     return 0
 
 

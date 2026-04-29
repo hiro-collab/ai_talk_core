@@ -47,6 +47,8 @@ from src.core.input_gate import (
 )
 from src.core.events import (
     TurnEventBus,
+    emit_event,
+    read_event_log_events,
     sanitize_event_payload,
     text_payload_facts,
 )
@@ -112,7 +114,11 @@ from src.web.app import (
     prune_recording_chunk_cache,
     render_page,
 )
-from src.web.transcription_service import WebTranscriptionRequest, process_web_transcription
+from src.web.transcription_service import (
+    WebTranscriptionRequest,
+    WebTranscriptionResponse,
+    process_web_transcription,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -744,6 +750,72 @@ class SmokeTests(unittest.TestCase):
         self.assertIn('"event": "test_event"', log_path.read_text(encoding="utf-8"))
         remove_path_with_retry(log_path)
         remove_path_with_retry(archive_path)
+
+    def test_read_event_log_events_filters_by_turn_id(self) -> None:
+        """One-shot trace readers should be able to filter events by turn id."""
+        log_path = PROJECT_ROOT / ".cache" / "tests" / "events_read_test.jsonl"
+        if log_path.exists():
+            remove_path_with_retry(log_path)
+        bus = TurnEventBus(log_path=log_path)
+        bus.emit("trace_one", turn_id="trace_a", payload={"value": "a"})
+        bus.emit("trace_two", turn_id="trace_b", payload={"value": "b"})
+        events = read_event_log_events(log_path=log_path, limit=10, turn_id="trace_b")
+        self.assertEqual([event["event"] for event in events], ["trace_two"])
+        remove_path_with_retry(log_path)
+
+    def test_api_events_once_returns_json_trace(self) -> None:
+        """/api/events?once=1 should expose a bounded JSON trace."""
+        turn_id = f"oncetest{int(time.time() * 1000)}"
+        emit_event("trace_probe", turn_id=turn_id, source="test", payload={"value": "ok"})
+        response = self.client.get(
+            f"/api/events?once=1&turn_id={turn_id}&limit=5",
+            headers=self.local_api_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIsNotNone(payload)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["projection"], "events.jsonl")
+        self.assertGreaterEqual(payload["count"], 1)
+        self.assertEqual(payload["events"][-1]["event"], "trace_probe")
+        self.assertEqual(payload["events"][-1]["turn_id"], turn_id)
+
+    def test_api_browser_recording_emits_server_record_stop(self) -> None:
+        """Browser final uploads should create a stable server-side record_stop event."""
+        turn_id = f"recordstop{int(time.time() * 1000)}"
+        response_payload = WebTranscriptionResponse(
+            message="ok",
+            transcript="",
+            command="",
+            command_path="",
+            command_text_path="",
+            error="",
+            status_code=200,
+            turn_id=turn_id,
+            debug={},
+        )
+        with mock.patch(
+            "src.web.app.process_web_transcription",
+            return_value=response_payload,
+        ):
+            response = self.client.post(
+                "/api/transcribe-browser-recording",
+                data={
+                    "audio_blob": (io.BytesIO(b"fake-audio"), "browser_recording.webm"),
+                    "turn_id": turn_id,
+                },
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(response.status_code, 200)
+        events = read_event_log_events(limit=20, turn_id=turn_id)
+        record_events = [
+            event for event in events if event.get("event") == "record_stop"
+        ]
+        self.assertTrue(record_events)
+        record_payload = record_events[-1]["payload"]
+        self.assertEqual(record_payload["transport"], "final_upload")
+        self.assertEqual(record_payload["filename"], "browser_recording.webm")
+        self.assertEqual(record_payload["size_bytes"], len(b"fake-audio"))
 
     def test_api_recording_chunk_persists_chunk_boundary(self) -> None:
         """Browser recording chunks should have a server-side landing boundary."""
@@ -2289,12 +2361,23 @@ class SmokeTests(unittest.TestCase):
                 WebTranscriptionRequest(
                     raw_bytes=b"fake-audio",
                     filename="sample.wav",
+                    turn_id="handofftest",
                     model_name="small",
                     save_handoff=True,
                 )
             )
         self.assertEqual(response.command_path, str(saved_paths.json_path))
         self.assertEqual(response.command_text_path, str(saved_paths.text_path))
+        events = read_event_log_events(limit=10, turn_id="handofftest")
+        handoff_events = [
+            event for event in events if event.get("event") == "handoff_saved"
+        ]
+        self.assertTrue(handoff_events)
+        handoff_payload = handoff_events[-1]["payload"]
+        self.assertEqual(handoff_payload["json_filename"], "web_latest.json")
+        self.assertEqual(handoff_payload["text_filename"], "web_latest.txt")
+        self.assertIn("transcript", handoff_payload)
+        self.assertNotIn("依存関係", str(handoff_payload))
 
     def test_process_web_transcription_skips_short_audio_before_whisper(self) -> None:
         """Very short recordings should not be sent to Whisper."""

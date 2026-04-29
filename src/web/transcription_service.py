@@ -360,6 +360,17 @@ def process_web_transcription(request_data: WebTranscriptionRequest) -> WebTrans
                 if saved_paths is not None:
                     command_path = str(saved_paths.json_path)
                     command_text_path = str(saved_paths.text_path)
+                    emit_event(
+                        "handoff_saved",
+                        turn_id=turn_id,
+                        source=request_data.source,
+                        payload={
+                            "json_filename": saved_paths.json_path.name,
+                            "text_filename": saved_paths.text_path.name,
+                            "transcript": text_payload_facts(transcript),
+                            "command": text_payload_facts(command),
+                        },
+                    )
     except AudioInputError as exc:
         LOGGER.info("Rejected web transcription input: %s", exc)
         debug["error_type"] = exc.__class__.__name__

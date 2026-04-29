@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
@@ -24,6 +25,7 @@ MAX_EVENT_PAYLOAD_KEYS = 32
 MAX_EVENT_PAYLOAD_DEPTH = 4
 MAX_EVENT_STRING_LENGTH = 512
 MAX_EVENT_LIST_ITEMS = 16
+MAX_EVENT_READ_LIMIT = 1000
 
 
 @dataclass(frozen=True)
@@ -142,6 +144,36 @@ def get_project_root() -> Path:
 def get_event_log_path() -> Path:
     """Return the default events.jsonl projection path."""
     return get_project_root() / ".cache" / "events.jsonl"
+
+
+def read_event_log_events(
+    *,
+    log_path: Path | None = None,
+    limit: int = 100,
+    turn_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return recent JSONL event projections for one-shot trace consumers."""
+    event_log_path = log_path or get_event_log_path()
+    safe_limit = max(1, min(limit, MAX_EVENT_READ_LIMIT))
+    safe_turn_id = normalize_event_turn_id(turn_id) if turn_id else ""
+    if not event_log_path.exists():
+        return []
+    events: deque[dict[str, Any]] = deque(maxlen=safe_limit)
+    try:
+        with event_log_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                if safe_turn_id and event.get("turn_id") != safe_turn_id:
+                    continue
+                events.append(event)
+    except OSError:
+        return []
+    return list(events)
 
 
 def new_turn_id(prefix: str = "turn") -> str:
