@@ -17,8 +17,8 @@ Whisper を使った転写は中核の手段であり、主目的は `voice capt
 GitHub から clone して初回セットアップする:
 
 ```bash
-git clone https://github.com/hiro-collab/ai_talk_core.git
-cd ai_talk_core
+git clone https://github.com/hiro-collab/ai-talk-core.git
+cd ai-talk-core
 sudo apt update
 sudo apt install -y ffmpeg alsa-utils
 uv sync
