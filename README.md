@@ -75,7 +75,7 @@ uv run python -m src.main --mic-loop --duration 3 --language ja
 handoff JSON と text prompt を保存:
 
 ```bash
-uv run python -m src.main --mic --duration 5 --language ja --handoff-output .cache/codex/manual.json
+uv run python -m src.main --mic --duration 5 --language ja --handoff-output .cache/handoff/manual.json
 ```
 
 診断:
