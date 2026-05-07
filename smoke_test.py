@@ -811,13 +811,13 @@ class SmokeTests(unittest.TestCase):
         """Event projections should avoid absolute paths and oversized values."""
         payload = sanitize_event_payload(
             {
-                "path": Path("C:/Users/example/secret.wav"),
+                "path": Path("C:/Example/secret.wav"),
                 "long": "x" * 600,
                 "items": list(range(20)),
             }
         )
         self.assertEqual(payload["path"], "secret.wav")
-        self.assertNotIn("C:/Users", str(payload))
+        self.assertNotIn("C:/Example", str(payload))
         self.assertTrue(str(payload["long"]).endswith("...[truncated]"))
         self.assertEqual(payload["items"][-1], "...4 more")
 
@@ -2624,7 +2624,7 @@ class SmokeTests(unittest.TestCase):
         ), mock.patch(
             "src.web.transcription_service.validate_uploaded_audio_content",
             side_effect=AudioInputError(
-                r"uploaded file is not readable audio: C:\Users\secret\bad.webm invalid data"
+                r"uploaded file is not readable audio: C:\Example\secret\bad.webm invalid data"
             ),
         ):
             response = process_web_transcription(
@@ -2636,7 +2636,7 @@ class SmokeTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 400)
         self.assertIn("not readable audio", response.debug["error_detail"])
-        self.assertNotIn("C:\\Users", response.debug["error_detail"])
+        self.assertNotIn("C:\\Example", response.debug["error_detail"])
 
     def test_process_web_transcription_rejects_unsupported_extension(self) -> None:
         """Web transcription service should reject non-audio upload extensions."""

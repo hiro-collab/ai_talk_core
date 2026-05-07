@@ -64,7 +64,7 @@
 
 ### Message to `worker/web-ui`
 
-- [`src/web/app.py`](/home/hiromu/projects/ai_core/src/web/app.py) の UI 表示整理を `web/ui` 層の中で閉じて進める
+- [`src/web/app.py`](<workspace>/ai-talk-core/src/web/app.py) の UI 表示整理を `web/ui` 層の中で閉じて進める
 - 主導線、status 面、結果ラベル、次アクションの見せ方は調整してよい
 - API / handoff 契約は変更しない
 - 直近の Hero 圧縮、status 圧縮、結果ビュー文言整理は妥当

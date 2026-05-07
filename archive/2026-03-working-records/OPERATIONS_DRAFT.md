@@ -44,7 +44,7 @@
 
 - 上位ディレクトリを散らかさないため、worktree はリポジトリ配下に閉じる
 - 候補パス:
-  - `/home/hiromu/projects/ai_core/.worktrees/`
+  - `<workspace>/ai-talk-core/.worktrees/`
 - 例:
   - `.worktrees/core-session`
   - `.worktrees/drivers-handoff`
@@ -66,26 +66,26 @@
 - 候補:
   - `worker/web-ui`
   - `worker/drivers-handoff`
-- main worktree は `/home/hiromu/projects/ai_core` のまま使う
+- main worktree は `<workspace>/ai-talk-core` のまま使う
 
 ### Example commands draft
 
 `.worktrees` ディレクトリを作る:
 
 ```bash
-mkdir -p /home/hiromu/projects/ai_core/.worktrees
+mkdir -p <workspace>/ai-talk-core/.worktrees
 ```
 
 `Worker_web_ui` を作る:
 
 ```bash
-git worktree add /home/hiromu/projects/ai_core/.worktrees/web-ui -b worker/web-ui
+git worktree add <workspace>/ai-talk-core/.worktrees/web-ui -b worker/web-ui
 ```
 
 `Worker_drivers_handoff` を作る:
 
 ```bash
-git worktree add /home/hiromu/projects/ai_core/.worktrees/drivers-handoff -b worker/drivers-handoff
+git worktree add <workspace>/ai-talk-core/.worktrees/drivers-handoff -b worker/drivers-handoff
 ```
 
 確認:
@@ -97,18 +97,18 @@ git worktree list
 ### Working locations draft
 
 - main / integrator:
-  - `/home/hiromu/projects/ai_core`
+  - `<workspace>/ai-talk-core`
 - `Worker_web_ui`:
-  - `/home/hiromu/projects/ai_core/.worktrees/web-ui`
+  - `<workspace>/ai-talk-core/.worktrees/web-ui`
 - `Worker_drivers_handoff`:
-  - `/home/hiromu/projects/ai_core/.worktrees/drivers-handoff`
+  - `<workspace>/ai-talk-core/.worktrees/drivers-handoff`
 
 ### Removal draft
 
 - 未統合で不要になった Worker は、その worktree だけ削除する
 
 ```bash
-git worktree remove /home/hiromu/projects/ai_core/.worktrees/web-ui
+git worktree remove <workspace>/ai-talk-core/.worktrees/web-ui
 git branch -D worker/web-ui
 ```
 

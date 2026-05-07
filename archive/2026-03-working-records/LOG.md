@@ -15,7 +15,7 @@
 - `uv run python -m src.main data/mic_speech_test_c920.wav --language ja` を実行
 - C920 からの録音を Whisper で文字起こしできることを確認
 - 認識結果は崩れがあり、マイク位置や入力条件の調整余地があることを確認
-- `tree -L 3 /home/hiromu` を実行し、ホーム配下の構成を確認
+- `tree -L 3 <home>` を実行し、ホーム配下の構成を確認
 - `rg --files` を実行し、`~/projects/ai_core` のファイル一覧を確認
 - `sed -n '1,220p' README.md` を実行し、README の内容を確認
 - `sed -n '1,220p' pyproject.toml` を実行し、依存定義を確認
@@ -25,7 +25,7 @@
 - `uv run python -m src.main data/sample_audio.mp3 --language ja` を実行し、文字起こし成功を再確認
 - `ls -lh models/whisper data/sample_audio.mp3` を実行し、`small.pt` が 462M、`data/sample_audio.mp3` が 126K であることを確認
 - `uv run python -c "from src.io.audio import load_transcription_model; ..."` を実行し、ロードした Whisper モデルの `device` が `cuda:0` であることを確認
-- `uv run python -m src.main no_such_file.wav` を実行し、`Input error: audio file not found: /home/hiromu/projects/ai_core/no_such_file.wav` を確認
+- `uv run python -m src.main no_such_file.wav` を実行し、`Input error: audio file not found: <workspace>/ai-talk-core/no_such_file.wav` を確認
 - `uv run python -m src.main data/sample_audio.mp3 --model notamodel` を実行し、`Environment error: failed to load Whisper model 'notamodel': Model notamodel not found ...` を確認
 - `src/main.py` で入力検証と `ffmpeg` 確認をモデルロード前に移動
 - `src/io/audio.py` で `validate_model_name()` を追加
