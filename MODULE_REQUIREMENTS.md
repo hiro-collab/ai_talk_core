@@ -1,6 +1,6 @@
 # Module Requirements
 
-この文書は `ai-talk-core` の要求仕様だけを置く正本です。責務境界は `docs/module-responsibilities.md`、接続契約は `docs/integration-contract.md`、廃止/保留導線は `docs/retired-paths.md` に分けます。
+この文書は `ai-talk-core` の要求仕様だけを置きます。責務境界は `docs/module-responsibilities.md`、接続契約は `docs/integration-contract.md`、廃止/保留導線は `docs/retired-paths.md` に分けます。
 
 ## 目的
 
