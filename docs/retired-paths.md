@@ -44,3 +44,7 @@
 ## Archive Use
 
 archive を読むときは、ファイル名や見出しではなく、日付と文脈を確認してください。archive 内の提案、レビュー、作業指示は、そのまま採用済み仕様として扱いません。
+
+archive から仕様へ戻す場合は、該当内容を `MODULE_REQUIREMENTS.md`、`docs/module-responsibilities.md`、または `docs/integration-contract.md` のどれかへ短く再記述します。archive への参照だけでは実装判断の根拠にしません。
+
+変更履歴、検証ログ、作業メモは仕様文書へ戻しません。必要な事実だけを抽出して、要求、責務境界、接続契約のいずれかとして書ける場合だけ採用します。

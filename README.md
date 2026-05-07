@@ -122,4 +122,5 @@ AI_TALK_CORE_WEB_TOKEN=local-dev-token uv run python -m src.web.app
 - [docs/integration-contract.md](docs/integration-contract.md): CLI/API/handoff の接続契約
 - [docs/retired-paths.md](docs/retired-paths.md): 通常導線から外した記録と保留導線
 - [AGENTS.md](AGENTS.md): Codex / contributor 向けの短い作業入口
-- `archive/2026-03-working-records/`: 作業ログ、レビュー記録、一時運用案の保管場所
+
+履歴確認だけが目的の場合は `archive/2026-03-working-records/` を見ます。実装判断の参照先にはしません。

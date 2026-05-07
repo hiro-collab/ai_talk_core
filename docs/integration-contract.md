@@ -32,6 +32,32 @@ uv run python -m src.agent_runner --source web --template cat
 
 `src.codex_handoff` と `src.codex_runner` は互換入口です。統合側の新規接続は `agent_*` 側を使います。
 
+## Compatibility Policy
+
+主導線:
+
+- `src.agent_handoff`
+- `src.agent_runner`
+- `/api/agent-handoff-latest`
+- `instruction_only`
+- `save_handoff`
+- `--handoff-output`
+
+互換入口:
+
+- `src.codex_handoff`
+- `src.codex_runner`
+- `/api/codex-handoff-latest`
+- `command`
+- `command_only`
+- `save_command`
+- `--command-output`
+- `.cache/codex/`
+
+互換入口は、統合側の呼び出し元と smoke coverage が主導線へ移ったことを確認し、この文書と該当テストを同じ変更で更新するまで残します。削除判断は archive の作業ログから復活させず、接続契約の変更として扱います。
+
+互換入口を残す間は、主導線と同じ transcript / instruction / handoff を返します。挙動を分岐させません。
+
 ## Web Server
 
 ```bash
